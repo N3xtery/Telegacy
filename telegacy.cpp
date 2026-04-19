@@ -678,7 +678,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 	if (es) SendMessage(chat, EM_SETSEL, cr_startmsg.cpMin + written - written_info, cr_startmsg.cpMin + written);
 	SendMessage(chat, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
 	if (es) SendMessage(chat, EM_SETSEL, cr_startmsg.cpMin, cr_startmsg.cpMin + written);
-
+    
 	cf.dwMask = CFM_COLOR | CFM_BOLD;
 	if (!service && header) {
 		SendMessage(chat, EM_SETSEL, cr_startmsg.cpMin, cr_startmsg.cpMin + sender_len);

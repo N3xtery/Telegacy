@@ -1246,7 +1246,7 @@ int set_reactions(BYTE* reactions, Message* message_footer, std::vector<int>* fo
 			} else swprintf(file_name, L"%s\\", get_path(exe_path, L"emojis"));
 			int react_count = read_le(reactions + offset, 4);
 			offset += 4;
-			wchar_t divider[10];
+			wchar_t divider[20];
 			if (!firstemojiset) swprintf(divider, L" | %d ", react_count);
 			else swprintf(divider, L"   %d ", react_count);
 			SETTEXTEX st;
