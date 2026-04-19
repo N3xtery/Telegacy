@@ -12,7 +12,7 @@ SetCompressor /SOLID lzma
 ShowInstDetails show
 ShowUninstDetails show
 
-!define MUI_ICON "Telegacy\telegacy.ico"
+!define MUI_ICON "telegacy.ico"
 !define MUI_UNICON "uninstall.ico"
 
 VIProductVersion "1.0.0.0"
@@ -48,16 +48,16 @@ Section "Telegacy" SecMain
 
   SetShellVarContext all
   SetOutPath "$INSTDIR"
-  File "Telegacy\Release\telegacy.exe"
+  File "Release\telegacy.exe"
 
   SetOverwrite ifnewer
-  File "Telegacy\Debug\help.hlp"
-  File "Telegacy\Debug\help.cnt"
-  File "Telegacy\Debug\help.chm"
-  File "Telegacy\Debug\emoji_categories.dat"
+  File "Debug\help.hlp"
+  File "Debug\help.cnt"
+  File "Debug\help.chm"
+  File "Debug\emoji_categories.dat"
 
   SetOutPath "$INSTDIR\emojis"
-  File /r /x "Thumbs.db" "Telegacy\Debug\emojis\*.*"
+  File /r /x "Thumbs.db" "Debug\emojis\*.*"
 
   Call IsWin9x
   Pop $0
