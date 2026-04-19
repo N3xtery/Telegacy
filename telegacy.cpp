@@ -817,8 +817,10 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			si_new.cbSize = sizeof(si_new);
 			si_new.fMask = SIF_RANGE;
 			GetScrollInfo(chat, SB_VERT, &si_new);
-			if (si.nPos < (int)(si.nMax - si.nPage) - 15) SendMessage(chat, WM_VSCROLL, MAKEWPARAM(SB_THUMBPOSITION, si_new.nMax - si.nMax + si.nPos), 0);
-			else SendMessage(chat, WM_VSCROLL, SB_BOTTOM, 0);
+			if (si_new.nMax > si.nMax) {
+				if (si.nPos < (int)(si.nMax - si.nPage) - 15) SendMessage(chat, WM_VSCROLL, MAKEWPARAM(SB_THUMBPOSITION, si_new.nMax - si.nMax + si.nPos), 0);
+				else SendMessage(chat, WM_VSCROLL, SB_BOTTOM, 0);
+			}
 		}
 		if (!message.outgoing && messages.size() == 0) make_seen(&message);
 	} else {
@@ -3432,7 +3434,9 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		int messages_count_old = messages.size();
 		int documents_count_old = documents.size();
 		for (int i = 0; i < count; i++) offset_msg += message_handler(true, unenc_response + offset_msg, false, false, false);
-		if (messages_count_old != messages.size()) for (i = 0; i < count; i++) {
+		int reply_check = count;
+		while (messages[reply_check-1].end_char == messages[reply_check-1].end_footer) reply_check++;
+		if (messages_count_old != messages.size()) for (i = 0; i < reply_check; i++) {
 			if (messages[i].reply_needed) {
 				for (int j = 0; j <= i; j++) if (j == i || messages[j].id == messages[i].reply_needed) break;
 				if (j == i) get_message(messages[i].reply_needed, current_peer);

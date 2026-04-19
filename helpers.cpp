@@ -668,7 +668,9 @@ bool insert_emoji(wchar_t* path, int size, HWND richedit) {
 		} else return false;
 	} else {
 		wchar_t placeholder[] = {0xFE0F, 0};
-		SendMessage(chat, EM_REPLACESEL, FALSE, (LPARAM)placeholder);
+		HRESULT hr;
+		if (richedit) SendMessage(richedit, EM_REPLACESEL, FALSE, (LPARAM)placeholder);
+		else textHost->textServices->TxSendMessage(EM_REPLACESEL, FALSE, (LPARAM)placeholder, &hr);
 		return true;
 	}
 }
