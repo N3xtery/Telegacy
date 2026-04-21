@@ -1415,6 +1415,8 @@ void get_unknown_custom_emojis() {
 		fortuna_read(unenc_query + offset, size - offset, &prng);
 		convert_message(unenc_query, enc_query, size, 0);
 		send_query(enc_query, size + 24);
+		free(unenc_query);
+		free(enc_query);
 	}
 }
 
