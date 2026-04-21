@@ -1395,26 +1395,26 @@ void get_config() {
 
 void get_unknown_custom_emojis() {
 	if (rces.size() && !rces.back().access_hash) {
-		BYTE unenc_query[512];
-		BYTE enc_query[536];
+		int size = 44 + rces.size() * 8;
+		size += get_padding(size);
+		BYTE* unenc_query = (BYTE*)malloc(size);
+		BYTE* enc_query = (BYTE*)malloc(size + 24);
 		internal_header(unenc_query, true);
-		int len = 44;
+		int offset = 44;
 		for (int i = 0; i < rces.size(); i++) {
 			if (!rces[i].access_hash) {
 				rces[i].access_hash = 1;
-				memcpy(unenc_query + len, &rces[i].id, 8);
-				len += 8;
+				memcpy(unenc_query + offset, &rces[i].id, 8);
+				offset += 8;
 			}
 		}
-		write_le(unenc_query + 28, len - 32, 4);
+		write_le(unenc_query + 28, offset - 32, 4);
 		write_le(unenc_query + 32, 0xd9ab0f54, 4);
 		write_le(unenc_query + 36, 0x1cb5c415, 4);
-		write_le(unenc_query + 40, (len - 44) / 8, 4);
-		int padding_len = get_padding(len);
-		fortuna_read(unenc_query + len, padding_len, &prng);
-		len += padding_len;
-		convert_message(unenc_query, enc_query, len, 0);
-		send_query(enc_query, len + 24);
+		write_le(unenc_query + 40, (offset - 44) / 8, 4);
+		fortuna_read(unenc_query + offset, size - offset, &prng);
+		convert_message(unenc_query, enc_query, size, 0);
+		send_query(enc_query, size + 24);
 	}
 }
 

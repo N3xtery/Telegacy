@@ -1,7 +1,7 @@
 !include "MUI2.nsh"
 
 !define APPNAME "Telegacy"
-!define APPVER "1.0.0"
+!define APPVER "1.0.1"
 
 Name "${APPNAME}"
 OutFile "${APPNAME}-${APPVER}-Setup.exe"
@@ -15,7 +15,7 @@ ShowUninstDetails show
 !define MUI_ICON "telegacy.ico"
 !define MUI_UNICON "uninstall.ico"
 
-VIProductVersion "1.0.0.0"
+VIProductVersion "1.0.1.0"
 VIAddVersionKey "ProductName" "${APPNAME}"
 VIAddVersionKey "FileVersion" "${APPVER}"
 VIAddVersionKey "FileDescription" "${APPNAME} Setup"

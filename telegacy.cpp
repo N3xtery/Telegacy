@@ -72,6 +72,7 @@ HBRUSH theme_brush = NULL;
 BYTE* sendMultiMedia = NULL;
 BYTE pfp_msgid[8];
 BYTE handle_msgid[8];
+BYTE flood_msg_id[8];
 Peer dlg_peer;
 HWND writing_str_from = NULL;
 wchar_t status_str[100];
@@ -1132,7 +1133,7 @@ int update_handler(BYTE* update) {
 			}
 			bytes_count += 12;
 		} else {
-			if (current_peer && memcmp(update + 8, current_peer->id, 8) == 0) changing_status_bar = true;
+			//if (current_peer && memcmp(update + 8, current_peer->id, 8) == 0) changing_status_bar = true;
 			bytes_count += 4;
 			if (update[4]) bytes_count += 4;
 
@@ -1508,7 +1509,7 @@ int update_handler(BYTE* update) {
 		if (peer) {
 			BYTE* peer_bytes = find_peer(update + bytes_count, &peer->id[0] - 4, true, &peer->type);
 			if (peer->type != 0 && (peer_bytes[4] & (1 << 2))) remove_peer(peer);
-			else {
+			else if (peer->name) {
 				if (peer->full) get_full_peer(peer);
 				free(peer->name);
 				if (peer->handle) free(peer->handle);
@@ -1906,7 +1907,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			int offset = 52 + tlstr_len(unenc_query + 52, true);
 			write_string(unenc_query + offset, version);
 			offset += tlstr_len(unenc_query + offset, true);
-			write_string(unenc_query + offset, L"1.0.0");
+			write_string(unenc_query + offset, L"1.0.1");
 			write_string(unenc_query + offset + 8, L"en");
 			write_string(unenc_query + offset + 12, L"tdesktop");
 			write_string(unenc_query + offset + 24, L"en");
@@ -2192,7 +2193,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				write_le(unenc_query + 48, 27752131, 4);
 				write_string(unenc_query + 52, L"com");
 				write_string(unenc_query + 56, L"win");
-				write_string(unenc_query + 60, L"1.0.0");
+				write_string(unenc_query + 60, L"1.0.1");
 				write_string(unenc_query + 68, L"en");
 				write_string(unenc_query + 72, L"tdesktop");
 				write_string(unenc_query + 84, L"en");
@@ -2382,6 +2383,11 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		} else if (error_code == 401 && wcscmp(error_message, L"AUTH_KEY_UNREGISTERED") == 0) {
 			MessageBox(NULL, L"Not logged in! Cleaning up and exiting...", L"Error", MB_OK | MB_ICONERROR);
 			logout_cleanup();
+		} else if (error_code == 420) {
+			memcpy(flood_msg_id, unenc_response - 8, 8);
+			wchar_t* wait_time_str = wcsrchr(error_message, L'_') + 1;
+			int wait_time = wcstol(wait_time_str, NULL, 10);
+			SetTimer(hMain, 4, wait_time * 1000, NULL);
 		} else {
 			wchar_t error_message2[50];
 			swprintf(error_message2, L"Error code %d: %s", error_code, error_message);
@@ -3050,18 +3056,19 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 	case 0x2ad93719: { // messages.dialogFilters (folders)
 		if (peers_count == 0) break;
 		folders_count = read_le(unenc_response + 12, 4);
-		if (folders_count == 1) break;
-		folders = (ChatsFolder*)realloc(folders, sizeof(ChatsFolder)*folders_count);
-		SendMessage(hComboBoxFolders, CB_SETITEMDATA, 0, (LPARAM)&folders[0]);
-		current_folder = &folders[0];
-		int offset = 24;
+		if (folders_count > 1) {
+			folders = (ChatsFolder*)realloc(folders, sizeof(ChatsFolder)*folders_count);
+			SendMessage(hComboBoxFolders, CB_SETITEMDATA, 0, (LPARAM)&folders[0]);
+			current_folder = &folders[0];
+			int offset = 24;
 
-		BYTE folder_cons[4];
-		write_le(folder_cons, 0xaa472651, 4);
+			BYTE folder_cons[4];
+			write_le(folder_cons, 0xaa472651, 4);
 
-		for (int i = 1; i < folders_count; i++) {
-			offset += folder_handler(unenc_response + offset, &folders[i], i, false);
-			if (i != folders_count-1) offset += array_find(unenc_response + offset, folder_cons, 4, 1) + 4;
+			for (int i = 1; i < folders_count; i++) {
+				offset += folder_handler(unenc_response + offset, &folders[i], i, false);
+				if (i != folders_count-1) offset += array_find(unenc_response + offset, folder_cons, 4, 1) + 4;
+			}
 		}
 
 		DestroyWindow(current_info);
@@ -5338,6 +5345,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			KillTimer(hWnd, 2);
 		} else if (wParam == 3) {
 			get_channel_difference(current_peer);
+		} else if (wParam == 4) {
+			if (memcmp(flood_msg_id, rces[0].msg_id, 8) == 0) get_photo(&rces[0], NULL, &dcInfoMain); 
+			else for (int i = 0; i < documents.size(); i++) {
+				if (memcmp(flood_msg_id, documents[i].photo_msg_id, 8) == 0) {
+					get_photo(NULL, &documents[i], &dcInfoMain); 
+					break;
+				}
+			}
+			KillTimer(hWnd, 4);
 		} else if (wParam >= 10 && wParam < 20) {
 			DCInfo* dcInfo = &dcInfoMain;
 			for (std::list<DCInfo>::iterator it = active_dcs.begin(); it != active_dcs.end(); it++) {
@@ -6219,7 +6235,7 @@ INT_PTR CALLBACK DlgProcInfo(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) 
     switch (msg) {
 	case WM_INITDIALOG: {
 		bool about = IsWindowVisible(hMain) ? true : false;
-		infoLabel = CreateWindow(L"STATIC", about ? L"v1.0.0  |  Copyright © 2026 N3xtery  |  GNU GPL v3 License" : L"Connecting to the server...",
+		infoLabel = CreateWindow(L"STATIC", about ? L"v1.0.1  |  Copyright © 2026 N3xtery  |  GNU GPL v3 License" : L"Connecting to the server...",
 			WS_CHILD | WS_VISIBLE | SS_CENTER, 0, 117, 384, 75, hDlg, NULL, NULL, NULL);
 		SendMessage(infoLabel, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
 
