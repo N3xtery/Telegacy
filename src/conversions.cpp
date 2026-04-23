@@ -10,7 +10,7 @@ Telegacy is distributed in the hope that it will be useful, but WITHOUT ANY WARR
 You should have received a copy of the GNU General Public License along with Telegacy. If not, see <https://www.gnu.org/licenses/>. 
 */
 
-#include "telegacy.h"
+#include <telegacy.h>
 
 class CImageDataObject : IDataObject {
 private:

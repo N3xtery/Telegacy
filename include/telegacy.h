@@ -41,7 +41,7 @@ You should have received a copy of the GNU General Public License along with Tel
 #include <shlobj.h>
 #include <jpeglib.h>
 #include <ddeml.h>
-#include "resource.h"
+#include "../res/resource.h"
 #pragma comment(lib, "wsock32.lib")
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "tomcrypt.lib")
@@ -197,6 +197,30 @@ struct ReplyFront {
 	BYTE* message;
 };
 
+struct uploadThreadEvent {
+	HANDLE event;
+	BYTE lastId[8];
+};
+
+struct NOTIFYICONDATAV2 {
+    DWORD cbSize;
+    HWND hWnd;
+    UINT uID;
+    UINT uFlags;
+    UINT uCallbackMessage;
+    HICON hIcon;
+    WCHAR  szTip[128];
+    DWORD dwState;
+    DWORD dwStateMask;
+    WCHAR  szInfo[256];
+    union {
+        UINT  uTimeout;
+        UINT  uVersion;
+    } DUMMYUNIONNAME;
+    WCHAR  szInfoTitle[64];
+    DWORD dwInfoFlags;
+};
+
 extern BYTE pubkey_der[];
 extern BYTE pubkey_der_test[];
 extern unsigned int pubkey_der_len;
@@ -207,22 +231,44 @@ extern CRITICAL_SECTION csSock, csCM;
 
 extern DCInfo dcInfoMain;
 extern int time_diff;
-extern int pts, qts, date;
-extern std::vector<TEXTRANGE> links;
-extern HWND msgInput, chat, hMain, hStatus, tbSeparatorHider, hComboBoxChats, hComboBoxFolders, reactionStatic, hToolbar;
-extern HMENU hMenuBar;
-extern bool closing;
+extern int pts;
+extern int qts;
+extern int date;
+
+extern int database_version;
+extern bool test_server;
 extern bool drawchat;
-extern HWND current_notification;
-extern HFONT hDefaultFont;
+extern bool closing;
+extern HWND current_dialog, current_notification, current_info, current_about;
+extern HWND dlgPic, infoLabel;
+extern HBITMAP infoBmp, infoBmpMask;
+extern int width;
+extern int height;
+extern bool maximized;
 extern wchar_t appdata_path[MAX_PATH];
 extern wchar_t exe_path[MAX_PATH];
+
+extern BYTE* phone_number_bytes;
+extern BYTE* phone_code_hash;
+extern BYTE* qrCodeToken;
+
+extern HWND hComboBoxChats, hComboBoxFolders, msgInput, chat, hMain, hStatus, hToolbar, tbSeparatorHider, hTabs, emojiStatic, emojiScroll, hOverlayTabs, reactionStatic, splitter;
+extern HWND hNumber, hNumberBtn, hCode, hCodeBtn, hQRCode, h2FA, hPass, h2FAHint;
+extern IActiveIMMApp* g_pAIMM;
+extern HMENU hMenuBar;
+extern HFONT hDefaultFont;
+
+extern wchar_t* last_tofront_sender;
+extern BYTE group_id_tofront[8];
+extern BYTE group_id[8];
 
 extern Peer myself;
 extern Peer* peers;
 extern int peers_count;
+extern int total_peers_count;
 extern ChatsFolder* folders;
 extern Peer* current_peer;
+extern Peer* old_peer;
 extern ChatsFolder* current_folder;
 extern int folders_count;
 extern std::deque<Document> documents;
@@ -236,30 +282,55 @@ extern __int64 theme_hash;
 extern int sel_msg_id;
 extern int editing_msg_id;
 extern int replying_msg_id;
+extern int forwarding_msg_id;
 extern BYTE forwarding_peer_id[8];
 extern std::vector<wchar_t*> files;
 extern std::vector<Theme> themes;
 extern HBRUSH theme_brush;
+extern std::vector<uploadThreadEvent*> uploadEvents;
+extern BYTE last_rpcresult_msgid[8];
 extern BYTE* sendMultiMedia;
-extern BYTE getting_channeldiff_id[8];
+extern BYTE pfp_msgid[8];
+extern BYTE handle_msgid[8];
+extern BYTE flood_msg_id[8];
+extern Peer dlg_peer;
 extern HWND writing_str_from;
 extern wchar_t status_str[100];
 extern std::vector<RequestedCustomEmoji> rces;
-extern BYTE pfp_msgid[8];
+extern std::list<DCInfo> active_dcs;
 extern int muted_types[3];
 extern int total_unread_msgs_count;
-extern bool balloon_notifications;
 extern BYTE notification_peer_id[8];
-extern std::vector<UnmuteTimer> unmuteTimers;
-extern bool balloon_notifications_available;
-extern wchar_t sound_paths[3][MAX_PATH];
 extern BYTE difference_msg_id[8];
+extern std::vector<UnmuteTimer> unmuteTimers;
+extern bool dragging;
+extern int edits_border_offset;
+extern bool dontlosefocus;
+extern bool needtosetuplogin;
+extern bool minimized;
 extern bool ischatscrolling;
-extern bool ie3, ie4, nt3;
-extern bool maximized;
+extern bool ie4;
+extern bool ie3;
+extern bool nt3;
+extern bool hint_needed;
+extern wchar_t* hint;
+extern bool no_more_msgs;
 
+extern HWAVEIN hWaveIn;
+extern WAVEHDR hdr_buf[4];
+extern std::vector<BYTE> recorded;
+
+extern bool balloon_notifications_available;
+extern bool balloon_notifications;
 extern bool SENDMEDIAASFILES;
+extern bool CLOSETOTRAY;
+extern int IMAGELOADPOLICY;
 extern bool EMOJIS;
+extern bool SPOILERS;
+extern wchar_t sound_paths[3][MAX_PATH];
+extern int SAMPLERATE;
+extern int BITSPERSAMPLE;
+extern int CHANNELS;
 
 class CTextHost : public ITextHost {
 public:
@@ -356,26 +427,79 @@ public:
 	void TxViewChange(BOOL) {}
 	BOOL TxIsVisible() { return TRUE; }
 };
-extern CTextHost* textHost;
 
-struct NOTIFYICONDATAV2 {
-    DWORD cbSize;
-    HWND hWnd;
-    UINT uID;
-    UINT uFlags;
-    UINT uCallbackMessage;
-    HICON hIcon;
-    WCHAR  szTip[128];
-    DWORD dwState;
-    DWORD dwStateMask;
-    WCHAR  szInfo[256];
-    union {
-        UINT  uTimeout;
-        UINT  uVersion;
-    } DUMMYUNIONNAME;
-    WCHAR  szInfoTitle[64];
-    DWORD dwInfoFlags;
+class COleCallback : public IRichEditOleCallback {
+public:
+	ULONG refCount;
+	HWND hWnd;
+	COleCallback(HWND hWnd) {
+		refCount = 1;
+		this->hWnd = hWnd;
+	}
+    STDMETHODIMP QueryInterface(REFIID riid, void** ppvObject) {
+        if (riid == IID_IUnknown || riid == IID_IRichEditOleCallback) {
+            *ppvObject = this;
+            AddRef();
+            return S_OK;
+        }
+        *ppvObject = NULL;
+        return E_NOINTERFACE;
+    }
+    STDMETHODIMP_(ULONG) AddRef() { return ++refCount; }
+    STDMETHODIMP_(ULONG) Release() {
+        ULONG c = --refCount;
+        if (!c) delete this;
+        return c;
+    }
+    STDMETHODIMP GetNewStorage(LPSTORAGE* lpstg) {
+        return StgCreateDocfile(NULL, STGM_READWRITE | STGM_SHARE_EXCLUSIVE | STGM_CREATE, 0, lpstg);
+    }
+    STDMETHODIMP GetInPlaceContext(LPOLEINPLACEFRAME*, LPOLEINPLACEUIWINDOW*, LPOLEINPLACEFRAMEINFO) { return S_FALSE; }
+    STDMETHODIMP ShowContainerUI(BOOL) { return S_OK; }
+    STDMETHODIMP QueryInsertObject(LPCLSID clsid, LPSTORAGE lpstg, LONG cr) {
+		if (*clsid == CLSID_StaticMetafile || (hWnd != msgInput && *clsid == CLSID_StaticDib)) {
+			BYTE* p = (BYTE*)clsid;
+			p[40] = REO_BELOWBASELINE;
+			return S_OK;
+		} else return E_FAIL;
+	}
+    STDMETHODIMP DeleteObject(LPOLEOBJECT pOleObj) { return S_OK; }
+    STDMETHODIMP QueryAcceptData(LPDATAOBJECT pDataObj, CLIPFORMAT*, DWORD, BOOL, HGLOBAL) { return S_OK; }
+    STDMETHODIMP ContextSensitiveHelp(BOOL) { return E_NOTIMPL; }
+    STDMETHODIMP GetClipboardData(CHARRANGE*, DWORD, LPDATAOBJECT*) { return E_NOTIMPL; }
+    STDMETHODIMP GetDragDropEffect(BOOL, DWORD, DWORD*) { return S_OK; }
+    STDMETHODIMP GetContextMenu(WORD, LPOLEOBJECT, CHARRANGE* cr, HMENU*) {
+		if (hWnd == chat) {
+			for (int i = messages.size() - 1; i >= 0; i--) {
+				if (cr->cpMin >= messages[i].start_char && cr->cpMin <= messages[i].end_footer) {
+					sel_msg_id = messages[i].id;
+					if (cr->cpMin > messages[i].end_char) {
+						POINT pt;
+						GetCursorPos(&pt);
+						int width = (current_peer->reaction_list->size() < 12) ? 15 + current_peer->reaction_list->size() * 20 : 255;
+						int height = 15 + 20 * ((current_peer->reaction_list->size() + 12) / 12);
+						SetWindowPos(reactionStatic, NULL, pt.x, pt.y, NULL, NULL, SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_NOSIZE);
+					} else { // not using the function's HMENU* because that way the caret is shown
+						HideCaret(hWnd);
+						POINT pt;
+						GetCursorPos(&pt);
+						HMENU hMenu = CreatePopupMenu();
+						AppendMenu(hMenu, editing_msg_id ? (MF_STRING | MF_GRAYED) : MF_STRING, 23,  L"Reply");
+						if (messages[i].outgoing || memcmp(current_peer->id, myself.id, 8) == 0) AppendMenu(hMenu, (replying_msg_id || forwarding_msg_id) ? (MF_STRING | MF_GRAYED) : MF_STRING, 20,  L"Edit");
+						AppendMenu(hMenu, editing_msg_id ? (MF_STRING | MF_GRAYED) : MF_STRING, 24,  L"Forward");
+						AppendMenu(hMenu, MF_STRING, 21,  L"Delete for everyone");
+						AppendMenu(hMenu, MF_STRING, 22,  L"Delete for myself");
+						TrackPopupMenu(hMenu, TPM_RIGHTBUTTON | TPM_LEFTALIGN, pt.x, pt.y, 0, hMain, NULL);
+					}
+					break;
+				}
+			}
+			HideCaret(chat);
+		}
+		return S_OK;
+	}
 };
+extern CTextHost* textHost;
 
 // calculations.cpp
 void aes_ige(const unsigned char *in, unsigned char *out, size_t length, const unsigned char *key, const unsigned char *iv, int encrypt);
@@ -413,6 +537,10 @@ void create_seq_no(BYTE* buf, bool content_related);
 void create_seq_no(DCInfo* dcInfo, BYTE* buf, bool content_related);
 void internal_header(BYTE* unenc_query, bool content_related);
 void internal_header(DCInfo* dcInfo, BYTE* unenc_query, bool content_related);
+int set_peer_info(BYTE* unenc_response, Peer* peer, bool just_update);
+void update_chats_order(BYTE* id, BYTE* msg_id, char type);
+void download_file(DCInfo* dcInfo, Document* document);
+int folder_handler(BYTE* unenc_response, ChatsFolder* folder, int i, bool update);
 DWORD CALLBACK StreamOutCallback(DWORD_PTR dwCookie, LPBYTE pbBuff, LONG cb, LONG* pcb);
 DWORD CALLBACK StreamInCallback(DWORD_PTR dwCookie, LPBYTE pbBuff, LONG cb, LONG* pcb);
 int insert_format(BYTE* unenc_query, int format_count, std::vector<int>* format_vecs);
@@ -484,15 +612,36 @@ bool paint_emoji_bitmap(HDC hdc, wchar_t* path, RECT* rect);
 void paint_emoji_button(DRAWITEMSTRUCT* dis);
 void bring_me_to_life();
 
-// telegacy.cpp
-void update_chats_order(BYTE* id, BYTE* msg_id, char type);
-int set_peer_info(BYTE* unenc_response, Peer* peer, bool just_update);
+// message.cpp
 int message_handler(bool to_front, BYTE* message, bool update_order, bool editing, bool rplhelper);
+void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* msg_bytes, wchar_t* service_msg, EDITSTREAM* es, BYTE* chat_member_id, std::vector<int>* format_vecs, BYTE* reactions, BYTE* msgrpl, BYTE* msgfwd, BYTE* views, bool groupmed_end, bool footer, bool editing, int date);
+
+// response.cpp
+void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement, int length);
+int update_handler(BYTE* update);
+
+// procs.cpp
+extern WNDPROC oldMsgInputProc, oldChatProc, oldEmojiScrollProc, oldEmojiStaticProc, oldReactionStaticProc, oldEmojiScrollFallbackProc, oldSplitterProc, oldReactionButtonProc;
+extern LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern LRESULT CALLBACK WndProcChat(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern LRESULT CALLBACK WndProcEmojiScroll(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern LRESULT CALLBACK WndProcEmojiScrollFallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern LRESULT CALLBACK WndProcEmojiStatic(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern LRESULT CALLBACK WndProcReactionStatic(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern LRESULT CALLBACK WndProcReactionButton(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern LRESULT CALLBACK WndProcSplitter(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern INT_PTR CALLBACK DlgProcLogin(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern INT_PTR CALLBACK DlgProc2FA(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern INT_PTR CALLBACK DlgProcInfo(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam);
+extern INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam);
+extern INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam);
+
+// telegacy.cpp
 int init_connection(DCInfo* dcInfo, bool socketworkerreconnect);
 void reconnect(DCInfo* dcInfo);
 void create_auth_key(DCInfo* dcInfo);
 unsigned __stdcall SocketWorker(void* param);
-unsigned __stdcall SocketWorkerDC(void* param);
+unsigned __stdcall FileSenderWorker(void* param);
 
 // offsets.cpp
 int msgfwd_offset(BYTE* unenc_response);

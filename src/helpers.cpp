@@ -10,7 +10,7 @@ Telegacy is distributed in the hope that it will be useful, but WITHOUT ANY WARR
 You should have received a copy of the GNU General Public License along with Telegacy. If not, see <https://www.gnu.org/licenses/>. 
 */
 
-#include "telegacy.h"
+#include <telegacy.h>
 
 int current_time() {
 	return time(NULL) + time_diff;
@@ -22,7 +22,7 @@ char get_padding(int len) {
 	return padding_len;
 }
 
-CRITICAL_SECTION csSock;
+
 void send_query(DCInfo* dcInfo, BYTE* enc_query, int length) {
 	if (dcInfo == &dcInfoMain) EnterCriticalSection(&csSock);
 	BYTE len_b[4];
@@ -73,7 +73,6 @@ void create_msg_key(DCInfo* dcInfo, BYTE* unenc_query, int length, int x, BYTE* 
 	memcpy(msg_key, msg_key_large + 8, 16);
 }
 
-CRITICAL_SECTION csCM;
 bool convert_message(DCInfo* dcInfo, BYTE* unenc, BYTE* enc, int length, int x) {
 	EnterCriticalSection(&csCM);
 	BYTE msg_key[16];
@@ -194,6 +193,300 @@ void send_query(BYTE* enc_query, int length) {
 	send_query(&dcInfoMain, enc_query, length);
 }
 
+int set_peer_info(BYTE* unenc_response, Peer* peer, bool just_update) {
+	if (!just_update) {
+		peer->reaction_list = &reaction_list;
+		peer->full = false;
+	} else {
+		free(peer->name);
+		if (peer->handle) free(peer->handle);
+	}
+	peer->last_recv = 0;
+	peer->name_set_time = current_time();
+	peer->pfp_set_time = current_time();
+	peer->status_updated = true;
+	int flags = read_le(unenc_response + 4, 4);
+	int offset = 8;
+	if (peer->type == 0) {
+		bool min = (flags & (1 << 20)) ? true : false;
+		peer->amadmin = false;
+		offset += 4;
+		memcpy(peer->id, unenc_response + offset, 8);
+		offset += 8;
+		if (flags & (1 << 0)) {
+			if (!min) memcpy(peer->access_hash, unenc_response + offset, 8);
+			offset += 8;
+		}
+		if ((flags & (1 << 10)) && peer->online != -2 && !min) {
+			peer->name = _wcsdup(L"Saved Messages");
+			if (flags & (1 << 2)) offset += set_name(unenc_response + offset, NULL);
+			else offset += tlstr_len(unenc_response + offset, true);
+		}
+		else if (flags & (1 << 2)) offset += set_name(unenc_response + offset, min ? NULL : &peer->name);
+		else if (flags & (1 << 13)) peer->name = _wcsdup(L"Deleted User");
+		else if (!min) {
+			peer->name = read_string(unenc_response + offset, NULL);
+			offset += tlstr_len(unenc_response + offset, true);
+		}
+		if (flags & (1 << 3)) {
+			if (!min) peer->handle = read_string(unenc_response + offset, NULL);
+			offset += tlstr_len(unenc_response + offset, true);
+		} else peer->handle = NULL;
+		if (flags & (1 << 4)) offset += tlstr_len(unenc_response + offset, true);
+		if (flags & (1 << 5)) {
+			if (read_le(unenc_response + offset, 4) == 0x82d1f706) {
+				if (!min || (flags & (1 << 25))) memcpy(peer->photo, unenc_response + offset + 8, 8);
+				offset += chatphoto_offset(unenc_response + offset);
+				if (!min || (flags & (1 << 25))) peer->photo_dc = read_le(unenc_response + offset - 4, 4);
+			} else {
+				if (!min || (flags & (1 << 25))) memset(peer->photo, 0, 8);
+				offset += 4;
+			}
+		} else memset(peer->photo, 0, 8);
+		memset(&peer->perm, 1, sizeof(Permissions));
+		if (!(flags & (1 << 10))) peer->perm.canchangedesc = false;
+		if (!min && (flags & (1 << 6)) && !(flags & (1 << 10))) user_status_updated(unenc_response + offset, peer);
+		else if (!min) peer->online = -1;
+	} else if (peer->type == 1) {
+		if (flags & (1 << 0)) peer->amadmin = true;
+		else peer->amadmin = false;
+		peer->handle = NULL;
+		memcpy(peer->id, unenc_response + offset, 8);
+		offset += 8;
+		peer->name = read_string(unenc_response + offset, NULL);
+		offset += tlstr_len(unenc_response + offset, true);
+		if (read_le(unenc_response + offset, 4) == 0x1c6e1c11) {
+			memcpy(peer->photo, unenc_response + offset + 8, 8);
+			offset += chatphoto_offset(unenc_response + offset);
+			peer->photo_dc = read_le(unenc_response + offset - 4, 4);
+		} else {
+			memset(peer->photo, 0, 8);
+			offset += 4;
+		}
+		offset += 12;
+		if (flags & (1 << 6)) offset += inputchannel_offset(unenc_response + offset);
+		if (flags & (1 << 14)) offset += 8;
+		if (!peer->amadmin && (flags & (1 << 18))) set_permissions(unenc_response + offset, peer);
+		else memset(&peer->perm, 1, sizeof(Permissions));
+		offset += 12;
+	} else {
+		memset(peer->channel_msg_id, 0, 8);
+		bool min = (flags & (1 << 12)) ? true : false;
+		if (flags & (1 << 0)) peer->amadmin = true;
+		else peer->amadmin = false;
+		offset += 4;
+		memcpy(peer->id, unenc_response + offset, 8);
+		offset += 8;
+		if (flags & (1 << 13)) {
+			if (!min) memcpy(peer->access_hash, unenc_response + offset, 8);
+			offset += 8;
+		}
+		if (!min) peer->name = read_string(unenc_response + offset, NULL);
+		offset += tlstr_len(unenc_response + offset, true);
+		if (flags & (1 << 6)) {
+			if (!min) peer->handle = read_string(unenc_response + offset, NULL);
+			offset += tlstr_len(unenc_response + offset, true);
+		} else peer->handle = NULL;
+		if (read_le(unenc_response + offset, 4) == 0x1c6e1c11) {
+			memcpy(peer->photo, unenc_response + offset + 8, 8);
+			offset += chatphoto_offset(unenc_response + offset);
+			peer->photo_dc = read_le(unenc_response + offset - 4, 4);
+		} else {
+			memset(peer->photo, 0, 8);
+			offset += 4;
+		}
+		offset += 4;
+		if (flags & (1 << 9)) {
+			int count = read_le(unenc_response + offset + 4, 4);
+			offset += 8;
+			for (int i = 0; i < count; i++) {
+				offset += 4;
+				for (int j = 0; j < 3; j++) offset += tlstr_len(unenc_response + offset, true);
+			}
+		}
+		if (flags & (1 << 14)) offset += 8;
+		if (flags & (1 << 15)) offset += 12;
+		if (!peer->amadmin && (flags & (1 << 5))) memset(&peer->perm, 0, sizeof(Permissions));
+		else if (!peer->amadmin && (flags & (1 << 18))) set_permissions(unenc_response + offset, peer);
+		else memset(&peer->perm, 1, sizeof(Permissions));
+	}
+	return offset;
+}
+
+void update_chats_order(BYTE* id, BYTE* msg_id, char type) {
+	for (int i = 0; i < peers_count + 1; i++) {
+		bool not_found = (i == peers_count) ? true : false;
+		if (not_found || memcmp(peers[i].id, id, 8) == 0) {
+			if (i == 0 || (!not_found && peers[i].name == NULL)) break;
+			if (not_found) {
+				BYTE* peer_bytes = msg_id;
+				if (msg_id == id) {
+					peer_bytes = find_peer(peer_bytes, id - 4, true, &type);
+					if (type != 0 && (peer_bytes[4] & (1 << 2))) return;
+				}
+				peers_count++;
+				int current_peer_pos = current_peer-peers;
+				peers = (Peer*)realloc(peers, peers_count * sizeof(Peer));
+				memcpy(peers[peers_count-1].id, id, 8);
+				folders[0].peers = (int*)realloc(folders[0].peers, peers_count * sizeof(int));
+				folders[0].count++;
+				folders[0].peers[folders[0].count-1] = folders[0].count-1;
+				peers[peers_count-1].type = type;
+				peers[peers_count-1].last_read = 0;
+				peers[peers_count-1].mute_until = 0;
+				peers[peers_count-1].unread_msgs_count = 0;
+				if (current_peer != NULL) current_peer = &peers[current_peer_pos];
+				if (msg_id != id) {
+					peers[peers_count - 1].name = NULL;
+					get_message(read_le(msg_id, 4), &peers[peers_count-1]);
+				} else {
+					set_peer_info(peer_bytes, &peers[peers_count-1], false);
+					not_found = false;
+				}
+			}
+			Peer peer = peers[i];
+			for (int j = i; j > 0; j--) memcpy(&peers[j], &peers[j-1], sizeof(Peer));
+			memcpy(&peers[0], &peer, sizeof(Peer));
+			if (current_peer == &peers[i]) current_peer = &peers[0];
+			else if (current_peer != NULL && current_peer - peers < i) current_peer++;
+			for (j = 0; j < folders_count; j++) {
+				for (int k = 0; k < folders[j].count; k++) {
+					if (folders[j].peers[k] < i) {
+						folders[j].peers[k]++;
+						if (&folders[j] == current_folder) SendMessage(hComboBoxChats, CB_SETITEMDATA, k, (LPARAM)&peers[folders[j].peers[k]]);
+					} else if (folders[j].peers[k] == i) {
+						if (k < folders[j].pinned_count) {
+							folders[j].peers[k] = 0;
+							if (&folders[j] == current_folder) SendMessage(hComboBoxChats, CB_SETITEMDATA, k, (LPARAM)&peers[0]);
+						} else {
+							if (!not_found && &folders[j] == current_folder) SendMessage(hComboBoxChats, CB_DELETESTRING, k, 0);
+							for (int l = k; l > folders[j].pinned_count; l--) folders[j].peers[l] = folders[j].peers[l-1];
+							folders[j].peers[folders[j].pinned_count] = 0;
+							if (!not_found && &folders[j] == current_folder) SendMessage(hComboBoxChats, CB_INSERTSTRING, folders[j].pinned_count, (LPARAM)peers[0].name);
+							if (!not_found && &folders[j] == current_folder) SendMessage(hComboBoxChats, CB_SETITEMDATA, folders[j].pinned_count, (LPARAM)&peers[0]);
+							if (!not_found && &folders[j] == current_folder && current_peer == &peers[0]) SendMessage(hComboBoxChats, CB_SETCURSEL, folders[j].pinned_count, 0);
+							break;
+						}
+					} else if (k >= folders[j].pinned_count && folders[j].peers[k] > i) break;
+				}
+			}
+			break;
+		}
+	}
+}
+
+void download_file(DCInfo* dcInfo, Document* document) {
+	BYTE unenc_query[144];
+	BYTE enc_query[168];
+	internal_header(dcInfo, unenc_query, true);
+	memcpy(document, unenc_query + 16, 8);
+	
+	write_le(unenc_query + 32, 0xbe5335be, 4);
+	memset(unenc_query + 36, 0, 4);
+	if (document->photo_size && document->photo_size != 1) write_le(unenc_query + 40, 0x40181ffe, 4);
+	else write_le(unenc_query + 40, 0xbad07584, 4);
+	memcpy(unenc_query + 44, document->id, 8);
+	memcpy(unenc_query + 52, document->access_hash, 8);
+	int fileref_len = tlstr_len(document->file_reference, true);
+	memcpy(unenc_query + 60, document->file_reference, fileref_len);
+	int offset = 60 + fileref_len;
+	memset(unenc_query + offset, 0, 4);
+	if (document->photo_size) {
+		unenc_query[offset] = 1;
+		unenc_query[offset + 1] = document->photo_size;
+	}
+	offset += 4;
+	HANDLE h = CreateFile(document->filename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+	__int64 file_size = 0;
+	if (h != INVALID_HANDLE_VALUE) {
+		unsigned long low, high;
+		low = GetFileSize(h, &high);
+		file_size = ((__int64)high << 32) | low;
+		CloseHandle(h);
+		write_le(unenc_query + offset, file_size, 8);
+	} else memset(unenc_query + offset, 0, 8);
+	offset += 8;
+	write_le(unenc_query + offset, 1048576, 4);
+	offset += 4;
+	write_le(unenc_query + 28, offset - 32, 4);
+	int padding_len = get_padding(offset);
+	fortuna_read(unenc_query + offset, padding_len, &prng);
+	offset += padding_len;
+	convert_message(dcInfo, unenc_query, enc_query, offset, 0);
+	send_query(dcInfo, enc_query, offset + 24);
+	wchar_t status_str[100];
+	int percentage = (int)((double)file_size / (double)document->size * 100.0);
+	swprintf(status_str, L"Downloading %s... %d%%", document->filename, percentage);
+	SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)status_str);
+}
+
+int folder_handler(BYTE* unenc_response, ChatsFolder* folder, int i, bool update) {
+	int flags = read_le(unenc_response, 4);
+	int offset = 4;
+	memcpy(folder->id, unenc_response + offset, 4);
+	offset += 8;
+	if (update) {
+		wchar_t* new_name = read_string(unenc_response + offset, NULL);
+		if (wcscmp(new_name, folder->name) != 0) {
+			free(folder->name);
+			folder->name = new_name;
+			SendMessage(hComboBoxFolders, CB_DELETESTRING, i, NULL);
+			SendMessage(hComboBoxFolders, CB_INSERTSTRING, i, (LPARAM)folder->name);
+			SendMessage(hComboBoxFolders, CB_SETITEMDATA, i, (LPARAM)folder);
+			if (folder == current_folder) SendMessage(hComboBoxFolders, CB_SETCURSEL, i, 0);
+		} else free(new_name);
+	} else folder->name = read_string(unenc_response + offset, NULL);
+	offset += tlstr_len(unenc_response + offset, true);
+	int msgent_count = read_le(unenc_response + offset + 4, 4);
+	offset += 8;
+	for (int j = 0; j < msgent_count; j++) offset += msgent_offset(unenc_response, NULL);
+	if (!update) SendMessage(hComboBoxFolders, CB_ADDSTRING, 0, (LPARAM)folder->name);
+	if (!update) SendMessage(hComboBoxFolders, CB_SETITEMDATA, i, (LPARAM)folder);
+	if (flags & (1 << 25)) offset += tlstr_len(unenc_response + offset, true);
+	if (flags & (1 << 27)) offset += 4;
+	offset += 4;
+	folder->count = read_le(unenc_response + offset, 4);
+	folder->pinned_count = folders[i].count;
+	BYTE vector_cons[4];
+	write_le(vector_cons, 0x1cb5c415, 4);
+	folder->count += read_le(unenc_response+offset+array_find(unenc_response+offset, vector_cons, 4, 1)+4, 4);
+	offset += 4;
+	
+	std::vector<int> peers_temp(folders[i].count);
+	for (j = 0; j < folder->count; j++) {
+		int inputpeer = read_le(unenc_response + offset, 4);
+		if (inputpeer == 0x1cb5c415) offset += 8;
+		offset += 4;
+		bool found = false;
+		for (int k = 0; k < peers_count; k++) {
+			if (memcmp(unenc_response + offset, peers[k].id, 8) == 0) {
+				peers_temp[j] = k;
+				found = true;
+				break;
+			}
+		}
+		offset += (inputpeer == 0x35a95cb9) ? 8 : 16;
+		if (!found) {
+			folder->count--;
+			j--;
+		}
+	}
+	std::sort(peers_temp.begin() + folder->pinned_count, peers_temp.begin() + folder->count);
+	if (update) {
+		free(folder->peers);
+		if (folder == current_folder) SendMessage(hComboBoxChats, CB_RESETCONTENT, 0, 0);
+	}
+	folder->peers = (int*)malloc(sizeof(int*)*folder->count);
+	for (j = 0; j < folder->count; j++) {
+		folder->peers[j] = peers_temp[j];
+		if (update && folder == current_folder) {
+			SendMessage(hComboBoxChats, CB_ADDSTRING, 0, (LPARAM)peers[folder->peers[j]].name);
+			SendMessage(hComboBoxChats, CB_SETITEMDATA, j, (LPARAM)&peers[folder->peers[j]]);
+			if (&peers[folder->peers[j]] == current_peer) SendMessage(hComboBoxChats, CB_SETCURSEL, j, 0);
+		}
+	}
+	return offset;
+}
 
 DWORD CALLBACK StreamOutCallback(DWORD_PTR dwCookie, LPBYTE pbBuff, LONG cb, LONG* pcb) {
 	StreamData* data = (StreamData*)dwCookie;

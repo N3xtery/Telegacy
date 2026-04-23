@@ -1,4 +1,5 @@
 !include "MUI2.nsh"
+!include "UpgradeDLL.nsh"
 
 !define APPNAME "Telegacy"
 !define APPVER "1.0.1"
@@ -12,8 +13,8 @@ SetCompressor /SOLID lzma
 ShowInstDetails show
 ShowUninstDetails show
 
-!define MUI_ICON "telegacy.ico"
-!define MUI_UNICON "uninstall.ico"
+!define MUI_ICON "res/icons/telegacy.ico"
+!define MUI_UNICON "res/icons/uninstall.ico"
 
 VIProductVersion "1.0.1.0"
 VIAddVersionKey "ProductName" "${APPNAME}"
@@ -61,15 +62,16 @@ Section "Telegacy" SecMain
 
   Call IsWin9x
   Pop $0
-  StrCmp $0 1 0 +3
+  StrCmp $0 1 0 skipunicows
     SetOutPath "$SYSDIR"
     SetOverwrite ifnewer
-    File "dlls\unicows.dll"
+    !insertmacro UpgradeDLL "dlls\unicows.dll" "$SYSDIR\unicows.dll" "$SYSDIR"
 
+  skipunicows:
   SetOutPath "$SYSDIR"
   SetOverwrite ifnewer
-  File "dlls\riched20.dll"
-  File "dlls\msls31.dll"
+  !insertmacro UpgradeDLL "dlls\riched20.dll" "$SYSDIR\riched20.dll" "$SYSDIR"
+  !insertmacro UpgradeDLL "dlls\msls31.dll" "$SYSDIR\msls31.dll" "$SYSDIR"
   SetOverwrite off
   File "dlls\msvcrt.dll"
 

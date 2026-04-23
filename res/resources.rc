@@ -78,8 +78,8 @@ LANGUAGE 0x22, 0x1
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_ICON                ICON    DISCARDABLE     "telegacy.ico"
-IDI_ICON_UNREAD         ICON    DISCARDABLE     "telegacy_unread.ico"
+IDI_ICON                ICON    DISCARDABLE     "icons/telegacy.ico"
+IDI_ICON_UNREAD         ICON    DISCARDABLE     "icons/telegacy_unread.ico"
 
 #ifdef APSTUDIO_INVOKED
 /////////////////////////////////////////////////////////////////////////////
@@ -112,8 +112,8 @@ END
 // Bitmap
 //
 
-IDB_LOGO                BITMAP  DISCARDABLE     "telegacy_logo.bmp"
-IDB_ICONS               BITMAP  DISCARDABLE     "icons.bmp"
+IDB_LOGO                BITMAP  DISCARDABLE     "bitmaps/telegacy_logo.bmp"
+IDB_ICONS               BITMAP  DISCARDABLE     "bitmaps/icons.bmp"
 #endif    // Unknown language: 0x22, 0x1 resources
 /////////////////////////////////////////////////////////////////////////////
 
