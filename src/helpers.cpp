@@ -22,7 +22,6 @@ char get_padding(int len) {
 	return padding_len;
 }
 
-
 void send_query(DCInfo* dcInfo, BYTE* enc_query, int length) {
 	if (dcInfo == &dcInfoMain) EnterCriticalSection(&csSock);
 	BYTE len_b[4];
@@ -931,7 +930,7 @@ int compound_emoji_checker(wchar_t* msg, int chars_left) {
 bool insert_emoji(wchar_t* path, int size, HWND richedit) {
 	if (EMOJIS) {
 		HICON hIcon = (HICON)LoadImage(NULL, path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-		if (hIcon || (nt3 && GetFileAttributes(path) != INVALID_FILE_ATTRIBUTES)) {
+		if (hIcon || (nt3 && GetFileAttributes(path) != -1)) {
 			HDC hdcMeta = CreateMetaFile(NULL);
 			SetWindowExtEx(hdcMeta, 15, 15, NULL);
 			if (nt3) {
@@ -1261,11 +1260,11 @@ void register_themes() {
 		wemoji_to_path(emoji_str, file_name, true);
 		free(emoji_str);
 		HICON hIcon = (HICON)LoadImage(NULL, file_name, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-		if (nt3) hIcon = (HICON)(GetFileAttributes(file_name) != INVALID_FILE_ATTRIBUTES);
+		if (nt3) hIcon = (HICON)(GetFileAttributes(file_name) != -1);
 		if (!hIcon) {
 			wcscpy(file_name + wcslen(file_name) - 4, L"-fe0f.ico");
 			hIcon = (HICON)LoadImage(NULL, file_name, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-			if (nt3) hIcon = (HICON)(GetFileAttributes(file_name) != INVALID_FILE_ATTRIBUTES);
+			if (nt3) hIcon = (HICON)(GetFileAttributes(file_name) != -1);
 		}
 		HDC hdcScreen = GetDC(NULL);
 		HDC hdcMem = CreateCompatibleDC(hdcScreen);
@@ -2315,6 +2314,44 @@ void paint_emoji_button(DRAWITEMSTRUCT* dis) {
 			try_to_add_fe0f(path);
 			paint_emoji_bitmap(dis->hDC, path, &rc);
 		}
+	}
+}
+
+void paint_password_button(DRAWITEMSTRUCT* dis) {
+	if (dis->itemAction == ODA_DRAWENTIRE) {
+		HBITMAP hIcons = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_ICONS));
+
+		HDC hdcRef = GetDC(NULL);
+		HDC hdc = CreateCompatibleDC(hdcRef);
+		HDC hdcMask = CreateCompatibleDC(hdcRef);
+
+		HBITMAP hBmp = CreateCompatibleBitmap(hdcRef, 16, 16);
+		HBITMAP hBmpMask = CreateBitmap(16, 16, 1, 1, NULL);
+
+		HBITMAP hBmpOld = SelectBitmap(hdc, hBmp);
+		HBITMAP hBmpMaskOld = SelectBitmap(hdcMask, hIcons);
+		BitBlt(hdc, 0, 0, 16, 16, hdcMask, 96, 0, SRCCOPY);
+		SelectBitmap(hdcMask, hBmpMask);
+
+		COLORREF clrSaveBk = SetBkColor(hdc, RGB(128, 0, 128));
+		BitBlt(hdcMask, 0, 0, 16, 16, hdc, 0, 0, SRCCOPY);
+
+		COLORREF clrSaveDstText = SetTextColor(hdc, RGB(255, 255, 255));
+		SetBkColor(hdc, RGB(0, 0, 0));
+		BitBlt(hdc, 0, 0, 16, 16, hdcMask, 0, 0, SRCAND);
+		SetTextColor(hdcMask, clrSaveDstText);
+		SetBkColor(hdc, clrSaveBk);
+
+		BitBlt(dis->hDC, 2, 2, 16, 16, hdcMask, 0, 0, SRCAND);
+		BitBlt(dis->hDC, 2, 2, 16, 16, hdc, 0, 0, SRCPAINT);
+
+		SelectBitmap(hdc, hBmpOld);
+		SelectBitmap(hdcMask, hBmpMaskOld);
+		DeleteDC(hdc);
+		DeleteDC(hdcMask);
+		DeleteObject(hBmp);
+		DeleteObject(hBmpMask);
+		ReleaseDC(NULL, hdcRef);
 	}
 }
 

@@ -44,6 +44,7 @@ LRESULT CALLBACK WndProcDisabled(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	return CallWindowProc(oldProc, hWnd, msg, wParam, lParam);
 }
 
+bool pass_pushed = false;
 LRESULT CALLBACK WndProcOptionsTabs(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
 	case WM_COMMAND:
@@ -152,6 +153,12 @@ LRESULT CALLBACK WndProcOptionsTabs(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				SetFocus(hOptionsTabs);
 			}
 			break;
+		case 31:
+			if (pass_pushed) SendMessage(hProxyPassword, EM_SETPASSWORDCHAR, (WPARAM)'*', NULL);
+			else SendMessage(hProxyPassword, EM_SETPASSWORDCHAR, NULL, NULL);
+			InvalidateRect(hProxyPassword, NULL, TRUE);
+			pass_pushed = !pass_pushed;
+			break;
 		}
 		break;
 	case WM_ERASEBKGND:
@@ -161,6 +168,10 @@ LRESULT CALLBACK WndProcOptionsTabs(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			FillRect((HDC)wParam, &rc, (HBRUSH)GetStockObject(WHITE_BRUSH));
 			return TRUE;
 		}
+		break;
+	case WM_DRAWITEM:
+		paint_password_button((DRAWITEMSTRUCT*)lParam);
+		break;
 	}
 	return CallWindowProc(oldOptionsTabsProc, hWnd, msg, wParam, lParam);
 }
@@ -179,17 +190,39 @@ void apply_edits() {
 			sound_edits[i] = NULL;
 			if (wcscmp(path, sound_paths[i]) == 0 || wcscmp(path, L"None") == 0) continue;
 			DWORD attrs = GetFileAttributes(path);
-			if (attrs != INVALID_FILE_ATTRIBUTES && !(attrs & FILE_ATTRIBUTE_DIRECTORY) && _wcsicmp(wcsrchr(path, L'.'), L".wav") == 0) {
+			if (attrs != -1 && !(attrs & FILE_ATTRIBUTE_DIRECTORY) && _wcsicmp(wcsrchr(path, L'.'), L".wav") == 0) {
 				wcscpy(sound_paths[i], path);
 			}
 		}
 	}
+	if (hProxyIP) {
+		wchar_t buf[256];
+		if (ie4) {
+			DWORD ip_bin;
+			SendMessage(hProxyIP, IPM_GETADDRESS, 0, (LPARAM)&ip_bin);
+			if (ip_bin) swprintf(buf, L"%d.%d.%d.%d", FIRST_IPADDRESS(ip_bin), SECOND_IPADDRESS(ip_bin), THIRD_IPADDRESS(ip_bin), FOURTH_IPADDRESS(ip_bin));
+			else buf[0] = 0;
+		} else GetWindowText(hProxyIP, buf, 16);
+		WritePrivateProfileString(L"Proxy", L"ip", buf, get_path(appdata_path, L"options.ini"));
+		GetWindowText(hProxyPort, buf, 6);
+		WritePrivateProfileString(L"Proxy", L"port", buf, appdata_path);
+		GetWindowText(hProxyUsername, buf, 256);
+		WritePrivateProfileString(L"Proxy", L"username", buf, appdata_path);
+		GetWindowText(hProxyPassword, buf, 256);
+		WritePrivateProfileString(L"Proxy", L"password", buf, appdata_path);
+		hProxyIP = NULL;
+		if (!nt3) {
+			HICON hIconPass = (HICON)SendMessage(hProxyHidePassword, BM_GETIMAGE, IMAGE_ICON, 0);
+			if (hIconPass) DestroyIcon(hIconPass);
+		}
+	}
 }
 
+bool options_modal = false;
 INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
 	case WM_INITDIALOG: {
-		hOptionsTabs = CreateWindow(WC_TABCONTROL, NULL, WS_CHILD | WS_VISIBLE | (nt3 ? TCS_OWNERDRAWFIXED : 0), 5, 5, 390, 190, hDlg, (HMENU)5, NULL, NULL);
+		hOptionsTabs = CreateWindowEx(WS_EX_CONTROLPARENT, WC_TABCONTROL, NULL, WS_CHILD | WS_VISIBLE | (nt3 ? TCS_OWNERDRAWFIXED : 0), 5, 5, 390, 190, hDlg, (HMENU)5, NULL, NULL);
 		oldOptionsTabsProc = (WNDPROC)SetWindowLongPtr(hOptionsTabs, GWLP_WNDPROC, (LONG_PTR)WndProcOptionsTabs);
 
 		TCITEMA tie = {0};
@@ -203,10 +236,18 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 2, (LPARAM)&tie);
 		tie.pszText = "Voice";
 		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 3, (LPARAM)&tie);
+		tie.pszText = "Proxy";
+		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 4, (LPARAM)&tie);
 
 		SendMessage(hOptionsTabs, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
 
-		TabCtrl_SetCurSel(hOptionsTabs, 0);
+		if (lParam == 1) {
+			options_modal = true;
+			TabCtrl_SetCurSel(hOptionsTabs, 4);
+		} else {
+			options_modal = false;
+			TabCtrl_SetCurSel(hOptionsTabs, 0);
+		}
 		NMHDR hdr;
 		hdr.hwndFrom = hOptionsTabs;
 		hdr.code = TCN_SELCHANGE;
@@ -219,18 +260,18 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 		
 		SetWindowText(hDlg, L"Options");
 		place_dialog_center(hDlg, true);
+		SetFocus(hOptionsTabs);
 		break;
 	}
 	case WM_COMMAND:
-		if (LOWORD(wParam) == IDCANCEL || LOWORD(wParam) == IDOK) DestroyWindow(hDlg);
+		if (LOWORD(wParam) == IDCANCEL || LOWORD(wParam) == IDOK) options_modal ? EndDialog(hDlg, 0) : DestroyWindow(hDlg);
 		break;
 	case WM_HELP: {
 		HELPINFO* hi = (HELPINFO*)lParam;
 		if (hi->iContextType == HELPINFO_WINDOW) {
 			int id = GetDlgCtrlID((HWND)hi->hItemHandle);
-			if (id >= 6 && id <= 26) {
-				if (GetFileAttributes(get_path(exe_path, L"help.hlp")) == INVALID_FILE_ATTRIBUTES ||
-				!WinHelp(hDlg, exe_path, HELP_CONTEXTPOPUP, id)) {
+			if (id >= 6 && id <= 31) {
+				if (GetFileAttributes(get_path(exe_path, L"help.hlp")) == -1 || !WinHelp(hDlg, exe_path, HELP_CONTEXTPOPUP, id)) {
 					HH_POPUP hhp;
 					hhp.cbStruct = sizeof(hhp);
 					hhp.hinst = NULL;
@@ -384,6 +425,56 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 				SetFocus(hOptionsTabs);
 				break;
 			}
+			case 4:
+				HWND ip_label = CreateWindow(L"STATIC", L"IP address:", WS_CHILD | WS_VISIBLE, 10, 30, 150, 15, hOptionsTabs, (HMENU)27, NULL, NULL);
+				if (ie4) hProxyIP = CreateWindow(WC_IPADDRESS, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 10, 45, 150, 20, hOptionsTabs, (HMENU)27, NULL, NULL);
+				else {
+					hProxyIP = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? WS_BORDER : 0) | ES_CENTER, 10, 45, 150, 20, hOptionsTabs, (HMENU)27, NULL, NULL);
+					SendMessage(hProxyIP, EM_LIMITTEXT, 15, 0);
+				}
+				HWND port_label = CreateWindow(L"STATIC", L"Port:", WS_CHILD | WS_VISIBLE, 170, 30, 50, 15, hOptionsTabs, (HMENU)28, NULL, NULL);
+				hProxyPort = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? WS_BORDER : 0) | ES_CENTER | ES_NUMBER, 170, 45, 50, 20, hOptionsTabs, (HMENU)28, NULL, NULL);
+				SendMessage(hProxyPort, EM_LIMITTEXT, 5, 0);
+				HWND username_label = CreateWindow(L"STATIC", L"Username:", WS_CHILD | WS_VISIBLE, 10, 70, 168, 15, hOptionsTabs, (HMENU)29, NULL, NULL);
+				hProxyUsername = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL | (nt3 ? WS_BORDER : 0), 10, 85, 168, 20, hOptionsTabs, (HMENU)29, NULL, NULL);
+				SendMessage(hProxyUsername, EM_LIMITTEXT, 255, 0);
+				HWND password_label = CreateWindow(L"STATIC", L"Password:", WS_CHILD | WS_VISIBLE, 188, 70, 167, 15, hOptionsTabs, (HMENU)30, NULL, NULL);
+				hProxyPassword = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL | (nt3 ? WS_BORDER : 0) | ES_PASSWORD, 188, 85, 167, 20, hOptionsTabs, (HMENU)30, NULL, NULL);
+				SendMessage(hProxyPassword, EM_LIMITTEXT, 255, 0);
+				pass_pushed = false;
+				hProxyHidePassword = CreateWindow(L"BUTTON", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? BS_OWNERDRAW : BS_ICON), 360, 85, 20, 20, hOptionsTabs, (HMENU)31, 0, NULL);
+				if (!nt3) {
+					HIMAGELIST hImg = ImageList_LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_ICONS), 16, 0, RGB(128, 0, 128));
+					HICON hIcon = ImageList_GetIcon(hImg, 6, ILD_NORMAL);
+					ImageList_Destroy(hImg);
+					SendMessage(hProxyHidePassword, BM_SETIMAGE, IMAGE_ICON, (LPARAM)hIcon);
+				}
+				HWND note_label = CreateWindow(L"STATIC", L"Note: Only SOCKS5 proxies are supported.", WS_CHILD | WS_VISIBLE, 10, 165, 300, 15, hOptionsTabs, NULL, NULL, NULL);
+				SendMessage(ip_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+				SendMessage(hProxyIP, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+				SendMessage(port_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+				SendMessage(hProxyPort, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+				SendMessage(username_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+				SendMessage(hProxyUsername, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+				SendMessage(password_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+				SendMessage(hProxyPassword, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+				SendMessage(note_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+
+				wchar_t buf[256];
+				GetPrivateProfileString(L"Proxy", L"ip", L"", buf, 16, get_path(appdata_path, L"options.ini"));
+				if (ie4) {
+					char ip[16];
+					WideCharToMultiByte(CP_ACP, 0, buf, -1, ip, wcslen(buf) + 1, NULL, NULL);
+					DWORD ip_bin = inet_addr(ip);
+					if (ip_bin) SendMessage(hProxyIP, IPM_SETADDRESS, 0, MAKEIPADDRESS(FOURTH_IPADDRESS(ip_bin), THIRD_IPADDRESS(ip_bin), SECOND_IPADDRESS(ip_bin), FIRST_IPADDRESS(ip_bin)));
+				} else SetWindowText(hProxyIP, buf);
+				GetPrivateProfileString(L"Proxy", L"port", L"", buf, 6, appdata_path);
+				SetWindowText(hProxyPort, buf);
+				GetPrivateProfileString(L"Proxy", L"username", L"", buf, 256, appdata_path);
+				SetWindowText(hProxyUsername, buf);
+				GetPrivateProfileString(L"Proxy", L"password", L"", buf, 256, appdata_path);
+				SetWindowText(hProxyPassword, buf);
+				break;
 			}
 		}
 		break;
@@ -414,13 +505,13 @@ INT_PTR CALLBACK DlgProcInfo(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) 
     switch (msg) {
 	case WM_INITDIALOG: {
 		bool about = IsWindowVisible(hMain) ? true : false;
-		infoLabel = CreateWindow(L"STATIC", about ? L"v1.0.1  |  Copyright © 2026 N3xtery  |  GNU GPL v3 License" : L"Connecting to the server...",
+		infoLabel = CreateWindow(L"STATIC", about ? L"v1.0.2  |  Copyright © 2026 N3xtery  |  GNU GPL v3 License" : L"Connecting to the server...",
 			WS_CHILD | WS_VISIBLE | SS_CENTER, 0, 117, 384, 75, hDlg, NULL, NULL, NULL);
 		SendMessage(infoLabel, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
 
 		infoBmp = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_LOGO));
 		BITMAP bm;
-		GetObject(infoBmp, sizeof(bm), &bm);  
+		GetObject(infoBmp, sizeof(bm), &bm);
 		infoBmpMask = CreateBitmap(bm.bmWidth, bm.bmHeight, 1, 1, NULL);
 		HDC hdcSrc = CreateCompatibleDC(NULL);
 		HDC hdcDst = CreateCompatibleDC(NULL);
@@ -1404,14 +1495,13 @@ LRESULT CALLBACK WndProcSplitter(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	return CallWindowProc(oldSplitterProc, hWnd, msg, wParam, lParam);
 }
 
-bool pass_pushed = false;
 INT_PTR CALLBACK DlgProc2FA(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
 	case WM_INITDIALOG: {
 		HWND h2FALbl = CreateWindow(L"STATIC", L"Enter your password:", WS_CHILD | WS_VISIBLE, 10, 10, 155, 15, hDlg, NULL, NULL, NULL);
-		h2FA = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | ES_PASSWORD | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 25, 125, 25, hDlg, NULL, NULL, NULL);
+		h2FA = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | ES_PASSWORD | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 25, 130, 20, hDlg, NULL, NULL, NULL);
 		SendMessage(h2FA, EM_LIMITTEXT, 63, 0);
-		hPass = CreateWindow(L"BUTTON", NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? BS_OWNERDRAW : BS_ICON), 140, 25, 25, 25, hDlg, (HMENU)5, NULL, NULL);
+		hPass = CreateWindow(L"BUTTON", NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? BS_OWNERDRAW : BS_ICON), 145, 25, 20, 20, hDlg, (HMENU)5, NULL, NULL);
 		if (!nt3) {
 			HIMAGELIST hImg = ImageList_LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_ICONS), 16, 0, RGB(128, 0, 128));
 			HICON hIcon = ImageList_GetIcon(hImg, 6, ILD_NORMAL);
@@ -1419,8 +1509,8 @@ INT_PTR CALLBACK DlgProc2FA(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 			SendMessage(hPass, BM_SETIMAGE, IMAGE_ICON, (LPARAM)hIcon);
 		}
 
-		h2FAHint = CreateWindow(L"BUTTON", L"Hint?", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 28, 60, 55, 25, hDlg, (HMENU)3, NULL, NULL);
-		HWND h2FABtn = CreateWindow(L"BUTTON", L"Log in", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 93, 60, 55, 25, hDlg, (HMENU)4, NULL, NULL);
+		h2FAHint = CreateWindow(L"BUTTON", L"Hint?", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 28, 55, 55, 20, hDlg, (HMENU)3, NULL, NULL);
+		HWND h2FABtn = CreateWindow(L"BUTTON", L"Log in", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 93, 55, 55, 20, hDlg, (HMENU)4, NULL, NULL);
 		SendMessage(h2FALbl, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
 		SendMessage(h2FA, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
 		SendMessage(h2FABtn, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
@@ -1451,45 +1541,9 @@ INT_PTR CALLBACK DlgProc2FA(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 			pass_pushed = !pass_pushed;
 		}
 		break;
-	case WM_DRAWITEM: {
-		DRAWITEMSTRUCT* dis = (DRAWITEMSTRUCT*)lParam;
-		if (dis->itemAction == ODA_DRAWENTIRE) {
-			HBITMAP hIcons = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_ICONS));
-
-			HDC hdcRef = GetDC(NULL);
-			HDC hdc = CreateCompatibleDC(hdcRef);
-			HDC hdcMask = CreateCompatibleDC(hdcRef);
-
-			HBITMAP hBmp = CreateCompatibleBitmap(hdcRef, 16, 16);
-			HBITMAP hBmpMask = CreateBitmap(16, 16, 1, 1, NULL);
-
-			HBITMAP hBmpOld = SelectBitmap(hdc, hBmp);
-			HBITMAP hBmpMaskOld = SelectBitmap(hdcMask, hIcons);
-			BitBlt(hdc, 0, 0, 16, 16, hdcMask, 96, 0, SRCCOPY);
-			SelectBitmap(hdcMask, hBmpMask);
-
-			COLORREF clrSaveBk = SetBkColor(hdc, RGB(128, 0, 128));
-			BitBlt(hdcMask, 0, 0, 16, 16, hdc, 0, 0, SRCCOPY);
-
-			COLORREF clrSaveDstText = SetTextColor(hdc, RGB(255, 255, 255));
-			SetBkColor(hdc, RGB(0, 0, 0));
-			BitBlt(hdc, 0, 0, 16, 16, hdcMask, 0, 0, SRCAND);
-			SetTextColor(hdcMask, clrSaveDstText);
-			SetBkColor(hdc, clrSaveBk);
-
-			BitBlt(dis->hDC, 4, 4, 16, 16, hdcMask, 0, 0, SRCAND);
-			BitBlt(dis->hDC, 4, 4, 16, 16, hdc, 0, 0, SRCPAINT);
-
-			SelectBitmap(hdc, hBmpOld);
-			SelectBitmap(hdcMask, hBmpMaskOld);
-			DeleteDC(hdc);
-			DeleteDC(hdcMask);
-			DeleteObject(hBmp);
-			DeleteObject(hBmpMask);
-			ReleaseDC(NULL, hdcRef);
-		}
+	case WM_DRAWITEM:
+		paint_password_button((DRAWITEMSTRUCT*)lParam);
 		break;
-	}
 	case WM_CTLCOLORDLG:
 	case WM_CTLCOLORSTATIC:
 		if (nt3) return (long)GetStockObject(WHITE_BRUSH);
@@ -1514,14 +1568,14 @@ INT_PTR CALLBACK DlgProcLogin(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 	case WM_INITDIALOG: {
 		if (!hNumber) {
 			SetWindowText(hDlg, L"Log in");
-			HWND hLabelPhone = CreateWindow(L"STATIC", L"Your phone number:", WS_CHILD | WS_VISIBLE, 10, 10, 120, 15, hDlg, NULL, NULL, NULL);
-			HWND hLabelCode = CreateWindow(L"STATIC", L"Code:", WS_CHILD | WS_VISIBLE, 10, 55, 120, 15, hDlg, NULL, NULL, NULL);
-			HWND hLabelQr = CreateWindow(L"STATIC", L"Or, scan this QR code to log in:", WS_CHILD | WS_VISIBLE, 10, 100, 190, 15, hDlg, NULL, NULL, NULL);
-			hNumber = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 25, 110, 25, hDlg, NULL, NULL, NULL);
-			hNumberBtn = CreateWindow(L"BUTTON", L"Get code", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 125, 25, 54, 25, hDlg, (HMENU)3, NULL, NULL);
-			hCode = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | WS_DISABLED | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 70, 110, 25, hDlg, NULL, NULL, NULL);
-			hCodeBtn = CreateWindow(L"BUTTON", L"Log in", WS_CHILD | WS_VISIBLE | WS_DISABLED | WS_TABSTOP, 125, 70, 54, 25, hDlg, (HMENU)4, NULL, NULL);
-			hQRCode = CreateWindowEx(WS_EX_CLIENTEDGE, L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY, 10, 115, 165, 165, hDlg, NULL, NULL, NULL);
+			HWND hLabelPhone = CreateWindow(L"STATIC", L"Your phone number:", WS_CHILD | WS_VISIBLE, 10, 10, 125, 15, hDlg, NULL, NULL, NULL);
+			HWND hLabelCode = CreateWindow(L"STATIC", L"Code:", WS_CHILD | WS_VISIBLE, 10, 50, 125, 15, hDlg, NULL, NULL, NULL);
+			HWND hLabelQr = CreateWindow(L"STATIC", L"Or, scan this QR code to log in:", WS_CHILD | WS_VISIBLE, 10, 90, 190, 15, hDlg, NULL, NULL, NULL);
+			hNumber = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 25, 125, 20, hDlg, NULL, NULL, NULL);
+			hNumberBtn = CreateWindow(L"BUTTON", L"Get code", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 140, 25, 59, 20, hDlg, (HMENU)3, NULL, NULL);
+			hCode = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | WS_DISABLED | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 65, 125, 20, hDlg, NULL, NULL, NULL);
+			hCodeBtn = CreateWindow(L"BUTTON", L"Log in", WS_CHILD | WS_VISIBLE | WS_DISABLED | WS_TABSTOP, 140, 65, 59, 20, hDlg, (HMENU)4, NULL, NULL);
+			hQRCode = CreateWindowEx(WS_EX_CLIENTEDGE, L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY, 10, 105, 185, 185, hDlg, NULL, NULL, NULL);
 			SendMessage(hLabelPhone, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
 			SendMessage(hLabelCode, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
 			SendMessage(hLabelQr, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);

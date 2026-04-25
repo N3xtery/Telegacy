@@ -11,6 +11,7 @@ You should have received a copy of the GNU General Public License along with Tel
 */
 
 #define _WIN32_WINNT 0x0400
+#define WINVER 0x0500
 #define WM_TRAYICON (WM_USER + 1)
 #include <vector>
 #include <deque>
@@ -253,7 +254,7 @@ extern BYTE* phone_code_hash;
 extern BYTE* qrCodeToken;
 
 extern HWND hComboBoxChats, hComboBoxFolders, msgInput, chat, hMain, hStatus, hToolbar, tbSeparatorHider, hTabs, emojiStatic, emojiScroll, hOverlayTabs, reactionStatic, splitter;
-extern HWND hNumber, hNumberBtn, hCode, hCodeBtn, hQRCode, h2FA, hPass, h2FAHint;
+extern HWND hNumber, hNumberBtn, hCode, hCodeBtn, hQRCode, h2FA, hPass, h2FAHint, hProxyIP, hProxyPort, hProxyUsername, hProxyPassword, hProxyHidePassword;
 extern IActiveIMMApp* g_pAIMM;
 extern HMENU hMenuBar;
 extern HFONT hDefaultFont;
@@ -610,6 +611,7 @@ void set_sep_width(int width);
 HBITMAP rgb_to_bmp(BYTE* rgb, bool alpha, int width, int height);
 bool paint_emoji_bitmap(HDC hdc, wchar_t* path, RECT* rect);
 void paint_emoji_button(DRAWITEMSTRUCT* dis);
+void paint_password_button(DRAWITEMSTRUCT* dis);
 void bring_me_to_life();
 
 // message.cpp

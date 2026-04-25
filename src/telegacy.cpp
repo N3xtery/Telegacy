@@ -40,7 +40,7 @@ BYTE* phone_code_hash = NULL;
 BYTE* qrCodeToken = NULL;
 
 HWND hComboBoxChats, hComboBoxFolders, msgInput, chat, hMain, hStatus, hToolbar, tbSeparatorHider, hTabs, emojiStatic, emojiScroll, hOverlayTabs, reactionStatic, splitter;
-HWND hNumber = NULL, hNumberBtn = NULL, hCode = NULL, hCodeBtn = NULL, hQRCode = NULL, h2FA = NULL, hPass = NULL, h2FAHint = NULL;
+HWND hNumber = NULL, hNumberBtn = NULL, hCode = NULL, hCodeBtn = NULL, hQRCode = NULL, h2FA = NULL, hPass = NULL, h2FAHint = NULL, hProxyIP = NULL, hProxyPort = NULL, hProxyUsername = NULL, hProxyPassword = NULL, hProxyHidePassword = NULL;
 IActiveIMMApp* g_pAIMM = NULL;
 HMENU hMenuBar;
 HFONT hDefaultFont = NULL;
@@ -282,7 +282,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				MyInitCommonControlsEx myInitCommonControlsEx = (MyInitCommonControlsEx)GetProcAddress(hComctlLib, "InitCommonControlsEx");
 				INITCOMMONCONTROLSEX icex;
 				icex.dwSize = sizeof(icex);
-				icex.dwICC = ICC_WIN95_CLASSES | ICC_DATE_CLASSES;
+				icex.dwICC = ICC_WIN95_CLASSES | ICC_DATE_CLASSES | ICC_INTERNET_CLASSES;
 				myInitCommonControlsEx(&icex);
 				FreeLibrary(hComctlLib);
 			}
@@ -908,7 +908,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 							swprintf(path, L"%s\\%s.ico", get_path(appdata_path, L"custom_emojis"), current_peer->reaction_list->at(i) + 1);
 						} else swprintf(path, L"%s\\%s.ico", get_path(exe_path, L"emojis"), current_peer->reaction_list->at(i));
 						HICON hIcon = (HICON)LoadImage(NULL, path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-						if (nt3) hIcon = (HICON)(GetFileAttributes(path) != INVALID_FILE_ATTRIBUTES);
+						if (nt3) hIcon = (HICON)(GetFileAttributes(path) != -1);
 						if (!hIcon) {
 							if (custom_emoji) {
 								__int64 custom_emoji_id;
@@ -917,7 +917,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 							} else {
 								try_to_add_fe0f(path);
 								hIcon = (HICON)LoadImage(NULL, path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-								if (nt3) hIcon = (HICON)(GetFileAttributes(path) != INVALID_FILE_ATTRIBUTES);
+								if (nt3) hIcon = (HICON)(GetFileAttributes(path) != -1);
 							}
 						}
 						if (hIcon || custom_emoji) {
@@ -1257,7 +1257,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			break;
 		}
 		case 34:
-			if (GetFileAttributes(get_path(exe_path, L"help.hlp")) == INVALID_FILE_ATTRIBUTES || !WinHelp(hMain, exe_path, HELP_FINDER, 0))
+			if (GetFileAttributes(get_path(exe_path, L"help.hlp")) == -1 || !WinHelp(hMain, exe_path, HELP_FINDER, 0))
 				HtmlHelp(hMain, get_path(exe_path, L"help.chm"), HH_DISPLAY_TOPIC, 0);
 			break;
 		case 35: {
@@ -1386,11 +1386,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (lpdis->hwndItem == hComboBoxChats) {
 				if (lpdis->itemID == -1 && !current_peer) break;
 				peer = lpdis->itemID == -1 ? current_peer : &peers[current_folder->peers[lpdis->itemID]];
+				if (!peer) break;
 				name = peer->name;
 			} else {
 				if (lpdis->itemID == -1 && !current_folder) break;
 				name = lpdis->itemID == -1 ? current_folder->name : folders[lpdis->itemID].name;
 			}
+			if (!name) break;
 
 			LRESULT res;
 			textHost->textServices->TxSendMessage(WM_SETFONT, (WPARAM)GetStockObject(SYSTEM_FONT), TRUE, &res);
@@ -1470,7 +1472,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		break;
 	}
 	case WM_HELP:
-		if (GetFileAttributes(get_path(exe_path, L"help.hlp")) == INVALID_FILE_ATTRIBUTES || !WinHelp(hMain, exe_path, HELP_FINDER, 0))
+		if (GetFileAttributes(get_path(exe_path, L"help.hlp")) == -1 || !WinHelp(hMain, exe_path, HELP_FINDER, 0))
 				HtmlHelp(hMain, get_path(exe_path, L"help.chm"), HH_DISPLAY_TOPIC, 0);
 		break;
 	case WM_DROPFILES: {
@@ -1755,7 +1757,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					wchar_t path[MAX_PATH];
 					swprintf(path, L"%s\\%s.ico", get_path(exe_path, L"emojis"), fav_emojis[i]);
 					HICON hIcon = (HICON)LoadImage(NULL, path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-					if (nt3) hIcon = (HICON)(GetFileAttributes(path) != INVALID_FILE_ATTRIBUTES);
+					if (nt3) hIcon = (HICON)(GetFileAttributes(path) != -1);
 					if (hIcon) {
 						HWND hBtn = CreateWindow(L"BUTTON", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? BS_OWNERDRAW : BS_ICON), emoji_x, emoji_y, 20, 20, emojiStatic, (HMENU)1, GetModuleHandle(NULL), NULL);
 						if (!nt3) SendMessage(hBtn, BM_SETIMAGE, IMAGE_ICON, (LPARAM)hIcon);
@@ -2020,6 +2022,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	return DefWindowProc(hWnd, msg, wParam, lParam);
 }
 
+bool retrying_proxy_connection = false;
+int retry_proxy_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
+	retrying_proxy_connection = true;
+	return init_connection(dcInfo, socketworkerreconnect);
+}
+
 int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 	if (!current_info && dcInfo == &dcInfoMain && !socketworkerreconnect) {
 		BYTE buffer[24] = {0};
@@ -2031,12 +2039,75 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 		current_info = CreateDialogIndirect(GetModuleHandle(NULL), dlg, hMain, DlgProcInfo);
 	}
 
-	// connect to telegram data center
+	// connect to a telegram data center
 	WSADATA wsaData;
 	WSAStartup(MAKEWORD(1, 1), &wsaData);
 	dcInfo->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	sockaddr_in server;
 	server.sin_family = AF_INET;
+
+	// proxy
+	wchar_t proxy_ip_uni[16];
+	GetPrivateProfileString(L"Proxy", L"ip", L"n", proxy_ip_uni, 16, get_path(appdata_path, L"options.ini"));
+	if (proxy_ip_uni[0] == L'n' || retrying_proxy_connection) {
+		int res = MessageBox(hMain, L"Set up a proxy connection?", L"Telegacy", MB_YESNOCANCEL | MB_ICONQUESTION);
+		if (res == IDYES) {
+			BYTE buffer[24] = {0};
+			LONG dlgUnits = GetDialogBaseUnits();
+			DLGTEMPLATE *dlg = (DLGTEMPLATE*)buffer;
+			dlg->style = WS_POPUP | WS_CAPTION | WS_SYSMENU | DS_MODALFRAME | DS_CONTEXTHELP;
+			dlg->cx = MulDiv(400, 4, LOWORD(dlgUnits));
+			dlg->cy = MulDiv(225, 8, HIWORD(dlgUnits));
+			DialogBoxIndirectParam(GetModuleHandle(NULL), dlg, hMain, DlgProcOptions, 1);
+		} else if (res == IDNO) {
+			WritePrivateProfileString(L"Proxy", L"ip", L"", appdata_path);
+			WritePrivateProfileString(L"Proxy", L"port", L"", appdata_path);
+			WritePrivateProfileString(L"Proxy", L"username", L"", appdata_path);
+			WritePrivateProfileString(L"Proxy", L"password", L"", appdata_path);
+		} else return 0;
+		GetPrivateProfileString(L"Proxy", L"ip", L"", proxy_ip_uni, 16, appdata_path);
+	}
+	int proxy_port = GetPrivateProfileInt(L"Proxy", L"port", 0, appdata_path);
+	if (proxy_ip_uni[0] && proxy_port) {
+		char proxy_ip[16];
+		WideCharToMultiByte(CP_ACP, 0, proxy_ip_uni, -1, proxy_ip, 16, NULL, NULL);
+		server.sin_port = htons(proxy_port);
+		server.sin_addr.S_un.S_addr = inet_addr(proxy_ip);
+		if (connect(dcInfo->sock, (sockaddr*)&server, sizeof(server))) {
+			MessageBox(hMain, L"Couldn't connect to the proxy!", L"Error", MB_OK | MB_ICONERROR);
+			return retry_proxy_connection(dcInfo, socketworkerreconnect);
+		} else {
+			wchar_t proxy_username[256];
+			wchar_t proxy_password[256];
+			GetPrivateProfileString(L"Proxy", L"username", L"", proxy_username, 256, appdata_path);
+			GetPrivateProfileString(L"Proxy", L"password", L"", proxy_password, 256, appdata_path);
+			BYTE buf[528];
+			unsigned char greeting[] = {5, 2, 0, 2};
+			send(dcInfo->sock, (char*)greeting, 4, 0);
+			if (recv(dcInfo->sock, (char*)buf, 2, 0) != 2) {
+				MessageBox(hMain, L"Proxy handshake failed!", L"Error", MB_OK | MB_ICONERROR);
+				return retry_proxy_connection(dcInfo, socketworkerreconnect);
+			}
+			if (buf[1] == 0xFF) {
+				MessageBox(hMain, L"Connection to this proxy is not allowed!", L"Error", MB_OK | MB_ICONERROR);
+				return retry_proxy_connection(dcInfo, socketworkerreconnect);
+			}
+			if (buf[1] == 0x02) {
+				buf[0] = 1;
+				buf[1] = WideCharToMultiByte(CP_ACP, 0, proxy_username, -1, (char*)(buf + 2), 256, NULL, NULL);
+				buf[2 + buf[1]] = WideCharToMultiByte(CP_ACP, 0, proxy_password, -1, (char*)(buf + 3 + buf[1]), 256, NULL, NULL);
+				send(dcInfo->sock, (char*)buf, 3 + buf[1] + buf[2 + buf[1]], 0);
+				if (recv(dcInfo->sock, (char*)buf, 2, 0) != 2) {
+					MessageBox(hMain, L"Proxy handshake failed!", L"Error", MB_OK | MB_ICONERROR);
+					return retry_proxy_connection(dcInfo, socketworkerreconnect);
+				}
+				if (buf[1] != 0) {
+					MessageBox(hMain, L"Proxy login failed!", L"Error", MB_OK | MB_ICONERROR);
+					return retry_proxy_connection(dcInfo, socketworkerreconnect);
+				}
+			}
+		}
+	}
 
 	FILE* f = _wfopen(get_path(appdata_path, L"DCs.dat"), L"rb");
 	if (f) {
@@ -2055,8 +2126,26 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 		server.sin_addr.S_un.S_addr = inet_addr(test_server ? "149.154.167.40" : "149.154.167.50");
 	}
 
-	if (connect(dcInfo->sock, (sockaddr*)&server, sizeof(server))) {
-		MessageBox(NULL, L"Couldn't connect to a Telegram DC!", L"Error", MB_OK | MB_ICONERROR);
+	if (proxy_ip_uni[0] && proxy_port) {
+		BYTE buf[10];
+		buf[0] = 5;
+		buf[1] = 1;
+		buf[2] = 0;
+		buf[3] = 1;
+		memcpy(buf + 4, &server.sin_addr.S_un.S_addr, 4);
+		memcpy(buf + 8, &server.sin_port, 2);
+		send(dcInfo->sock, (char*)buf, 10, 0);
+		if (recv(dcInfo->sock, (char*)buf, 10, 0) != 10) {
+			MessageBox(hMain, L"Proxy handshake failed!", L"Error", MB_OK | MB_ICONERROR);
+			return retry_proxy_connection(dcInfo, socketworkerreconnect);
+		}
+		if (buf[1] != 0) {
+			MessageBox(hMain, L"Couldn't connect to a Telegram DC through the proxy!", L"Error", MB_OK | MB_ICONERROR);
+			return retry_proxy_connection(dcInfo, socketworkerreconnect);
+		}
+		retrying_proxy_connection = false;
+	} else if (connect(dcInfo->sock, (sockaddr*)&server, sizeof(server))) {
+		MessageBox(hMain, L"Couldn't connect to a Telegram DC!", L"Error", MB_OK | MB_ICONERROR);
 		return 0;
 	}
 
@@ -2082,7 +2171,7 @@ void create_auth_key(DCInfo* dcInfo) {
 	memset(req_pq_multi, 0, 8);
 
 	// msg_id
-	create_msg_id(dcInfo, req_pq_multi + 8);
+	memset(req_pq_multi + 8, 0, 8);
 
 	// msg_len
 	write_le(req_pq_multi + 16, 20, 4);
@@ -2422,7 +2511,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	if (GetEnvironmentVariable(L"APPDATA", appdata_path, MAX_PATH) == 0) {
 		GetWindowsDirectory(appdata_path, MAX_PATH);
 		wcscat(appdata_path, L"\\Application Data");
-		if (GetFileAttributes(appdata_path) == INVALID_FILE_ATTRIBUTES) CreateDirectory(appdata_path, NULL);
+		if (GetFileAttributes(appdata_path) == -1) CreateDirectory(appdata_path, NULL);
 	}
 	wcscat(appdata_path, L"\\Telegacy\0");
 	GetModuleFileName(NULL, exe_path, MAX_PATH);
@@ -2469,7 +2558,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	InitializeCriticalSection(&csSock);
 	InitializeCriticalSection(&csCM);
-	if (GetFileAttributes(appdata_path) == INVALID_FILE_ATTRIBUTES) {
+	if (GetFileAttributes(appdata_path) == -1) {
 		CreateDirectory(appdata_path, NULL);
 		wcscat(appdata_path, L"\\custom_emojis");
 		CreateDirectory(appdata_path, NULL);
@@ -2591,8 +2680,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	FILE* f = _wfopen(get_path(appdata_path, L"session.dat"), L"rb");
 	if (f) {
 		BYTE buf[100];
-		memset(buf, 0, 8);
-		create_msg_id(buf + 8);
+		memset(buf, 0, 16);
 		write_le(buf + 16, 20, 4);
 		write_le(buf + 20, 0xbe7e8ef1, 4);
 		fortuna_read(buf + 24, 16, &prng);
@@ -2620,8 +2708,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		LONG dlgUnits = GetDialogBaseUnits();
 		DLGTEMPLATE *dlg = (DLGTEMPLATE*)buffer;
 		dlg->style = WS_POPUP | WS_CAPTION | WS_SYSMENU | DS_MODALFRAME;
-		dlg->cx = MulDiv(190, 4, LOWORD(dlgUnits));
-		dlg->cy = MulDiv(295, 8, HIWORD(dlgUnits));
+		dlg->cx = MulDiv(210, 4, LOWORD(dlgUnits));
+		dlg->cy = MulDiv(305, 8, HIWORD(dlgUnits));
 		if (current_dialog) DestroyWindow(current_dialog);
 		current_dialog = CreateDialogIndirect(GetModuleHandle(NULL), dlg, NULL, DlgProcLogin);
 	} else {

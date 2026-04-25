@@ -1646,6 +1646,10 @@ int msgact_offset(BYTE* message, int offset_msg, wchar_t** service_msg, bool* se
 	case 0xd999256: {
 		int flags = read_le(message + offset_msg, 4);
 		offset_msg += 4;
+		if (message_adding) {
+			*service_msg = read_string(message + offset_msg, NULL);
+			*service_msg_allocated = true;
+		}
 		offset_msg += tlstr_len(message + offset_msg, true);
 		offset_msg += 4;
 		if (flags & (1 << 0)) offset_msg += 8;
@@ -1654,6 +1658,15 @@ int msgact_offset(BYTE* message, int offset_msg, wchar_t** service_msg, bool* se
 	case 0xc0944820: {
 		int flags = read_le(message + offset_msg, 4);
 		offset_msg += 4;
+		if (message_adding) {
+			wchar_t* info = L"The topic's name was changed to";
+			wchar_t* topic_name = read_string(message + offset_msg, NULL);
+			int length = wcslen(topic_name) + wcslen(info) + 10;
+			*service_msg = (wchar_t*)malloc(2*length);
+			*service_msg_allocated = true;
+			swprintf(*service_msg, L"%s \"%s\" by %%s", info, topic_name);
+			free(topic_name);
+		}
 		if (flags & (1 << 0)) offset_msg += tlstr_len(message + offset_msg, true);
 		if (flags & (1 << 1)) offset_msg += 8;
 		if (flags & (1 << 2)) offset_msg += 4;

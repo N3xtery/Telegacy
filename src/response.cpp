@@ -82,7 +82,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			int offset = 52 + tlstr_len(unenc_query + 52, true);
 			write_string(unenc_query + offset, version);
 			offset += tlstr_len(unenc_query + offset, true);
-			write_string(unenc_query + offset, L"1.0.1");
+			write_string(unenc_query + offset, L"1.0.2");
 			write_string(unenc_query + offset + 8, L"en");
 			write_string(unenc_query + offset + 12, L"tdesktop");
 			write_string(unenc_query + offset + 24, L"en");
@@ -368,7 +368,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				write_le(unenc_query + 48, 27752131, 4);
 				write_string(unenc_query + 52, L"com");
 				write_string(unenc_query + 56, L"win");
-				write_string(unenc_query + 60, L"1.0.1");
+				write_string(unenc_query + 60, L"1.0.2");
 				write_string(unenc_query + 68, L"en");
 				write_string(unenc_query + 72, L"tdesktop");
 				write_string(unenc_query + 84, L"en");
@@ -535,7 +535,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			DLGTEMPLATE *dlg = (DLGTEMPLATE*)buffer;
 			dlg->style = WS_POPUP | WS_CAPTION | WS_SYSMENU | DS_MODALFRAME;
 			dlg->cx = MulDiv(175, 4, LOWORD(dlgUnits));
-			dlg->cy = MulDiv(95, 8, HIWORD(dlgUnits));
+			dlg->cy = MulDiv(85, 8, HIWORD(dlgUnits));
 			if (current_dialog) DestroyWindow(current_dialog);
 			current_dialog = CreateDialogIndirect(GetModuleHandle(NULL), dlg, NULL, DlgProc2FA);
 		} else if (error_code == 400) {
@@ -1598,7 +1598,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				}
 			}
 			for (i = 0; i < peers_count; i++) {
-				if (peers[i].name == NULL) {
+				if (peers[i].name == NULL && memcmp(unenc_response + offset2, peers[i].id, 8) == 0) {
 					BYTE* peer_bytes = find_peer(unenc_response + offset_msg, &peers[i].id[0] - 4, true, &peers[i].type);
 					set_peer_info(peer_bytes, &peers[i], false);
 					if (&folders[0] == current_folder) SendMessage(hComboBoxChats, CB_INSERTSTRING, folders[0].pinned_count, (LPARAM)peers[i].name);
@@ -1669,9 +1669,9 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 
 		BYTE qrcode[qrcodegen_BUFFER_LEN_MAX];
 		BYTE temp[qrcodegen_BUFFER_LEN_MAX];
-		qrcodegen_encodeText(token, temp, qrcode, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
+		qrcodegen_encodeText(token, temp, qrcode, qrcodegen_Ecc_LOW, 5, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
 		int size = qrcodegen_getSize(qrcode);
-		int scale = 180 / size;
+		int scale = 185 / size;
 		int imgSize = size * scale;
 		BITMAPINFO bmi = {0};
 		bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
