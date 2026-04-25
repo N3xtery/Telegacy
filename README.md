@@ -6,7 +6,7 @@
 </p>
 
 # Telegacy
-An unofficial Telegram client aimed to work on old versions of Windows, which doesn't use an external Telegram API library of any kind. Written in C++ with pure Windows API and a few libraries (see below). A good portion of the Telegram features is already implemented.
+An unofficial Telegram client aimed to work on old versions of Windows (NT3.51/95/NT4/98/2000/ME/XP). Doesn't use an external Telegram API library of any kind. Written in C++ with pure Windows API and a few libraries (see below). A good portion of the Telegram features is already implemented.
 
 ## Features
 - Logging in with a code sent to your account or a QR code
@@ -25,6 +25,7 @@ An unofficial Telegram client aimed to work on old versions of Windows, which do
 - Themes (just the color)
 - Profiles
 - Notifications
+- SOCKS5 proxies support
 - Help system
 
 ## Minimum system requirements
@@ -53,7 +54,7 @@ If you want the best experience, you need to have at least comctl32.dll version 
 Telegacy is built with Microsoft Visual C++ 6.0 SP6, powered by Microsoft Platform SDK July 2000.
 
 ## Screenshots
-<img width="1024" height="768" alt="xp" src="https://github.com/user-attachments/assets/417ef606-cb2b-4243-a382-7c6e4f120655" />
+<img width="1024" height="768" alt="xp" src="https://github.com/user-attachments/assets/4d5139c2-57b4-4ad0-80a0-4d38b4662ab1" />
 <br>
 <img width="1024" height="768" alt="me" src="https://github.com/user-attachments/assets/b1fc1345-cc93-4da7-b9aa-024d9a5c8d12" />
 <br>
