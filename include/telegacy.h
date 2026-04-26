@@ -316,6 +316,7 @@ extern bool nt3;
 extern bool hint_needed;
 extern wchar_t* hint;
 extern bool no_more_msgs;
+extern int get_dialogs_lowest_date;
 
 extern HWAVEIN hWaveIn;
 extern WAVEHDR hdr_buf[4];
@@ -601,6 +602,7 @@ BYTE* find_peer(BYTE* peer_bytes, BYTE* type_bytes, bool has_peer_type, char* ty
 int msgfwd_addname(BYTE* peer_bytes, BYTE* msgfwd, int pos_init, bool shortmsg);
 void place_dialog_center(HWND hDlg, bool main);
 wchar_t* get_path(wchar_t* path, wchar_t* file_name);
+void get_dialogs();
 void get_folders();
 void files_show_dropdown();
 void open_files_list();

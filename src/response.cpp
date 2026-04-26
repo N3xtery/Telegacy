@@ -784,20 +784,11 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					send_query(enc_query, 88);
 				} else get_state(true);
 			} else {
-				//messages.getDialogs
-				BYTE unenc_query[80];
-				BYTE enc_query[104];
-				internal_header(unenc_query, true);
-				write_le(unenc_query + 28, 32, 4);
-				write_le(unenc_query + 32, 0xa0f4cb4f, 4);
-				memset(unenc_query + 36, 0, 12);
-				write_le(unenc_query + 48, 0x7f3b18ea, 4);
-				memset(unenc_query + 52, 0, 12);
-				fortuna_read(unenc_query + 64, 16, &prng);
-				convert_message(unenc_query, enc_query, 80, 0);
-				send_query(enc_query, 104);
+				get_dialogs();
 
 				// users.getUsers (get current user)
+				BYTE unenc_query[64];
+				BYTE enc_query[88];
 				internal_header(unenc_query, true);
 				write_le(unenc_query + 28, 16, 4);
 				write_le(unenc_query + 32, 0xd91a548, 4);
@@ -1118,7 +1109,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		int old_pinned_count = folders[0].pinned_count;
 		int pinned_peers_count = 0;
 		BYTE* pinned_peers_ids = NULL;
-		int lowest_date = 2147483647;
+		get_dialogs_lowest_date = 2147483647;
 		for (int i = peers_count_old; i < peers_count; i++) {
 			offset_msg += array_find(unenc_response + offset_msg, message_cons, 4, 2) + 4;
 			int flags_msg = read_le(unenc_response + offset_msg, 4);
@@ -1138,7 +1129,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				if (flags2_msg & (1 << 0)) offset_msg2 += 8;
 				if (flags_msg & (1 << 3)) offset_msg2 += msgrpl_offset(unenc_response + offset_msg2);
 				int date = read_le(unenc_response + offset_msg2, 4);
-				if (date < lowest_date) lowest_date = date;
+				if (date < get_dialogs_lowest_date) get_dialogs_lowest_date = date;
 			}
 
 			int offset_dlg = array_find(unenc_response, peers[i].id, 8, 1) - 8;
@@ -1206,26 +1197,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			SendMessage(hComboBoxChats, CB_SETITEMDATA, i, (LPARAM)&peers[folders[0].peers[i]]);
 		}
 
-		if (peers_count < total_peers_count) {
-			// messages.getDialogs
-			BYTE unenc_query[96];
-			BYTE enc_query[120];
-			internal_header(unenc_query, true);
-			write_le(unenc_query + 32, 0xa0f4cb4f, 4);
-			memset(unenc_query + 36, 0, 12);
-			write_le(unenc_query + 40, lowest_date, 4);
-			write_le(unenc_query + 48, 0x7f3b18ea, 4);
-			int offset = 52;
-			//int offset = 48 + place_peer(unenc_query + 48, &peers[peers_count - 1], true);
-			memset(unenc_query + offset, 0, 12);
-			offset += 12;
-			write_le(unenc_query + 28, offset - 32, 4);
-			int padding_len = get_padding(offset);
-			fortuna_read(unenc_query + offset, padding_len, &prng);
-			offset += padding_len;
-			convert_message(unenc_query, enc_query, offset, 0);
-			send_query(enc_query, offset + 24);
-		} else get_folders();
+		if (peers_count < total_peers_count) get_dialogs();
+		else get_folders();
 		break;			 
 	}
 	case 0x2ad93719: { // messages.dialogFilters (folders)

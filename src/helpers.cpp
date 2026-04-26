@@ -2067,7 +2067,24 @@ wchar_t* get_path(wchar_t* path, wchar_t* file_name) {
 	return path;
 }
 
+void get_dialogs() {
+	// messages.getDialogs
+	BYTE unenc_query[80];
+	BYTE enc_query[104];
+	internal_header(unenc_query, true);
+	write_le(unenc_query + 28, 32, 4);
+	write_le(unenc_query + 32, 0xa0f4cb4f, 4);
+	memset(unenc_query + 36, 0, 12);
+	write_le(unenc_query + 40, get_dialogs_lowest_date, 4);
+	write_le(unenc_query + 48, 0x7f3b18ea, 4);
+	memset(unenc_query + 52, 0, 12);
+	fortuna_read(unenc_query + 64, 16, &prng);
+	convert_message(unenc_query, enc_query, 80, 0);
+	send_query(enc_query, 104);
+}
+
 void get_folders() {
+	get_dialogs_lowest_date = 0;
 	// messages.getDialogFilters (folders)
 	BYTE unenc_query[48];
 	BYTE enc_query[72];

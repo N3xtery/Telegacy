@@ -102,6 +102,7 @@ bool nt3 = false;
 bool hint_needed = false;
 wchar_t* hint = NULL;
 bool no_more_msgs = false;
+int get_dialogs_lowest_date = 0;
 CTextHost* textHost = NULL;
 
 HWAVEIN hWaveIn = NULL;
@@ -1089,6 +1090,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				files.push_back(filename);
 				KillTimer(msgInput, 2);
 				set_typing(0xfd5ec8f5, 0);
+				SendMessage(hToolbar, TB_CHANGEBITMAP, 4, MAKELPARAM(14, 0));
 				open_files_list();
 			}
 			break;
@@ -1534,7 +1536,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		} else if (wParam == 3) {
 			get_channel_difference(current_peer);
 		} else if (wParam == 4) {
-			if (memcmp(flood_msg_id, rces[0].msg_id, 8) == 0) get_photo(&rces[0], NULL, &dcInfoMain); 
+			if (get_dialogs_lowest_date) get_dialogs();
+			else if (rces.size() && memcmp(flood_msg_id, rces[0].msg_id, 8) == 0) get_photo(&rces[0], NULL, &dcInfoMain); 
 			else for (int i = 0; i < documents.size(); i++) {
 				if (memcmp(flood_msg_id, documents[i].photo_msg_id, 8) == 0) {
 					get_photo(NULL, &documents[i], &dcInfoMain); 
