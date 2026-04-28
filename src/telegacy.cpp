@@ -43,7 +43,7 @@ HWND hComboBoxChats, hComboBoxFolders, msgInput, chat, hMain, hStatus, hToolbar,
 HWND hNumber = NULL, hNumberBtn = NULL, hCode = NULL, hCodeBtn = NULL, hQRCode = NULL, h2FA = NULL, hPass = NULL, h2FAHint = NULL, hProxyIP = NULL, hProxyPort = NULL, hProxyUsername = NULL, hProxyPassword = NULL, hProxyHidePassword = NULL;
 IActiveIMMApp* g_pAIMM = NULL;
 HMENU hMenuBar;
-HFONT hDefaultFont = NULL;
+HFONT hFonts[3];
 
 wchar_t* last_tofront_sender;
 BYTE group_id_tofront[8] = {0};
@@ -103,6 +103,8 @@ bool hint_needed = false;
 wchar_t* hint = NULL;
 bool no_more_msgs = false;
 int get_dialogs_lowest_date = 0;
+bool closed_logged_out = false;
+int dpi = 0;
 CTextHost* textHost = NULL;
 
 HWAVEIN hWaveIn = NULL;
@@ -126,6 +128,7 @@ unsigned __stdcall SocketWorker(void* param) {
 	if (dcInfo != &dcInfoMain) {
 		init_connection(dcInfo, false);
 		if (!dcInfo->authorized) {
+			KillTimer(hMain, 2);
 			SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)L"Logging in to the needed file's datacenter...");
 			create_auth_key(dcInfo);
 			send_ping(dcInfo);
@@ -301,13 +304,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		chat = CreateWindow(L"RichEdit20W", NULL, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | ES_LEFT | ES_MULTILINE | ES_READONLY | WS_CLIPSIBLINGS,
 			10, 40, width - 30, height - 190, hWnd, NULL, NULL, NULL);
 		splitter = CreateWindow(L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_NOTIFY, 10, height - 149, width - 30, 3, hWnd, NULL, NULL, NULL);
-		CHARFORMAT2 cf;
-		cf.cbSize = sizeof(cf);
-		cf.dwMask = CFM_FACE | CFM_BOLD;
-		cf.dwEffects = 0;
-		wcscpy(cf.szFaceName, L"Arial");
-		SendMessage(msgInput, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
-		SendMessage(chat, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
+		SendMessage(chat, WM_SETFONT, (WPARAM)hFonts[0], FALSE);
+		SendMessage(msgInput, WM_SETFONT, (WPARAM)hFonts[0], FALSE);
 		COleCallback* coc_chat = new COleCallback(chat);
 		SendMessage(chat, EM_SETOLECALLBACK, 0, (LPARAM)coc_chat);
 		coc_chat->Release();
@@ -1003,8 +1001,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				break;
 			case 15:
 				cf.dwMask = CFM_FACE;
-				if (wcscmp(cf.szFaceName, L"Courier New") == 0) wcscpy(cf.szFaceName, L"Arial");
-				else wcscpy(cf.szFaceName, L"Courier New");
+				if (wcscmp(cf.szFaceName, L"Courier New") == 0) {
+					LOGFONT lf = {0};
+					GetObject(hFonts[0], sizeof(lf), &lf);
+					wcscpy(cf.szFaceName, lf.lfFaceName);
+				} else wcscpy(cf.szFaceName, L"Courier New");
 				cf.dwEffects = 0;
 				break;
 			case 16:
@@ -1397,7 +1398,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (!name) break;
 
 			LRESULT res;
-			textHost->textServices->TxSendMessage(WM_SETFONT, (WPARAM)GetStockObject(SYSTEM_FONT), TRUE, &res);
+			textHost->textServices->TxSendMessage(WM_SETFONT, (WPARAM)hFonts[1], TRUE, &res);
 			textHost->textServices->TxSendMessage(EM_REPLACESEL, 0, (LPARAM)name, &res);
 
 			CHARFORMAT2 cf;
@@ -1440,7 +1441,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			textHost->textServices->TxSendMessage(EM_REPLACESEL, 0, (LPARAM)L"", &res);
 		} else if (lpdis->hwndItem == hStatus) {
 			LRESULT res;
-			if (!nt3) textHost->textServices->TxSendMessage(WM_SETFONT, (WPARAM)hDefaultFont, TRUE, &res);
+			if (!nt3) textHost->textServices->TxSendMessage(WM_SETFONT, (WPARAM)hFonts[2], TRUE, &res);
 			textHost->textServices->TxSendMessage(EM_REPLACESEL, 0, lpdis->itemID == 0 ? (LPARAM)status_str : (LPARAM)lpdis->itemData, &res);
 			int deleted_wchars = 0;
 			if (lpdis->itemID == 0 && current_peer && current_peer->type == 0) for (int i = 0; i < lpdis->itemData; i++) i = emoji_adder(i, status_str, 0, 15, NULL, &deleted_wchars);
@@ -1453,7 +1454,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (nt3) {
 				cf.dwMask |= CFM_FACE | CFM_SIZE | CFM_BOLD;
 				cf.yHeight = 200;
-				wcscpy(cf.szFaceName, L"MS Sans Serif");
+				LOGFONT lf = {0};
+				GetObject(hFonts[2], sizeof(lf), &lf);
+				wcscpy(cf.szFaceName, lf.lfFaceName);
 			}
 			textHost->textServices->TxSendMessage(EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf, &res);
 
@@ -1474,7 +1477,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		break;
 	}
 	case WM_HELP:
-		if (GetFileAttributes(get_path(exe_path, L"help.hlp")) == -1 || !WinHelp(hMain, exe_path, HELP_FINDER, 0))
+		if (GetFileAttributes(get_path(exe_path, L"help.hlp")) == -1 || LOBYTE(LOWORD(GetVersion())) >= 6 || !WinHelp(hMain, exe_path, HELP_FINDER, 0))
 				HtmlHelp(hMain, get_path(exe_path, L"help.chm"), HH_DISPLAY_TOPIC, 0);
 		break;
 	case WM_DROPFILES: {
@@ -2568,6 +2571,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		*(wcsrchr(appdata_path, L'\\') + 1) = 0;
 	} else wcscat(appdata_path, L"\\");
 
+	if (LOBYTE(LOWORD(GetVersion())) == 3) {
+		nt3 = true;
+		CLOSETOTRAY = false;
+	}
+
+	HDC hdcRef = GetDC(NULL);
+	dpi = GetDeviceCaps(hdcRef, LOGPIXELSY);
+	ReleaseDC(NULL, hdcRef);
+
 	width = GetPrivateProfileInt(L"General", L"width", 500, get_path(appdata_path, L"options.ini"));
 	height = GetPrivateProfileInt(L"General", L"height", 450, appdata_path);
 	if (GetPrivateProfileInt(L"General", L"maximized", 0, appdata_path)) maximized = true;
@@ -2590,6 +2602,18 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	IMAGELOADPOLICY = GetPrivateProfileInt(L"Content", L"image_load_policy", 2, appdata_path);
 	if (!GetPrivateProfileInt(L"Content", L"emojis", 1, appdata_path)) EMOJIS = false;
 	if (!GetPrivateProfileInt(L"Content", L"spoilers", 1, appdata_path)) SPOILERS = false;
+
+	LOGFONT lf = {0};
+	wchar_t* sections[] = {L"FontChat", L"FontSystem", L"FontUI"};
+	for (int i = 0; i < 3; i++) {
+		GetPrivateProfileString(sections[i], L"face", L"", lf.lfFaceName, sizeof(lf.lfFaceName) / 2, appdata_path);
+		if (lf.lfFaceName[0]) {
+			lf.lfHeight = GetPrivateProfileInt(sections[i], L"height", 0, appdata_path);
+			lf.lfWeight = GetPrivateProfileInt(sections[i], L"weight", 400, appdata_path);
+			lf.lfItalic = GetPrivateProfileInt(sections[i], L"italic", 0, appdata_path);
+			hFonts[i] = CreateFontIndirect(&lf);
+		} else init_default_font(i);
+	}
 
 	GetPrivateProfileString(L"Sounds", L"notification_sound", L"1", sound_paths[0], MAX_PATH, appdata_path);
 	GetPrivateProfileString(L"Sounds", L"incoming_sound", L"", sound_paths[1], MAX_PATH, appdata_path);
@@ -2651,20 +2675,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	fortuna_add_entropy(entropy, 36, &prng);
 	fortuna_ready(&prng);
 
-	if (LOBYTE(LOWORD(GetVersion())) == 3) {
-		nt3 = true;
-		CLOSETOTRAY = false;
-	}
-	if (nt3) {
-		LOGFONT lf = {0};
-		HDC hdcRef = GetDC(NULL);
-		lf.lfHeight = -MulDiv(8, GetDeviceCaps(hdcRef, LOGPIXELSY), 72);
-		ReleaseDC(NULL, hdcRef);
-		lf.lfWeight = 700;
-		wcscpy(lf.lfFaceName, L"MS Sans Serif");
-		hDefaultFont = CreateFontIndirect(&lf);
-	} else hDefaultFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
-
 	// register main class
 	HICON hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON));
 	WNDCLASS wcMain = {0};
@@ -2712,7 +2722,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		DLGTEMPLATE *dlg = (DLGTEMPLATE*)buffer;
 		dlg->style = WS_POPUP | WS_CAPTION | WS_SYSMENU | DS_MODALFRAME;
 		dlg->cx = MulDiv(210, 4, LOWORD(dlgUnits));
-		dlg->cy = MulDiv(305, 8, HIWORD(dlgUnits));
+		dlg->cy = MulDiv(315, 8, HIWORD(dlgUnits));
 		if (current_dialog) DestroyWindow(current_dialog);
 		current_dialog = CreateDialogIndirect(GetModuleHandle(NULL), dlg, NULL, DlgProcLogin);
 	} else {

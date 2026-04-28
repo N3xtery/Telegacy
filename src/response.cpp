@@ -82,7 +82,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			int offset = 52 + tlstr_len(unenc_query + 52, true);
 			write_string(unenc_query + offset, version);
 			offset += tlstr_len(unenc_query + offset, true);
-			write_string(unenc_query + offset, L"1.0.2");
+			write_string(unenc_query + offset, L"1.0.3");
 			write_string(unenc_query + offset + 8, L"en");
 			write_string(unenc_query + offset + 12, L"tdesktop");
 			write_string(unenc_query + offset + 24, L"en");
@@ -368,7 +368,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				write_le(unenc_query + 48, 27752131, 4);
 				write_string(unenc_query + 52, L"com");
 				write_string(unenc_query + 56, L"win");
-				write_string(unenc_query + 60, L"1.0.2");
+				write_string(unenc_query + 60, L"1.0.3");
 				write_string(unenc_query + 68, L"en");
 				write_string(unenc_query + 72, L"tdesktop");
 				write_string(unenc_query + 84, L"en");
@@ -428,7 +428,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		if (memcmp(last_rpcresult_msgid, unenc_response + 4, 8) == 0) break;
 		memcpy(last_rpcresult_msgid, unenc_response + 4, 8);
 		response_handler(dcInfo, unenc_response + 12, false, length - 12);
-		if (memcmp(last_rpcresult_msgid, difference_msg_id, 8) == 0) {
+		if (memcmp(last_rpcresult_msgid, difference_msg_id, 8) == 0 && !closed_logged_out) {
 			DestroyWindow(current_info);
 			ShowWindow(hMain, maximized ? SW_SHOWMAXIMIZED : SW_SHOW);
 			set_tray_icon();
@@ -535,7 +535,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			DLGTEMPLATE *dlg = (DLGTEMPLATE*)buffer;
 			dlg->style = WS_POPUP | WS_CAPTION | WS_SYSMENU | DS_MODALFRAME;
 			dlg->cx = MulDiv(175, 4, LOWORD(dlgUnits));
-			dlg->cy = MulDiv(85, 8, HIWORD(dlgUnits));
+			dlg->cy = MulDiv(95, 8, HIWORD(dlgUnits));
 			if (current_dialog) DestroyWindow(current_dialog);
 			current_dialog = CreateDialogIndirect(GetModuleHandle(NULL), dlg, NULL, DlgProc2FA);
 		} else if (error_code == 400) {
@@ -556,8 +556,12 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				ShowWindow(current_dialog, SW_SHOW);
 			}
 		} else if (error_code == 401 && wcscmp(error_message, L"AUTH_KEY_UNREGISTERED") == 0) {
-			MessageBox(hMain, L"Not logged in! Cleaning up and exiting...", L"Error", MB_OK | MB_ICONERROR);
-			logout_cleanup();
+			if (!closed_logged_out) {
+				closed_logged_out = true;
+				MessageBox(hMain, L"Not logged in! Cleaning up and exiting...", L"Error", MB_OK | MB_ICONERROR);
+				logout_cleanup();
+			}
+			return;
 		} else if (error_code == 420) {
 			memcpy(flood_msg_id, unenc_response - 8, 8);
 			wchar_t* wait_time_str = wcsrchr(error_message, L'_') + 1;
@@ -599,6 +603,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		break;			 
 	}
 	case 0xae500895: { // future_salts
+		if (closed_logged_out) return;
 		if (dcInfo == &dcInfoMain && read_le(dcInfo->future_salt, 8) == 0) {
 			update_own_status(true);
 			FILE* f = _wfopen(get_path(appdata_path, L"database.dat"), L"rb");
@@ -951,7 +956,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			convert_message(unenc_query, enc_query, 64, 0);
 			send_query(enc_query, 88);
 		}
-		if (channel) memset(channel->channel_msg_id, 0, 8);
+		if (channel) memset(msg_count ? peers[0].channel_msg_id : channel->channel_msg_id, 0, 8);
 		break;
 	}
 	case 0xa4bcc6fe: { // updates.channelDifferenceTooLong
@@ -2411,12 +2416,7 @@ int update_handler(BYTE* update) {
 				if (peer->full && peer->about) free(peer->about);
 				set_peer_info(peer_bytes, peer, false);
 			}
-		} else {
-			char type = 0;
-			if (update_constructor == 0x635b4c09) type = 2;
-			else if (update_constructor == 0xf89a6a4e) type = 1;
-			update_chats_order(update + 4, update + 4, type);
-		}
+		} else if (update_constructor == 0x635b4c09) update_chats_order(update + 4, update + 4, 2);
 		break;
 	}
 	case 0x564fe691: // updateLoginToken

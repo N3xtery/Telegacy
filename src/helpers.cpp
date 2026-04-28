@@ -949,10 +949,8 @@ bool insert_emoji(wchar_t* path, int size, HWND richedit) {
 			HMETAFILEPICT* pmp = (HMETAFILEPICT*)GlobalAlloc(GMEM_MOVEABLE, sizeof(METAFILEPICT));
 			METAFILEPICT* pmfp = (METAFILEPICT*)GlobalLock(pmp);
 			pmfp->mm = MM_ANISOTROPIC;
-			HDC hdcRef = GetDC(NULL);
-			pmfp->xExt = MulDiv(size, 2540, GetDeviceCaps(hdcRef, LOGPIXELSX));
-			pmfp->yExt = MulDiv(size, 2540, GetDeviceCaps(hdcRef, LOGPIXELSY));
-			ReleaseDC(NULL, hdcRef);
+			pmfp->xExt = MulDiv(size, 2540, dpi);
+			pmfp->yExt = MulDiv(size, 2540, dpi);
 			pmfp->hMF = hWmf;
 			GlobalUnlock(pmp);
 			insert_image(richedit, pmp, NULL);
@@ -1086,7 +1084,9 @@ int set_reply(int i, int start_footer, BYTE* quote_text, bool setformat) {
 		CHARFORMAT2 cf;
 		cf.cbSize = sizeof(cf);
 		cf.dwMask = CFM_COLOR | CFM_BOLD | CFM_SIZE | CFM_LINK | CFM_ITALIC | CFM_UNDERLINE | CFM_STRIKEOUT | CFM_FACE | CFM_BACKCOLOR;
-		wcscpy(cf.szFaceName, L"Arial");
+		LOGFONT lf = {0};
+		GetObject(hFonts[0], sizeof(lf), &lf);
+		wcscpy(cf.szFaceName, lf.lfFaceName);
 		cf.dwEffects = CFE_ITALIC;
 		cf.crTextColor = 0;
 		cf.crBackColor = RGB(255, 255, 255);
@@ -1121,10 +1121,8 @@ int set_reply(int i, int start_footer, BYTE* quote_text, bool setformat) {
 					METAFILEPICT* pmfp = (METAFILEPICT*)GlobalLock(pmp);
 					pmfp->hMF = CloseMetaFile(hdcMeta);
 					pmfp->mm = MM_ANISOTROPIC;
-					HDC hdcRef = GetDC(NULL);
-					pmfp->xExt = MulDiv(13, 2540, GetDeviceCaps(hdcRef, LOGPIXELSX));
-					pmfp->yExt = MulDiv(13, 2540, GetDeviceCaps(hdcRef, LOGPIXELSY));
-					ReleaseDC(NULL, hdcRef);
+					pmfp->xExt = MulDiv(13, 2540, dpi);
+					pmfp->yExt = MulDiv(13, 2540, dpi);
 					GlobalUnlock(pmp);
 					
 					SendMessage(chat, EM_SETSEL, ft.chrgText.cpMin, ft.chrgText.cpMax);
@@ -1819,7 +1817,7 @@ INT_PTR CALLBACK DlgProcNotification(HWND hDlg, UINT msg, WPARAM wParam, LPARAM 
 		SetBkColor(hdc, GetSysColor(COLOR_MENU));
 
 		LOGFONT lf;
-		GetObject(hDefaultFont, sizeof(LOGFONT), &lf);
+		GetObject(hFonts[2], sizeof(LOGFONT), &lf);
 		lf.lfWeight = FW_BOLD;
 		HFONT hFontBold = CreateFontIndirect(&lf);
 
@@ -1828,7 +1826,7 @@ INT_PTR CALLBACK DlgProcNotification(HWND hDlg, UINT msg, WPARAM wParam, LPARAM 
 		DrawText(hdc, nid->szInfoTitle, -1, &rcName, DT_WORDBREAK | DT_CALCRECT);
 
 		RECT rcMsg = {10, rcName.bottom + 5, 300, 0};
-		SelectObject(hdc, hDefaultFont);
+		SelectObject(hdc, hFonts[2]);
 		DrawText(hdc, nid->szInfo, -1, &rcMsg, DT_WORDBREAK | DT_CALCRECT);
 
 		int width = (rcMsg.right > rcName.right ? rcMsg.right : rcName.right) + 15;
@@ -1841,7 +1839,7 @@ INT_PTR CALLBACK DlgProcNotification(HWND hDlg, UINT msg, WPARAM wParam, LPARAM 
 
 		SelectObject(hdc, hFontBold);
 		DrawText(hdc, nid->szInfoTitle, -1, &rcName, DT_WORDBREAK);
-		SelectObject(hdc, hDefaultFont);
+		SelectObject(hdc, hFonts[2]);
 		DrawText(hdc, nid->szInfo, -1, &rcMsg, DT_WORDBREAK);
 
 		SelectObject(hdc, oldFont);
@@ -2334,7 +2332,7 @@ void paint_emoji_button(DRAWITEMSTRUCT* dis) {
 	}
 }
 
-void paint_password_button(DRAWITEMSTRUCT* dis) {
+void paint_password_button(DRAWITEMSTRUCT* dis, bool options) {
 	if (dis->itemAction == ODA_DRAWENTIRE) {
 		HBITMAP hIcons = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_ICONS));
 
@@ -2359,8 +2357,9 @@ void paint_password_button(DRAWITEMSTRUCT* dis) {
 		SetTextColor(hdcMask, clrSaveDstText);
 		SetBkColor(hdc, clrSaveBk);
 
-		BitBlt(dis->hDC, 2, 2, 16, 16, hdcMask, 0, 0, SRCAND);
-		BitBlt(dis->hDC, 2, 2, 16, 16, hdc, 0, 0, SRCPAINT);
+		int offset = options ? 2 : 4;
+		BitBlt(dis->hDC, offset, offset, 16, 16, hdcMask, 0, 0, SRCAND);
+		BitBlt(dis->hDC, offset, offset, 16, 16, hdc, 0, 0, SRCPAINT);
 
 		SelectBitmap(hdc, hBmpOld);
 		SelectBitmap(hdcMask, hBmpMaskOld);
@@ -2379,6 +2378,25 @@ void bring_me_to_life() {
 		if (current_peer) SendMessage(chat, WM_VSCROLL, MAKELONG(SB_ENDSCROLL, 0), 0);
 	} else if (IsIconic(hMain)) ShowWindow(hMain, SW_RESTORE);
 	else SetForegroundWindow(hMain);
+}
+
+void init_default_font(int index) {
+	if (index == 0) {
+		LOGFONT lf = {0};
+		lf.lfHeight = -MulDiv(10, dpi, 72);
+		lf.lfWeight = 400;
+		wcscpy(lf.lfFaceName, L"Arial");
+		hFonts[0] = CreateFontIndirect(&lf);
+	} else if (index == 1) hFonts[1] = (HFONT)GetStockObject(SYSTEM_FONT);
+	else if (index == 2) {
+		if (nt3) {
+			LOGFONT lf = {0};
+			lf.lfHeight = -MulDiv(8, dpi, 72);
+			lf.lfWeight = 700;
+			wcscpy(lf.lfFaceName, L"MS Sans Serif");
+			hFonts[2] = CreateFontIndirect(&lf);
+		} else hFonts[2] = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+	}
 }
 
 BYTE pubkey_der[] = {

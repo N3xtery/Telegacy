@@ -729,12 +729,15 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 
 	CHARFORMAT2 cf;
 	cf.cbSize = sizeof(cf);
-	cf.dwMask = CFM_COLOR | CFM_BOLD | CFM_SIZE | CFM_LINK | CFM_ITALIC | CFM_UNDERLINE | CFM_STRIKEOUT | CFM_FACE | CFM_BACKCOLOR;
-	wcscpy(cf.szFaceName, L"Arial");
+	cf.dwMask = CFM_COLOR | CFM_BOLD | CFM_SIZE | CFM_LINK | CFM_ITALIC | CFM_UNDERLINE | CFM_STRIKEOUT | CFM_FACE | CFM_BACKCOLOR | CFM_WEIGHT;
+	LOGFONT lf = {0};
+	GetObject(hFonts[0], sizeof(lf), &lf);
+	wcscpy(cf.szFaceName, lf.lfFaceName);
+	cf.wWeight = lf.lfWeight;
 	cf.dwEffects = 0;
 	cf.crTextColor = 0;
 	cf.crBackColor = RGB(255, 255, 255);
-	cf.yHeight = 200;
+	cf.yHeight = MulDiv(-lf.lfHeight, 144, dpi) * 10;
 	if (es) SendMessage(chat, EM_SETSEL, cr_startmsg.cpMin + written - written_info, cr_startmsg.cpMin + written);
 	SendMessage(chat, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
 	if (es) SendMessage(chat, EM_SETSEL, cr_startmsg.cpMin, cr_startmsg.cpMin + written);

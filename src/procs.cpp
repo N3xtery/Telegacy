@@ -16,6 +16,7 @@ WNDPROC oldMsgInputProc, oldChatProc, oldEmojiScrollProc, oldEmojiStaticProc, ol
 WNDPROC oldNameProc, oldHandleProc, oldAboutProc, oldBirthdayProc, oldOptionsTabsProc;
 HWND name, handle, about, birthday, hOptionsTabs, downloadEdit = NULL;
 HWND sound_edits[3] = {0};
+HWND font_edits[3] = {0};
 LRESULT CALLBACK WndProcDisabled(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
 	case WM_LBUTTONDOWN:
@@ -42,6 +43,48 @@ LRESULT CALLBACK WndProcDisabled(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	else if (hWnd == about) oldProc = oldAboutProc;
 	else if (hWnd == birthday) oldProc = oldBirthdayProc;
 	return CallWindowProc(oldProc, hWnd, msg, wParam, lParam);
+}
+
+void write_font_name(int index) {
+	wchar_t buf[100];
+	LOGFONT lf = {0};
+	GetObject(hFonts[index], sizeof(lf), &lf);
+	if (lf.lfHeight > 0) {
+		HDC hdcRef = GetDC(NULL);
+		HFONT hFontOld = (HFONT)SelectObject(hdcRef, hFonts[index]);
+		TEXTMETRIC tm;
+		GetTextMetrics(hdcRef, &tm);
+		SelectObject(hdcRef, hFontOld);
+		ReleaseDC(NULL, hdcRef);
+		lf.lfHeight = tm.tmInternalLeading - tm.tmHeight;
+	}
+	int pt = MulDiv(-lf.lfHeight, 72, dpi);
+	swprintf(buf, L"%s %dpt", lf.lfFaceName, pt);
+	if (lf.lfWeight >= FW_BOLD) wcscat(buf, L", Bold");
+	if (lf.lfItalic) wcscat(buf, L", Italic");
+	SendMessage(font_edits[index], EM_SETSEL, 0, -1);
+	SendMessage(font_edits[index], EM_REPLACESEL, FALSE, (LPARAM)buf);
+}
+
+void apply_fonts(HWND parent) {
+	HWND child = GetWindow(parent, GW_CHILD);
+	while (child != NULL) {
+		HWND next = GetWindow(child, GW_HWNDNEXT);
+		SendMessage(child, WM_SETFONT, (WPARAM)hFonts[2], TRUE);
+		child = next;
+	}
+}
+
+void update_fonts(int index) {
+	if (index == 0) SendMessage(msgInput, WM_SETFONT, (WPARAM)hFonts[0], TRUE);
+	else if (index == 1) {
+		SendMessage(hComboBoxChats, WM_SETFONT, (WPARAM)hFonts[1], TRUE);
+		SendMessage(hComboBoxFolders, WM_SETFONT, (WPARAM)hFonts[1], TRUE);
+	} else {
+		apply_fonts(hOptionsTabs);
+		apply_fonts(current_dialog);
+		InvalidateRect(hStatus, NULL, TRUE);
+	}
 }
 
 bool pass_pushed = false;
@@ -159,6 +202,46 @@ LRESULT CALLBACK WndProcOptionsTabs(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			InvalidateRect(hProxyPassword, NULL, TRUE);
 			pass_pushed = !pass_pushed;
 			break;
+		case 35:
+		case 36:
+		case 37: {
+			int index = LOWORD(wParam) - 35;
+			LOGFONT lf = {0};
+			GetObject(hFonts[index], sizeof(lf), &lf);
+			CHOOSEFONT cf = {0};
+			cf.lStructSize = sizeof(cf);
+			cf.hwndOwner = current_dialog;
+			cf.lpLogFont = &lf;
+			cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT | CF_FORCEFONTEXIST;
+			if (ChooseFont(&cf)) {
+				wchar_t buf[100];
+				wchar_t* sections[] = {L"FontChat", L"FontSystem", L"FontUI"};
+				WritePrivateProfileString(sections[index], L"face", lf.lfFaceName, get_path(appdata_path, L"options.ini"));
+				swprintf(buf, L"%d", lf.lfHeight);
+				WritePrivateProfileString(sections[index], L"height", buf, appdata_path);
+				swprintf(buf, L"%d", lf.lfWeight);
+				WritePrivateProfileString(sections[index], L"weight", buf, appdata_path);
+				swprintf(buf, L"%d", lf.lfItalic);
+				WritePrivateProfileString(sections[index], L"italic", buf, appdata_path);
+				DeleteObject(hFonts[index]);
+				hFonts[index] = CreateFontIndirect(&lf);
+				write_font_name(index);
+				update_fonts(index);
+			}
+			break;
+		}
+		case 38:
+		case 39:
+		case 40: {
+			int index = LOWORD(wParam) - 38;
+			DeleteObject(hFonts[index]);
+			init_default_font(index);
+			write_font_name(index);
+			wchar_t* sections[] = {L"FontChat", L"FontSystem", L"FontUI"};
+			WritePrivateProfileString(sections[index], L"face", L"", get_path(appdata_path, L"options.ini"));
+			update_fonts(index);
+			break;
+		}
 		}
 		break;
 	case WM_ERASEBKGND:
@@ -170,7 +253,7 @@ LRESULT CALLBACK WndProcOptionsTabs(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 		}
 		break;
 	case WM_DRAWITEM:
-		paint_password_button((DRAWITEMSTRUCT*)lParam);
+		paint_password_button((DRAWITEMSTRUCT*)lParam, true);
 		break;
 	}
 	return CallWindowProc(oldOptionsTabsProc, hWnd, msg, wParam, lParam);
@@ -232,18 +315,18 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 0, (LPARAM)&tie);
 		tie.pszText = "Content";
 		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 1, (LPARAM)&tie);
-		tie.pszText = "Sounds";
+		tie.pszText = "Fonts";
 		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 2, (LPARAM)&tie);
-		tie.pszText = "Voice";
+		tie.pszText = "Sounds";
 		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 3, (LPARAM)&tie);
-		tie.pszText = "Proxy";
+		tie.pszText = "Voice";
 		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 4, (LPARAM)&tie);
-
-		SendMessage(hOptionsTabs, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+		tie.pszText = "Proxy";
+		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 5, (LPARAM)&tie);
 
 		if (lParam == 1) {
 			options_modal = true;
-			TabCtrl_SetCurSel(hOptionsTabs, 4);
+			TabCtrl_SetCurSel(hOptionsTabs, 5);
 		} else {
 			options_modal = false;
 			TabCtrl_SetCurSel(hOptionsTabs, 0);
@@ -255,9 +338,8 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 
 		HWND buttonOK = CreateWindowEx(0, L"BUTTON", L"OK", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 260, 200, 65, 21, hDlg, (HMENU)IDOK, 0, NULL);
 		HWND buttonCancel = CreateWindowEx(0, L"BUTTON", L"Cancel", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 330, 200, 65, 21, hDlg, (HMENU)IDCANCEL, 0, NULL);
-		SendMessage(buttonOK, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-		SendMessage(buttonCancel, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
 		
+		apply_fonts(hDlg);
 		SetWindowText(hDlg, L"Options");
 		place_dialog_center(hDlg, true);
 		SetFocus(hOptionsTabs);
@@ -270,8 +352,8 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 		HELPINFO* hi = (HELPINFO*)lParam;
 		if (hi->iContextType == HELPINFO_WINDOW) {
 			int id = GetDlgCtrlID((HWND)hi->hItemHandle);
-			if (id >= 6 && id <= 31) {
-				if (GetFileAttributes(get_path(exe_path, L"help.hlp")) == -1 || !WinHelp(hDlg, exe_path, HELP_CONTEXTPOPUP, id)) {
+			if (id >= 6 && id <= 40) {
+				if (GetFileAttributes(get_path(exe_path, L"help.hlp")) == -1 || LOBYTE(LOWORD(GetVersion())) >= 6 || !WinHelp(hDlg, exe_path, HELP_CONTEXTPOPUP, id)) {
 					HH_POPUP hhp;
 					hhp.cbStruct = sizeof(hhp);
 					hhp.hinst = NULL;
@@ -311,13 +393,10 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 				HWND downloadInfo = CreateWindow(L"STATIC", L"Current download directory:", WS_CHILD | WS_VISIBLE, 10, 30, 370, 15, hOptionsTabs, (HMENU)6, NULL, NULL);
 				downloadEdit = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 45, 345, 20, hOptionsTabs, (HMENU)6, NULL, NULL);
 				HWND browse = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 360, 45, 20, 20, hOptionsTabs, (HMENU)10, 0, NULL);
+
 				HWND trayCheckbox = CreateWindow(L"BUTTON", L"Minimize to tray when closing", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 70, 370, 20, hOptionsTabs, (HMENU)11, NULL, NULL);
 				HWND balloonCheckbox = CreateWindow(L"BUTTON", L"Use balloon notifications", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 95, 370, 20, hOptionsTabs, (HMENU)12, NULL, NULL);
-				SendMessage(downloadInfo, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(downloadEdit, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(browse, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(trayCheckbox, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(balloonCheckbox, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+				apply_fonts(hOptionsTabs);
 
 				wchar_t path[MAX_PATH];
 				DWORD len = GetCurrentDirectory(MAX_PATH, path);
@@ -341,18 +420,35 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 				imagehwnds[2] = CreateWindow(L"BUTTON", L"Autodownload and load the bigger sized image thumbnails", WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_TABSTOP, 15, 100, 360, 20, hOptionsTabs, (HMENU)15, NULL, NULL);
 				HWND emojiCheckbox = CreateWindow(L"BUTTON", L"Enable emojis", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 135, 370, 20, hOptionsTabs, (HMENU)16, NULL, NULL);
 				HWND spoilerCheckbox = CreateWindow(L"BUTTON", L"Apply appropriate formatting to spoilers in chats", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 160, 370, 20, hOptionsTabs, (HMENU)17, NULL, NULL);
-				SendMessage(grp, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(imagehwnds[0], WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(imagehwnds[1], WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(imagehwnds[2], WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(emojiCheckbox, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(spoilerCheckbox, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+				apply_fonts(hOptionsTabs);
 				SendMessage(imagehwnds[IMAGELOADPOLICY], BM_SETCHECK, BST_CHECKED, 0);
 				if (EMOJIS) SendMessage(emojiCheckbox, BM_SETCHECK, BST_CHECKED, 0);
 				if (SPOILERS) SendMessage(spoilerCheckbox, BM_SETCHECK, BST_CHECKED, 0);
 				break;
 			}
 			case 2: {
+				HWND chatFontInfo = CreateWindow(L"STATIC", L"Chat font:", WS_CHILD | WS_VISIBLE, 10, 30, 370, 15, hOptionsTabs, (HMENU)32, NULL, NULL);
+				font_edits[0] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 45, 320, 20, hOptionsTabs, (HMENU)32, NULL, NULL);
+				HWND browseChatFont = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 335, 45, 20, 20, hOptionsTabs, (HMENU)35, 0, NULL);
+				HWND resetChatFont = CreateWindowEx(0, L"BUTTON", L"X", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 360, 45, 20, 20, hOptionsTabs, (HMENU)38, 0, NULL);
+
+				HWND systemFontInfo = CreateWindow(L"STATIC", L"Chat list font:", WS_CHILD | WS_VISIBLE, 10, 70, 370, 15, hOptionsTabs, (HMENU)33, NULL, NULL);
+				font_edits[1] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 85, 320, 20, hOptionsTabs, (HMENU)33, NULL, NULL);
+				HWND browseSystemFont = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 335, 85, 20, 20, hOptionsTabs, (HMENU)36, 0, NULL);
+				HWND resetSystemFont = CreateWindowEx(0, L"BUTTON", L"X", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 360, 85, 20, 20, hOptionsTabs, (HMENU)39, 0, NULL);
+
+				HWND uiFontInfo = CreateWindow(L"STATIC", L"UI font:", WS_CHILD | WS_VISIBLE, 10, 110, 370, 15, hOptionsTabs, (HMENU)34, NULL, NULL);
+				font_edits[2] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 125, 320, 20, hOptionsTabs, (HMENU)34, NULL, NULL);
+				HWND browseUIFont = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 335, 125, 20, 20, hOptionsTabs, (HMENU)37, 0, NULL);
+				HWND resetUIFont = CreateWindowEx(0, L"BUTTON", L"X", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 360, 125, 20, 20, hOptionsTabs, (HMENU)40, 0, NULL);
+
+				apply_fonts(hOptionsTabs);
+				write_font_name(0);
+				write_font_name(1);
+				write_font_name(2);
+				break;
+			}
+			case 3: {
 				HWND sound1_label = CreateWindow(L"STATIC", L"New message notification sound:", WS_CHILD | WS_VISIBLE, 10, 30, 370, 15, hOptionsTabs, (HMENU)7, NULL, NULL);
 				sound_edits[0] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 45, 320, 20, hOptionsTabs, (HMENU)7, NULL, NULL);
 				HWND sound1_button = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 335, 45, 20, 20, hOptionsTabs, (HMENU)18, 0, NULL);
@@ -368,18 +464,7 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 				HWND sound3_button = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 335, 125, 20, 20, hOptionsTabs, (HMENU)20, 0, NULL);
 				HWND sound3_buttonX = CreateWindowEx(0, L"BUTTON", L"X", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 360, 125, 20, 20, hOptionsTabs, (HMENU)23, 0, NULL);
 
-				SendMessage(sound1_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(sound_edits[0], WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(sound1_button, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(sound1_buttonX, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(sound2_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(sound_edits[1], WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(sound2_button, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(sound2_buttonX, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(sound3_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(sound_edits[2], WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(sound3_button, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(sound3_buttonX, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+				apply_fonts(hOptionsTabs);
 
 				for (int i = 0; i < 3; i++) {
 					if (sound_paths[i][0] == 0) SendMessage(sound_edits[i], EM_REPLACESEL, FALSE, (LPARAM)L"None");
@@ -388,7 +473,7 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 				}
 				break;
 			}
-			case 3: {
+			case 4: {
 				HWND voice1_label = CreateWindow(L"STATIC", L"Sample rate:", WS_CHILD | WS_VISIBLE, 10, 30, 370, 15, hOptionsTabs, (HMENU)24, NULL, NULL);
 				HWND comboSample = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP, 10, 45, 370, 100, hOptionsTabs, (HMENU)24, NULL, NULL);
 				SendMessage(comboSample, CB_ADDSTRING, 0, (LPARAM)L"8000 Hz");
@@ -416,16 +501,11 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 				if (CHANNELS <= 1) SendMessage(comboChannels, CB_SETCURSEL, 0, 0);
 				else SendMessage(comboChannels, CB_SETCURSEL, 1, 0);
 
-				SendMessage(voice1_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(comboSample, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(voice2_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(comboBits, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(voice3_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(comboChannels, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+				apply_fonts(hOptionsTabs);
 				SetFocus(hOptionsTabs);
 				break;
 			}
-			case 4:
+			case 5:
 				HWND ip_label = CreateWindow(L"STATIC", L"IP address:", WS_CHILD | WS_VISIBLE, 10, 30, 150, 15, hOptionsTabs, (HMENU)27, NULL, NULL);
 				if (ie4) hProxyIP = CreateWindow(WC_IPADDRESS, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 10, 45, 150, 20, hOptionsTabs, (HMENU)27, NULL, NULL);
 				else {
@@ -450,15 +530,7 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 					SendMessage(hProxyHidePassword, BM_SETIMAGE, IMAGE_ICON, (LPARAM)hIcon);
 				}
 				HWND note_label = CreateWindow(L"STATIC", L"Note: Only SOCKS5 proxies are supported.", WS_CHILD | WS_VISIBLE, 10, 165, 300, 15, hOptionsTabs, NULL, NULL, NULL);
-				SendMessage(ip_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(hProxyIP, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(port_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(hProxyPort, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(username_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(hProxyUsername, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(password_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(hProxyPassword, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-				SendMessage(note_label, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+				apply_fonts(hOptionsTabs);
 
 				wchar_t buf[256];
 				GetPrivateProfileString(L"Proxy", L"ip", L"", buf, 16, get_path(appdata_path, L"options.ini"));
@@ -466,7 +538,7 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 					char ip[16];
 					WideCharToMultiByte(CP_ACP, 0, buf, -1, ip, wcslen(buf) + 1, NULL, NULL);
 					DWORD ip_bin = inet_addr(ip);
-					if (ip_bin) SendMessage(hProxyIP, IPM_SETADDRESS, 0, MAKEIPADDRESS(FOURTH_IPADDRESS(ip_bin), THIRD_IPADDRESS(ip_bin), SECOND_IPADDRESS(ip_bin), FIRST_IPADDRESS(ip_bin)));
+					if (ip[0]) SendMessage(hProxyIP, IPM_SETADDRESS, 0, MAKEIPADDRESS(FOURTH_IPADDRESS(ip_bin), THIRD_IPADDRESS(ip_bin), SECOND_IPADDRESS(ip_bin), FIRST_IPADDRESS(ip_bin)));
 				} else SetWindowText(hProxyIP, buf);
 				GetPrivateProfileString(L"Proxy", L"port", L"", buf, 6, appdata_path);
 				SetWindowText(hProxyPort, buf);
@@ -505,9 +577,9 @@ INT_PTR CALLBACK DlgProcInfo(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) 
     switch (msg) {
 	case WM_INITDIALOG: {
 		bool about = IsWindowVisible(hMain) ? true : false;
-		infoLabel = CreateWindow(L"STATIC", about ? L"v1.0.2  |  Copyright © 2026 N3xtery  |  GNU GPL v3 License" : L"Connecting to the server...",
+		infoLabel = CreateWindow(L"STATIC", about ? L"v1.0.3  |  Copyright © 2026 N3xtery  |  GNU GPL v3 License" : L"Connecting to the server...",
 			WS_CHILD | WS_VISIBLE | SS_CENTER, 0, 117, 384, 75, hDlg, NULL, NULL, NULL);
-		SendMessage(infoLabel, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+		apply_fonts(hDlg);
 
 		infoBmp = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_LOGO));
 		BITMAP bm;
@@ -586,12 +658,6 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 		COleCallback* coc_about = new COleCallback(about);
 		SendMessage(about, EM_SETOLECALLBACK, 0, (LPARAM)coc_about);
 		coc_about->Release();
-		CHARFORMAT2 cf;
-		cf.cbSize = sizeof(cf);
-		cf.dwMask = CFM_FACE | CFM_BOLD;
-		cf.dwEffects = 0;
-		wcscpy(cf.szFaceName, L"Arial");
-		SendMessage(about, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
 		PARAFORMAT2 pf;
 		pf.cbSize = sizeof(pf);
 		pf.dwMask = PFM_ALIGNMENT;
@@ -601,9 +667,6 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 		HWND hLabelHandle = CreateWindow(L"STATIC", L"Handle", WS_CHILD | WS_VISIBLE | SS_CENTER, 180, 40, 120, 15, hDlg, NULL, NULL, NULL);
 		HWND hLabelAbout = CreateWindow(L"STATIC", L"About", WS_CHILD | WS_VISIBLE | SS_CENTER, 310, 40, 170, 15, hDlg, NULL, NULL, NULL);
 		HWND hLabelBirthday = CreateWindow(L"STATIC", L"Birthday", WS_CHILD | WS_VISIBLE | SS_CENTER, 180, 85, 120, 15, hDlg, NULL, NULL, NULL);
-		SendMessage(hLabelHandle, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-		SendMessage(hLabelAbout, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-		SendMessage(hLabelBirthday, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
 		if (peer->type == 0 && (peer == &myself || read_le(peer->birthday, 4) != 0)) {
 			SYSTEMTIME stRange[2] = {0};
 			GetLocalTime(&stRange[0]);
@@ -614,10 +677,8 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (ie3) {
 				birthday = CreateWindow(DATETIMEPICK_CLASS, NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | DTS_SHORTDATEFORMAT | DTS_SHOWNONE, 180, 100, 120, 25, hDlg, NULL, NULL, NULL);
 				SendMessage(birthday, DTM_SETRANGE, GDTR_MIN | GDTR_MAX, (LPARAM)&stRange);
-				SendMessage(birthday, DTM_SETMCFONT, (WPARAM)hDefaultFont, 0);
+				SendMessage(birthday, DTM_SETMCFONT, (WPARAM)hFonts[2], 0);
 			} else birthday = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | ES_CENTER | ES_MULTILINE | (nt3 ? WS_BORDER : 0), 180, 100, 120, 25, hDlg, NULL, NULL, NULL);
-			HFONT hSystemFont = (HFONT)GetStockObject(SYSTEM_FONT);
-			SendMessage(birthday, WM_SETFONT, (WPARAM)hSystemFont, 0);
 			if (read_le(peer->birthday, 4) != 0) {
 				SYSTEMTIME st = {0};
 				st.wDay = peer->birthday[0];
@@ -639,8 +700,6 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 		HWND hButtonOk = CreateWindow(L"BUTTON", L"OK", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 180, 145, 55, 25, hDlg, peer->perm.canchangedesc ? (HMENU)IDOK : (HMENU)IDCANCEL, NULL, NULL);
 		HWND hButtonCancel = CreateWindow(L"BUTTON", L"Cancel", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 245, 145, 55, 25, hDlg, (HMENU)IDCANCEL, NULL, NULL);
-		SendMessage(hButtonOk, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-		SendMessage(hButtonCancel, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
 		dlgPic = CreateWindowEx(WS_EX_CLIENTEDGE, L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY, 10, 10, 160, 160, hDlg, NULL, NULL, NULL);
 		SETTEXTEX st;
 		st.flags = ST_DEFAULT;
@@ -692,6 +751,11 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 			}
 		} else if (!ie3) oldBirthdayProc = (WNDPROC)SetWindowLongPtr(birthday, GWLP_WNDPROC, (LONG_PTR)WndProcDisabled);
 
+		apply_fonts(hDlg);
+		SendMessage(name, WM_SETFONT, (WPARAM)hFonts[1], FALSE);
+		SendMessage(handle, WM_SETFONT, (WPARAM)hFonts[1], FALSE);
+		SendMessage(birthday, WM_SETFONT, (WPARAM)hFonts[1], FALSE);
+		SendMessage(about, WM_SETFONT, (WPARAM)hFonts[0], FALSE);
 		place_dialog_center(hDlg, true);
 		break;
 	}
@@ -1499,9 +1563,9 @@ INT_PTR CALLBACK DlgProc2FA(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
 	case WM_INITDIALOG: {
 		HWND h2FALbl = CreateWindow(L"STATIC", L"Enter your password:", WS_CHILD | WS_VISIBLE, 10, 10, 155, 15, hDlg, NULL, NULL, NULL);
-		h2FA = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | ES_PASSWORD | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 25, 130, 20, hDlg, NULL, NULL, NULL);
+		h2FA = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | ES_PASSWORD | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 25, 130, 25, hDlg, NULL, NULL, NULL);
 		SendMessage(h2FA, EM_LIMITTEXT, 63, 0);
-		hPass = CreateWindow(L"BUTTON", NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? BS_OWNERDRAW : BS_ICON), 145, 25, 20, 20, hDlg, (HMENU)5, NULL, NULL);
+		hPass = CreateWindow(L"BUTTON", NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? BS_OWNERDRAW : BS_ICON), 145, 25, 25, 25, hDlg, (HMENU)5, NULL, NULL);
 		if (!nt3) {
 			HIMAGELIST hImg = ImageList_LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_ICONS), 16, 0, RGB(128, 0, 128));
 			HICON hIcon = ImageList_GetIcon(hImg, 6, ILD_NORMAL);
@@ -1509,12 +1573,9 @@ INT_PTR CALLBACK DlgProc2FA(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 			SendMessage(hPass, BM_SETIMAGE, IMAGE_ICON, (LPARAM)hIcon);
 		}
 
-		h2FAHint = CreateWindow(L"BUTTON", L"Hint?", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 28, 55, 55, 20, hDlg, (HMENU)3, NULL, NULL);
-		HWND h2FABtn = CreateWindow(L"BUTTON", L"Log in", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 93, 55, 55, 20, hDlg, (HMENU)4, NULL, NULL);
-		SendMessage(h2FALbl, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-		SendMessage(h2FA, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-		SendMessage(h2FABtn, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-		SendMessage(h2FAHint, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+		h2FAHint = CreateWindow(L"BUTTON", L"Hint?", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 28, 60, 55, 25, hDlg, (HMENU)3, NULL, NULL);
+		HWND h2FABtn = CreateWindow(L"BUTTON", L"Log in", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 93, 60, 55, 25, hDlg, (HMENU)4, NULL, NULL);
+		apply_fonts(hDlg);
 		SetWindowText(hDlg, L"2FA authentication");
 		place_dialog_center(hDlg, false);
 		break;
@@ -1542,7 +1603,7 @@ INT_PTR CALLBACK DlgProc2FA(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 		}
 		break;
 	case WM_DRAWITEM:
-		paint_password_button((DRAWITEMSTRUCT*)lParam);
+		paint_password_button((DRAWITEMSTRUCT*)lParam, false);
 		break;
 	case WM_CTLCOLORDLG:
 	case WM_CTLCOLORSTATIC:
@@ -1569,20 +1630,14 @@ INT_PTR CALLBACK DlgProcLogin(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		if (!hNumber) {
 			SetWindowText(hDlg, L"Log in");
 			HWND hLabelPhone = CreateWindow(L"STATIC", L"Your phone number:", WS_CHILD | WS_VISIBLE, 10, 10, 125, 15, hDlg, NULL, NULL, NULL);
-			HWND hLabelCode = CreateWindow(L"STATIC", L"Code:", WS_CHILD | WS_VISIBLE, 10, 50, 125, 15, hDlg, NULL, NULL, NULL);
-			HWND hLabelQr = CreateWindow(L"STATIC", L"Or, scan this QR code to log in:", WS_CHILD | WS_VISIBLE, 10, 90, 190, 15, hDlg, NULL, NULL, NULL);
-			hNumber = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 25, 125, 20, hDlg, NULL, NULL, NULL);
-			hNumberBtn = CreateWindow(L"BUTTON", L"Get code", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 140, 25, 59, 20, hDlg, (HMENU)3, NULL, NULL);
-			hCode = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | WS_DISABLED | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 65, 125, 20, hDlg, NULL, NULL, NULL);
-			hCodeBtn = CreateWindow(L"BUTTON", L"Log in", WS_CHILD | WS_VISIBLE | WS_DISABLED | WS_TABSTOP, 140, 65, 59, 20, hDlg, (HMENU)4, NULL, NULL);
-			hQRCode = CreateWindowEx(WS_EX_CLIENTEDGE, L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY, 10, 105, 185, 185, hDlg, NULL, NULL, NULL);
-			SendMessage(hLabelPhone, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-			SendMessage(hLabelCode, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-			SendMessage(hLabelQr, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-			SendMessage(hNumber, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-			SendMessage(hCode, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-			SendMessage(hNumberBtn, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
-			SendMessage(hCodeBtn, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+			HWND hLabelCode = CreateWindow(L"STATIC", L"Code:", WS_CHILD | WS_VISIBLE, 10, 55, 125, 15, hDlg, NULL, NULL, NULL);
+			HWND hLabelQr = CreateWindow(L"STATIC", L"Or, scan this QR code to log in:", WS_CHILD | WS_VISIBLE, 10, 100, 190, 15, hDlg, NULL, NULL, NULL);
+			hNumber = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 25, 125, 25, hDlg, NULL, NULL, NULL);
+			hNumberBtn = CreateWindow(L"BUTTON", L"Get code", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 140, 25, 59, 25, hDlg, (HMENU)3, NULL, NULL);
+			hCode = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | WS_DISABLED | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 70, 125, 25, hDlg, NULL, NULL, NULL);
+			hCodeBtn = CreateWindow(L"BUTTON", L"Log in", WS_CHILD | WS_VISIBLE | WS_DISABLED | WS_TABSTOP, 140, 70, 59, 25, hDlg, (HMENU)4, NULL, NULL);
+			hQRCode = CreateWindowEx(WS_EX_CLIENTEDGE, L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY, 10, 115, 185, 185, hDlg, NULL, NULL, NULL);
+			apply_fonts(hDlg);
 
 			SendMessage(hNumber, EM_LIMITTEXT, 19, 0);
 			SendMessage(hCode, EM_LIMITTEXT, 5, 0);

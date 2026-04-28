@@ -257,7 +257,7 @@ extern HWND hComboBoxChats, hComboBoxFolders, msgInput, chat, hMain, hStatus, hT
 extern HWND hNumber, hNumberBtn, hCode, hCodeBtn, hQRCode, h2FA, hPass, h2FAHint, hProxyIP, hProxyPort, hProxyUsername, hProxyPassword, hProxyHidePassword;
 extern IActiveIMMApp* g_pAIMM;
 extern HMENU hMenuBar;
-extern HFONT hDefaultFont;
+extern HFONT hFonts[3];
 
 extern wchar_t* last_tofront_sender;
 extern BYTE group_id_tofront[8];
@@ -317,6 +317,8 @@ extern bool hint_needed;
 extern wchar_t* hint;
 extern bool no_more_msgs;
 extern int get_dialogs_lowest_date;
+extern bool closed_logged_out;
+extern int dpi;
 
 extern HWAVEIN hWaveIn;
 extern WAVEHDR hdr_buf[4];
@@ -613,8 +615,9 @@ void set_sep_width(int width);
 HBITMAP rgb_to_bmp(BYTE* rgb, bool alpha, int width, int height);
 bool paint_emoji_bitmap(HDC hdc, wchar_t* path, RECT* rect);
 void paint_emoji_button(DRAWITEMSTRUCT* dis);
-void paint_password_button(DRAWITEMSTRUCT* dis);
+void paint_password_button(DRAWITEMSTRUCT* dis, bool options);
 void bring_me_to_life();
+void init_default_font(int index);
 
 // message.cpp
 int message_handler(bool to_front, BYTE* message, bool update_order, bool editing, bool rplhelper);
