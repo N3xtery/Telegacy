@@ -51,7 +51,8 @@ If you want the best experience, you need to have at least comctl32.dll version 
 - forumoji emojis
 
 ## Building
-Telegacy is built with Microsoft Visual C++ 6.0 SP6, powered by Microsoft Platform SDK July 2000.
+### Microsoft Visual C++
+I use VC++ 6.0 SP6 for building. Specifically for VC++ 6.0 you'll need to also have Microsoft Platform SDK installed. I use the [July 2000](https://archive.org/details/msdn-disc1-august-2000-05-94454) version, but it's currently available only inside a big DVD ISO image, so you can use the [August 2001](https://archive.org/download/msdn-full/Platform%20SDK%20and%20DDKs/) version installer instead, where you should choose to install the core and the Internet components. Open the workspace (telegacy.dsw). Download the [libraries](https://drive.google.com/file/d/1E0l6Wj8wujlnr_wRf4la9rJWouSe2Ddi/view?usp=sharing). Go to Tools -> Options -> Directories. Choose the "Include files" option in the "Show directories for" dropdown list. Select the root folders of each library. Now choose the "Library files" option. Select the "Release" folders of each library (except for libjpeg, choose the root folder for it). Hopefully, you'll be able to build now!
 
 ## Screenshots
 <img width="1024" height="768" alt="xp" src="https://github.com/user-attachments/assets/4d5139c2-57b4-4ad0-80a0-4d38b4662ab1" />
