@@ -618,6 +618,7 @@ void paint_emoji_button(DRAWITEMSTRUCT* dis);
 void paint_password_button(DRAWITEMSTRUCT* dis, bool options);
 void bring_me_to_life();
 void init_default_font(int index);
+int riched_write(HWND riched, wchar_t* str);
 
 // message.cpp
 int message_handler(bool to_front, BYTE* message, bool update_order, bool editing, bool rplhelper);

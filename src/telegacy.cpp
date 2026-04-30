@@ -1413,7 +1413,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					cf.crTextColor = RGB(128, 128, 128);
 					textHost->textServices->TxSendMessage(EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf, &res);
 				}
-				wchar_t unread_count[10];
+				wchar_t unread_count[15];
 				swprintf(unread_count, L" (%d)", peer->unread_msgs_count);
 				textHost->textServices->TxSendMessage(EM_REPLACESEL, 0, (LPARAM)unread_count, &res);
 			}

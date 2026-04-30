@@ -1046,20 +1046,17 @@ int set_reply(int i, int start_footer, BYTE* quote_text, bool setformat) {
 		written_info += SendMessage(chat, EM_STREAMIN, SF_RTF | SF_UNICODE | SFF_SELECTION, (LPARAM)&es);
 		free(sd.buf);
 	}
-	SETTEXTEX st;
-	st.flags = ST_SELECTION;
-	st.codepage = 1200;
 	int pos_init = start_footer + written_info;
 	if (quote_text != (BYTE*)-1) {
 		if (quote_text) {
 			wchar_t* quote = read_string(quote_text, NULL);
 			if (wcslen(quote) > 78) wcscpy(quote + 75, L"...");
-			written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)quote);
+			written_info += riched_write(chat, quote);
 			int deleted_wchars = 0;
 			for (int j = 0; j < wcslen(quote); j++) j = emoji_adder(j, quote, pos_init, 13, chat, &deleted_wchars);
 			written_info -= deleted_wchars;
 			free(quote);
-		} else if (toobig) written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"...");
+		} else if (toobig) written_info += riched_write(chat, L"...");
 	}
 
 	FINDTEXTEX ft = {0};
@@ -1539,10 +1536,7 @@ int set_reactions(BYTE* reactions, Message* message_footer, std::vector<int>* fo
 			wchar_t divider[20];
 			if (!firstemojiset) swprintf(divider, L" | %d ", react_count);
 			else swprintf(divider, L"   %d ", react_count);
-			SETTEXTEX st;
-			st.flags = ST_SELECTION;
-			st.codepage = 1200;
-			written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)divider);
+			written_info += riched_write(chat, divider);
 			if (cons == 0x1b2286b8) wemoji_to_path(emoji_str, file_name, true);
 			else if (cons == 0x523da4eb) wcscat(file_name, L"2b50.ico");
 			wchar_t* file_name_code = wcsrchr(file_name, L'\\') + 1;
@@ -1570,11 +1564,11 @@ int set_reactions(BYTE* reactions, Message* message_footer, std::vector<int>* fo
 			}
 			if (!insert_emoji(file_name, 13, chat)) {
 				if (cons == 0x8935fc73) {
-					SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"?");
+					SendMessage(chat, EM_REPLACESEL, FALSE, (LPARAM)L"?");
 					unknown_custom_emoji_solver(msg_id, written_info, 13, custom_emoji_id, false);
 				} else {
 					try_to_add_fe0f(file_name);
-					if (!insert_emoji(file_name, 13, chat)) SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"?");
+					if (!insert_emoji(file_name, 13, chat)) SendMessage(chat, EM_REPLACESEL, FALSE, (LPARAM)L"?");
 				}
 			}
 			firstemojiset = true;
@@ -2014,9 +2008,6 @@ BYTE* find_peer(BYTE* peer_bytes, BYTE* type_bytes, bool has_peer_type, char* ty
 }
 
 int msgfwd_addname(BYTE* peer_bytes, BYTE* msgfwd, int pos_init, bool shortmsg) {
-	SETTEXTEX st;
-	st.flags = ST_SELECTION;
-	st.codepage = 1200;
 	int written_info = 0;
 	int flags = read_le(msgfwd + 4, 4);
 	int offset = 8;
@@ -2036,7 +2027,7 @@ int msgfwd_addname(BYTE* peer_bytes, BYTE* msgfwd, int pos_init, bool shortmsg) 
 		}
 	}
 	if (name) {
-		written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)name);
+		written_info += riched_write(chat, name);
 		int deleted_wchars = 0;
 		for (int j = 0; j < wcslen(name); j++) j = emoji_adder(j, name, pos_init, 13, chat, &deleted_wchars);
 		written_info -= deleted_wchars;
@@ -2397,6 +2388,11 @@ void init_default_font(int index) {
 			hFonts[2] = CreateFontIndirect(&lf);
 		} else hFonts[2] = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
 	}
+}
+
+int riched_write(HWND riched, wchar_t* str) {
+	SendMessage(riched, EM_REPLACESEL, FALSE, (LPARAM)str);
+	return wcslen(str);
 }
 
 BYTE pubkey_der[] = {

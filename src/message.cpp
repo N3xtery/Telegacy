@@ -342,9 +342,6 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 	}
 
 	SendMessage(chat, EM_SETSEL, editing ? messages[editing_index].start_char : pos, editing ? (footer ? messages[editing_index].end_footer : messages[editing_index].end_char) : pos);
-	SETTEXTEX st;
-	st.flags = ST_SELECTION;
-	st.codepage = 1200;
 	int written_groupmedend = 0;
 	if (to_front) {
 		if (!groupmed_end || (documents.size() > 0 && documents[0].min == 0)) {
@@ -352,9 +349,9 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			SendMessage(chat, EM_SETSEL, pos, pos);
 		} else written_groupmedend--;
 		if (groupmed_end) {
-			written_groupmedend += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)last_tofront_sender);
-			written_groupmedend += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L": ");
-			if (!current_peer->perm.cansendmsg) written_groupmedend += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"\n");
+			written_groupmedend += riched_write(chat, last_tofront_sender);
+			written_groupmedend += riched_write(chat, L": ");
+			if (!current_peer->perm.cansendmsg) written_groupmedend += riched_write(chat, L"\n");
 			written_groupmedend++;
 			int deleted_wchars = 0;
 			for (int i = 0; i < wcslen(last_tofront_sender); i++) i = emoji_adder(i, last_tofront_sender, pos, 15, chat, &deleted_wchars);
@@ -369,7 +366,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 	CHARRANGE cr_startmsg;
 	SendMessage(chat, EM_EXGETSEL, 0, (LPARAM)&cr_startmsg);
 
-	int written = SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)msg);
+	int written = riched_write(chat, msg);
 	if (es) written += SendMessage(chat, EM_STREAMIN, SF_RTF | SF_UNICODE | SFF_SELECTION, (LPARAM)es);
 	bool added_doc = false, added_photo = false;
 	if (doc != NULL && read_le(doc, 4) == 0xdd570bd5 && (read_le(doc + 4, 4) & (1 << 0))) { // messageMediaDocument
@@ -450,7 +447,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 				free(sd->buf);
 			} else {
 				wchar_t placeholder[] = {0xFE0F, 0};
-				SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)placeholder);
+				SendMessage(chat, EM_REPLACESEL, FALSE, (LPARAM)placeholder);
 				if (!to_front && IMAGELOADPOLICY == 2) get_photo(NULL, &document, &dcInfoMain);
 			}
 			written++;
@@ -468,10 +465,10 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			swprintf(size_str, measure == 0 ? formats[0] : formats[1], size, measures[measure]);
 
 			document.min = cr_startmsg.cpMin + written;
-			written += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)document.filename);
+			written += riched_write(chat, document.filename);
 			document.max = cr_startmsg.cpMin + written;
-			if (duration_str[0] == ' ') written += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)&duration_str);
-			written += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)&size_str);
+			if (duration_str[0] == ' ') written += riched_write(chat, &duration_str[0]);
+			written += riched_write(chat, &size_str[0]);
 		}
 	} else if (doc != NULL && read_le(doc, 4) == 0x695150d7 && (read_le(doc + 4, 4) & (1 << 0))) {
 		added_doc = true;
@@ -572,7 +569,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			DeleteObject(hClone);
 		} else {
 			wchar_t placeholder[] = {0xFE0F, 0};
-			SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)placeholder);
+			SendMessage(chat, EM_REPLACESEL, FALSE, (LPARAM)placeholder);
 		}
 		written++;
 		document.max = cr_startmsg.cpMin + written;
@@ -600,7 +597,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			written_info += messages[last_group_msg].end_char - (editing ? messages[editing_index].end_char : 0) + 1;
 			if (!addnewline) written_info--;
 			message_footer = &messages[last_group_msg];
-		} else written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"\n");
+		} else written_info += riched_write(chat, L"\n");
 		
 		int replying_msg_id = 0;
 		if (es) replying_msg_id = ::replying_msg_id;
@@ -623,23 +620,23 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			}
 		}
 		if (msgrpl_another_chat && quote_text) {
-			written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"replying to ");
+			written_info += riched_write(chat, L"replying to ");
 			format_vecs[1].push_back(written - header_len + written_info);
 			written_info += msgfwd_addname(msg_bytes, msgrpl_another_chat, cr_startmsg.cpMin + written + written_info, msg_bytes - msg_id == 12);
-			written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L": ");
+			written_info += riched_write(chat, L": ");
 			written_info += set_reply(-1, cr_startmsg.cpMin + written + written_info, quote_text, false);
 			format_vecs[1].push_back(written - header_len + written_info);
-			written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"\n");
+			written_info += riched_write(chat, L"\n");
 		} else {
 			if (to_front && msgrpl) {
-				written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"replying to ");
+				written_info += riched_write(chat, L"replying to ");
 				if (quote_text) {
 					format_vecs[1].push_back(written - header_len + written_info);
 					written_info += set_reply(-1, cr_startmsg.cpMin + written + written_info, quote_text, false);
 					format_vecs[1].push_back(written - header_len + written_info);
 				}
 				message_footer->reply_needed = replying_msg_id;
-				written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"\n");
+				written_info += riched_write(chat, L"\n");
 			}
 			if (!to_front && replying_msg_id && !editing) {
 				if (!format_vecs) format_vecs = new std::vector<int>[9];
@@ -647,16 +644,16 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 					int id = messages[i].id;
 					if (i == -1 || messages[i].id == replying_msg_id) break;
 				}
-				written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"replying to ");
+				written_info += riched_write(chat, L"replying to ");
 				format_vecs[1].push_back(written - header_len + written_info);
 				if (i == -1) {
 					if (quote_text) written_info += set_reply(-1, cr_startmsg.cpMin + written + written_info, quote_text, false);
 					message_footer->reply_needed = replying_msg_id;
-					written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"\n");
+					written_info += riched_write(chat, L"\n");
 					get_message(replying_msg_id, current_peer);
 				} else {
 					written_info += set_reply(i, cr_startmsg.cpMin + written + written_info, quote_text, false);
-					written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"\n");
+					written_info += riched_write(chat, L"\n");
 				}
 				format_vecs[1].push_back(written - header_len + written_info - 1);
 			} else if (replying_msg_id && editing) {
@@ -664,14 +661,14 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 				written_info += SendMessage(chat, EM_STREAMIN, SF_RTF | SF_UNICODE | SFF_SELECTION, (LPARAM)&es_rep);
 				StreamData* sd = (StreamData*)es_rep.dwCookie;
 				free(sd->buf);
-				written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"\n");
+				written_info += riched_write(chat, L"\n");
 			}
 		}
 
 		if (msgfwd) {
-			written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"forwarded from ");
+			written_info += riched_write(chat, L"forwarded from ");
 			written_info += msgfwd_addname(msg_bytes, msgfwd, cr_startmsg.cpMin + written + written_info, msg_bytes - msg_id == 12);
-			written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"\n");
+			written_info += riched_write(chat, L"\n");
 		}
 
 		get_date(info + wcslen(info), date, false);
@@ -686,7 +683,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			if (views_int > 1) swprintf(info, L"%s | %d views", info, views_int);
 			else swprintf(info, L"%s | %d view", info, views_int);
 		}
-		written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)info);
+		written_info += riched_write(chat, info);
 		if (reactions != NULL) {
 			message.start_reactions = written_info - 1;
 			written_info += set_reactions(reactions, message_footer, format_vecs, written - header_len + written_info, message.id);
@@ -711,7 +708,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			} else messages[last_group_msg].start_reactions = messages[last_group_msg].end_footer;
 			written_info = 0;
 		} else {
-			written_info += SendMessage(chat, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)L"\n");
+			written_info += riched_write(chat, L"\n");
 			written += written_info;
 		}
 	}

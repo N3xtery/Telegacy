@@ -701,16 +701,13 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 		HWND hButtonOk = CreateWindow(L"BUTTON", L"OK", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 180, 145, 55, 25, hDlg, peer->perm.canchangedesc ? (HMENU)IDOK : (HMENU)IDCANCEL, NULL, NULL);
 		HWND hButtonCancel = CreateWindow(L"BUTTON", L"Cancel", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 245, 145, 55, 25, hDlg, (HMENU)IDCANCEL, NULL, NULL);
 		dlgPic = CreateWindowEx(WS_EX_CLIENTEDGE, L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY, 10, 10, 160, 160, hDlg, NULL, NULL, NULL);
-		SETTEXTEX st;
-		st.flags = ST_DEFAULT;
-		st.codepage = 1200;
-		SendMessage(name, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)peer->name);
+		SendMessage(name, EM_REPLACESEL, FALSE, (LPARAM)peer->name);
 		int name_len = wcslen(peer->name);
 		int deleted_wchars = 0;
 		for (int i = 0; i < name_len; i++) i = emoji_adder(i, peer->name, 0, 15, name, &deleted_wchars);
-		if (peer->handle) SendMessage(handle, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)peer->handle);
+		if (peer->handle) SendMessage(handle, EM_REPLACESEL, FALSE, (LPARAM)peer->handle);
 		if (peer->full && peer->about) {
-			SendMessage(about, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)peer->about);
+			SendMessage(about, EM_REPLACESEL, FALSE, (LPARAM)peer->about);
 			int about_len = wcslen(peer->about);
 			int deleted_wchars = 0;
 			for (int i = 0; i < about_len; i++) i = emoji_adder(i, peer->about, 0, 15, about, &deleted_wchars);
@@ -1061,7 +1058,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	static bool typing = false;
 	switch (msg) {
 	case WM_CHAR:
-	case EM_SETTEXTEX: 
+	case EM_REPLACESEL: 
 		if (!current_peer || editing_msg_id || wParam == 13 || (current_peer->type == 0 && current_peer->online == -1)) break;
 		if (!typing) SetTimer(hWnd, 0, 0, NULL);
 		SetTimer(hWnd, 1, 2000, NULL);
@@ -1136,10 +1133,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
                 g_pAIMM->GetCompositionStringW(hIMC, GCS_RESULTSTR, size, &size, &buf);
 				size /= 2;
                 buf[size] = 0;
-				SETTEXTEX st;
-				st.flags = ST_SELECTION;
-				st.codepage = 1200;
-				SendMessage(msgInput, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)buf);
+				SendMessage(msgInput, EM_REPLACESEL, FALSE, (LPARAM)buf);
 				ime_str_start++;
 				ime_composition = false;
 			}
@@ -1170,10 +1164,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				SendMessage(msgInput, EM_SETSEL, ime_str_start, ime_str_start+ime_str_len);
 			}
 
-			SETTEXTEX st;
-			st.flags = ST_SELECTION;
-			st.codepage = 1200;
-			SendMessage(msgInput, EM_SETTEXTEX, (WPARAM)&st, (LPARAM)(buf+offset));
+			SendMessage(msgInput, EM_REPLACESEL, FALSE, (LPARAM)(buf+offset));
 			free(buf);
 			ime_str_len = size;
 

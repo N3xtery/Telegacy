@@ -1595,7 +1595,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		int documents_count_old = documents.size();
 		for (int i = 0; i < count; i++) offset_msg += message_handler(true, unenc_response + offset_msg, false, false, false);
 		int reply_check = count;
-		while (messages[reply_check-1].end_char == messages[reply_check-1].end_footer) reply_check++;
+		while (reply_check < messages.size() && messages[reply_check-1].end_char == messages[reply_check-1].end_footer) reply_check++;
 		if (messages_count_old != messages.size()) for (i = 0; i < reply_check; i++) {
 			if (messages[i].reply_needed) {
 				for (int j = 0; j <= i; j++) if (j == i || messages[j].id == messages[i].reply_needed) break;

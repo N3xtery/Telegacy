@@ -30,8 +30,8 @@ An unofficial Telegram client aimed to work on old versions of Windows (NT3.51/9
 
 ## Minimum system requirements
 - Windows 95 RTM / Windows NT 3.51 RTM
-- 486 CPU
-- The client uses about 5-6 MB of RAM with disabled images and emojis, which, when enabled and many, can eat quite a bit of RAM, so account for that
+- 386 CPU
+- The client uses a few megabytes of RAM with disabled images and emojis, which, when enabled and many, can eat quite a bit of RAM, so account for that
 
 ## System support
 If you want the best experience, you need to have at least comctl32.dll version 4.71 (comes with IE 4.0 or standalone) and, optionally, Crypto API support (comes with IE 3.02) for a more secure random numbers generator. If you have comctl32.dll <=4.70, you won't have the dropdown arrow for the files button on your toolbar (its functionality will be transfered to the "Show the uploading list" option in the Tools menu). In case of a comctl32.dll <=4.00 you won't get the flat toolbar style, and no date and time picker control for changing your birthday (which becomes no longer possible).
