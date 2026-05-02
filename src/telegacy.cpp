@@ -1100,9 +1100,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			OPENFILENAME ofn = {0};
 			ofn.lStructSize = sizeof(OPENFILENAME);
 			wchar_t file_names[512] = {0};
-			file_names[0] = 0;
-			ofn.lpstrFile = file_names;
-			ofn.nMaxFile = sizeof(file_names);
+			ofn.lpstrFile = &file_names[0];
+			ofn.nMaxFile = 512;
 			ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_NOCHANGEDIR;
 			if (!editing_msg_id) ofn.Flags |= OFN_ALLOWMULTISELECT;
 			if (editing_msg_id && files.size() == 1) {
@@ -1398,13 +1397,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (!name) break;
 
 			LRESULT res;
-			textHost->textServices->TxSendMessage(WM_SETFONT, (WPARAM)hFonts[1], TRUE, &res);
-			textHost->textServices->TxSendMessage(EM_REPLACESEL, 0, (LPARAM)name, &res);
+			riched_write(NULL, textHost->textServices, name);
 
+			LOGFONT lf = {0};
+			GetObject(hFonts[1], sizeof(lf), &lf);
 			CHARFORMAT2 cf;
 			cf.cbSize = sizeof(cf);
-			cf.dwMask = CFM_COLOR;
-			cf.dwEffects = 0;
+			cf.dwMask = CFM_COLOR | CFM_FACE | CFM_WEIGHT | CFM_SIZE | CFM_ITALIC;
+			wcscpy(cf.szFaceName, lf.lfFaceName);
+			cf.wWeight = lf.lfWeight;
+			convert_negative_lfheight(&lf, 1);
+			cf.yHeight = MulDiv(-lf.lfHeight, 144, dpi) * 10;
+			cf.dwEffects = lf.lfItalic ? CFE_ITALIC : 0;
 			cf.crTextColor = GetSysColor(lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3 ? COLOR_HIGHLIGHTTEXT : COLOR_WINDOWTEXT);
 			textHost->textServices->TxSendMessage(EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf, &res);
 
@@ -1429,8 +1433,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 			FillRect(memDC, (RECT*)&myrect, GetSysColorBrush(lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3 ? COLOR_HIGHLIGHT : COLOR_WINDOW));
 			myrect.left++;
-			
-			textHost->textServices->TxDraw(DVASPECT_CONTENT, NULL, NULL, NULL, memDC, NULL, &myrect, NULL, NULL, NULL, NULL, NULL);
+			textHost->textServices->TxDraw(DVASPECT_CONTENT, -1, NULL, NULL, memDC, NULL, &myrect, NULL, NULL, NULL, NULL, TXTVIEW_ACTIVE);
 			BitBlt(lpdis->hDC, lpdis->rcItem.left, lpdis->rcItem.top, myrect.right, myrect.bottom, memDC, 0, 0, SRCCOPY);
 			SelectObject(memDC, hbmOld);
 			DeleteObject(hbm);
@@ -1446,18 +1449,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			int deleted_wchars = 0;
 			if (lpdis->itemID == 0 && current_peer && current_peer->type == 0) for (int i = 0; i < lpdis->itemData; i++) i = emoji_adder(i, status_str, 0, 15, NULL, &deleted_wchars);
 
+			LOGFONT lf = {0};
+			GetObject(hFonts[2], sizeof(lf), &lf);
 			CHARFORMAT2 cf;
 			cf.cbSize = sizeof(cf);
-			cf.dwMask = CFM_COLOR;
+			cf.dwMask = CFM_COLOR | CFM_FACE | CFM_SIZE | CFM_WEIGHT | CFM_ITALIC;
 			cf.crTextColor = COLOR_WINDOWTEXT;
-			cf.dwEffects = 0;
-			if (nt3) {
-				cf.dwMask |= CFM_FACE | CFM_SIZE | CFM_BOLD;
-				cf.yHeight = 200;
-				LOGFONT lf = {0};
-				GetObject(hFonts[2], sizeof(lf), &lf);
-				wcscpy(cf.szFaceName, lf.lfFaceName);
-			}
+			cf.dwEffects = lf.lfItalic ? CFE_ITALIC : 0;
+			convert_negative_lfheight(&lf, 2);
+			cf.yHeight = MulDiv(-lf.lfHeight, 144, dpi) * 10;
+			wcscpy(cf.szFaceName, lf.lfFaceName);
+			if (nt3) cf.yHeight += 40;
+			else cf.wWeight = lf.lfWeight;
 			textHost->textServices->TxSendMessage(EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf, &res);
 
 			lpdis->rcItem.left += nt3 ? 2 : 1;
@@ -1981,6 +1984,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				fwrite(&count2, 4, 1, f);
 				fwrite(fav_emojis[i], 2, count2, f);
 			}
+			fclose(f);
 		}
 
 		WINDOWPLACEMENT wp;

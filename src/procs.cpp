@@ -49,15 +49,7 @@ void write_font_name(int index) {
 	wchar_t buf[100];
 	LOGFONT lf = {0};
 	GetObject(hFonts[index], sizeof(lf), &lf);
-	if (lf.lfHeight > 0) {
-		HDC hdcRef = GetDC(NULL);
-		HFONT hFontOld = (HFONT)SelectObject(hdcRef, hFonts[index]);
-		TEXTMETRIC tm;
-		GetTextMetrics(hdcRef, &tm);
-		SelectObject(hdcRef, hFontOld);
-		ReleaseDC(NULL, hdcRef);
-		lf.lfHeight = tm.tmInternalLeading - tm.tmHeight;
-	}
+	convert_negative_lfheight(&lf, index);
 	int pt = MulDiv(-lf.lfHeight, 72, dpi);
 	swprintf(buf, L"%s %dpt", lf.lfFaceName, pt);
 	if (lf.lfWeight >= FW_BOLD) wcscat(buf, L", Bold");
@@ -605,6 +597,7 @@ INT_PTR CALLBACK DlgProcInfo(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) 
 		place_dialog_center(hDlg, about);
 		if (about) SetWindowText(hDlg, L"About Telegacy");
 		else UpdateWindow(hDlg);
+		SetForegroundWindow(hDlg);
 		break;
 	}
 	case WM_COMMAND:
@@ -1058,7 +1051,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	static bool typing = false;
 	switch (msg) {
 	case WM_CHAR:
-	case EM_REPLACESEL: 
+	case EM_STREAMIN: 
 		if (!current_peer || editing_msg_id || wParam == 13 || (current_peer->type == 0 && current_peer->online == -1)) break;
 		if (!typing) SetTimer(hWnd, 0, 0, NULL);
 		SetTimer(hWnd, 1, 2000, NULL);
@@ -1133,7 +1126,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
                 g_pAIMM->GetCompositionStringW(hIMC, GCS_RESULTSTR, size, &size, &buf);
 				size /= 2;
                 buf[size] = 0;
-				SendMessage(msgInput, EM_REPLACESEL, FALSE, (LPARAM)buf);
+				riched_write(msgInput, NULL, buf);
 				ime_str_start++;
 				ime_composition = false;
 			}
@@ -1164,7 +1157,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				SendMessage(msgInput, EM_SETSEL, ime_str_start, ime_str_start+ime_str_len);
 			}
 
-			SendMessage(msgInput, EM_REPLACESEL, FALSE, (LPARAM)(buf+offset));
+			riched_write(msgInput, NULL, buf + offset);
 			free(buf);
 			ime_str_len = size;
 
@@ -1295,6 +1288,23 @@ LRESULT CALLBACK WndProcChat(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) 
 			WORD submsg = LOWORD(wParam);
 			if (submsg == SB_THUMBTRACK) ischatscrolling = true;
 			else if (submsg == SB_THUMBPOSITION) ischatscrolling = false;
+			else if (submsg == SB_BOTTOM) {
+				SCROLLINFO si;
+				si.cbSize = sizeof(si);
+				si.fMask = SIF_RANGE | SIF_PAGE;
+				GetScrollInfo(chat, SB_VERT, &si);
+				SendMessage(chat, WM_VSCROLL, MAKEWPARAM(SB_THUMBPOSITION, si.nMax - si.nPage), 0);
+				return 0;
+			} else if (submsg == SB_LINEDOWN) {
+				SCROLLINFO si;
+				si.cbSize = sizeof(si);
+				si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+				GetScrollInfo(chat, SB_VERT, &si);
+				if (si.nPos > (int)(si.nMax - si.nPage) - 20) {
+					SendMessage(chat, WM_VSCROLL, MAKEWPARAM(SB_THUMBPOSITION, si.nMax - si.nPage), 0);
+					return 0;
+				}
+			}
 			if (submsg != SB_ENDSCROLL) break;
 		}
 		RECT rect;

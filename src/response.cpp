@@ -431,6 +431,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		if (memcmp(last_rpcresult_msgid, difference_msg_id, 8) == 0 && !closed_logged_out) {
 			DestroyWindow(current_info);
 			ShowWindow(hMain, maximized ? SW_SHOWMAXIMIZED : SW_SHOW);
+			SetForegroundWindow(hMain);
 			set_tray_icon();
 		}
 		if (!dcInfo->dc) acknowledgement = false;
@@ -1226,6 +1227,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 
 		DestroyWindow(current_info);
 		ShowWindow(hMain, maximized ? SW_SHOWMAXIMIZED : SW_SHOW);
+		SetForegroundWindow(hMain);
 		set_tray_icon();
 		break;
 	}
@@ -1626,10 +1628,6 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			get_channel_difference(current_peer);
 			SetTimer(hMain, 3, 30000, NULL);
 		}
-		SCROLLINFO si = {0};
-		si.cbSize = sizeof(si);
-		si.fMask = SIF_RANGE | SIF_TRACKPOS | SIF_PAGE | SIF_POS;
-		GetScrollInfo(chat, SB_VERT, &si);
 		UpdateWindow(chat);
 		if (messages.size() - messages_count_old < 10) no_more_msgs = true;
 		else if (SendMessage(chat, EM_GETFIRSTVISIBLELINE, 0, 0) == 0) get_history();

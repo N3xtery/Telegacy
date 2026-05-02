@@ -933,6 +933,7 @@ bool insert_emoji(wchar_t* path, int size, HWND richedit) {
 		if (hIcon || (nt3 && GetFileAttributes(path) != -1)) {
 			HDC hdcMeta = CreateMetaFile(NULL);
 			SetWindowExtEx(hdcMeta, 15, 15, NULL);
+			SetViewportExtEx(hdcMeta, size, size, NULL);
 			if (nt3) {
 				RECT rc = {0};
 				paint_emoji_bitmap(hdcMeta, path, &rc);
@@ -958,9 +959,7 @@ bool insert_emoji(wchar_t* path, int size, HWND richedit) {
 		} else return false;
 	} else {
 		wchar_t placeholder[] = {0xFE0F, 0};
-		HRESULT hr;
-		if (richedit) SendMessage(richedit, EM_REPLACESEL, FALSE, (LPARAM)placeholder);
-		else textHost->textServices->TxSendMessage(EM_REPLACESEL, FALSE, (LPARAM)placeholder, &hr);
+		riched_write(richedit, textHost->textServices, placeholder);
 		return true;
 	}
 }
@@ -1020,9 +1019,8 @@ int emoji_adder(int i, wchar_t* msg, int pos, int size, HWND chat, int* deleted_
 		else textHost->textServices->TxSendMessage(EM_SETSEL, pos + i - *deleted_wchars, pos + i - *deleted_wchars + 1 + compound_chars + surr_pair + specials, &res);
 		
 		if (!insert_emoji(file_name, size, chat)) {
-			wchar_t placeholder[] = {0xFFFF, 0};
-			if (chat) SendMessage(chat, EM_REPLACESEL, 0, (LPARAM)placeholder);
-			else textHost->textServices->TxSendMessage(EM_REPLACESEL, 0, (LPARAM)placeholder, &res);
+			wchar_t placeholder[] = {0xFE0F, 0};
+			riched_write(chat, textHost->textServices, placeholder);
 		}
 		*deleted_wchars += compound_chars + surr_pair + specials;
 		i += compound_chars + surr_pair + specials;
@@ -1051,12 +1049,12 @@ int set_reply(int i, int start_footer, BYTE* quote_text, bool setformat) {
 		if (quote_text) {
 			wchar_t* quote = read_string(quote_text, NULL);
 			if (wcslen(quote) > 78) wcscpy(quote + 75, L"...");
-			written_info += riched_write(chat, quote);
+			written_info += riched_write(chat, NULL, quote);
 			int deleted_wchars = 0;
 			for (int j = 0; j < wcslen(quote); j++) j = emoji_adder(j, quote, pos_init, 13, chat, &deleted_wchars);
 			written_info -= deleted_wchars;
 			free(quote);
-		} else if (toobig) written_info += riched_write(chat, L"...");
+		} else if (toobig) written_info += riched_write(chat, NULL, L"...");
 	}
 
 	FINDTEXTEX ft = {0};
@@ -1080,7 +1078,7 @@ int set_reply(int i, int start_footer, BYTE* quote_text, bool setformat) {
 		SendMessage(chat, EM_SETSEL, start_footer, start_footer + written_info);
 		CHARFORMAT2 cf;
 		cf.cbSize = sizeof(cf);
-		cf.dwMask = CFM_COLOR | CFM_BOLD | CFM_SIZE | CFM_LINK | CFM_ITALIC | CFM_UNDERLINE | CFM_STRIKEOUT | CFM_FACE | CFM_BACKCOLOR;
+		cf.dwMask = CFM_COLOR | CFM_BOLD | CFM_SIZE | CFM_LINK | CFM_ITALIC | CFM_UNDERLINE | CFM_STRIKEOUT | CFM_FACE | CFM_BACKCOLOR | CFM_WEIGHT;
 		LOGFONT lf = {0};
 		GetObject(hFonts[0], sizeof(lf), &lf);
 		wcscpy(cf.szFaceName, lf.lfFaceName);
@@ -1088,6 +1086,7 @@ int set_reply(int i, int start_footer, BYTE* quote_text, bool setformat) {
 		cf.crTextColor = 0;
 		cf.crBackColor = RGB(255, 255, 255);
 		cf.yHeight = 160;
+		cf.wWeight = lf.lfWeight;
 		SendMessage(chat, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
 	}
 
@@ -1536,7 +1535,7 @@ int set_reactions(BYTE* reactions, Message* message_footer, std::vector<int>* fo
 			wchar_t divider[20];
 			if (!firstemojiset) swprintf(divider, L" | %d ", react_count);
 			else swprintf(divider, L"   %d ", react_count);
-			written_info += riched_write(chat, divider);
+			written_info += riched_write(chat, NULL, divider);
 			if (cons == 0x1b2286b8) wemoji_to_path(emoji_str, file_name, true);
 			else if (cons == 0x523da4eb) wcscat(file_name, L"2b50.ico");
 			wchar_t* file_name_code = wcsrchr(file_name, L'\\') + 1;
@@ -2027,7 +2026,7 @@ int msgfwd_addname(BYTE* peer_bytes, BYTE* msgfwd, int pos_init, bool shortmsg) 
 		}
 	}
 	if (name) {
-		written_info += riched_write(chat, name);
+		written_info += riched_write(chat, NULL, name);
 		int deleted_wchars = 0;
 		for (int j = 0; j < wcslen(name); j++) j = emoji_adder(j, name, pos_init, 13, chat, &deleted_wchars);
 		written_info -= deleted_wchars;
@@ -2390,9 +2389,31 @@ void init_default_font(int index) {
 	}
 }
 
-int riched_write(HWND riched, wchar_t* str) {
-	SendMessage(riched, EM_REPLACESEL, FALSE, (LPARAM)str);
-	return wcslen(str);
+int riched_write(HWND riched, ITextServices* textServices, wchar_t* str) {
+	StreamData sd = {0};
+	sd.buf = (BYTE*)str;
+	sd.length = wcslen(str) * 2;
+	EDITSTREAM es = {0};
+	es.dwCookie = (DWORD_PTR)&sd;
+	es.pfnCallback = StreamInCallback;
+	if (riched) return SendMessage(riched, EM_STREAMIN, SF_TEXT | SF_UNICODE | SFF_SELECTION, (LPARAM)&es) / 2;
+	else {
+		LRESULT res;
+		textServices->TxSendMessage(EM_STREAMIN, SF_TEXT | SF_UNICODE | SFF_SELECTION, (LPARAM)&es, &res);
+		return res / 2;
+	}
+}
+
+void convert_negative_lfheight(LOGFONT* lf, int index) {
+	if (lf->lfHeight > 0) {
+		HDC hdcRef = GetDC(NULL);
+		HFONT hFontOld = (HFONT)SelectObject(hdcRef, hFonts[index]);
+		TEXTMETRIC tm;
+		GetTextMetrics(hdcRef, &tm);
+		SelectObject(hdcRef, hFontOld);
+		ReleaseDC(NULL, hdcRef);
+		lf->lfHeight = tm.tmInternalLeading - tm.tmHeight;
+	}
 }
 
 BYTE pubkey_der[] = {

@@ -349,9 +349,9 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			SendMessage(chat, EM_SETSEL, pos, pos);
 		} else written_groupmedend--;
 		if (groupmed_end) {
-			written_groupmedend += riched_write(chat, last_tofront_sender);
-			written_groupmedend += riched_write(chat, L": ");
-			if (!current_peer->perm.cansendmsg) written_groupmedend += riched_write(chat, L"\n");
+			written_groupmedend += riched_write(chat, NULL, last_tofront_sender);
+			written_groupmedend += riched_write(chat, NULL, L": ");
+			if (!current_peer->perm.cansendmsg) written_groupmedend += riched_write(chat, NULL, L"\n");
 			written_groupmedend++;
 			int deleted_wchars = 0;
 			for (int i = 0; i < wcslen(last_tofront_sender); i++) i = emoji_adder(i, last_tofront_sender, pos, 15, chat, &deleted_wchars);
@@ -366,7 +366,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 	CHARRANGE cr_startmsg;
 	SendMessage(chat, EM_EXGETSEL, 0, (LPARAM)&cr_startmsg);
 
-	int written = riched_write(chat, msg);
+	int written = riched_write(chat, NULL, msg);
 	if (es) written += SendMessage(chat, EM_STREAMIN, SF_RTF | SF_UNICODE | SFF_SELECTION, (LPARAM)es);
 	bool added_doc = false, added_photo = false;
 	if (doc != NULL && read_le(doc, 4) == 0xdd570bd5 && (read_le(doc + 4, 4) & (1 << 0))) { // messageMediaDocument
@@ -447,7 +447,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 				free(sd->buf);
 			} else {
 				wchar_t placeholder[] = {0xFE0F, 0};
-				SendMessage(chat, EM_REPLACESEL, FALSE, (LPARAM)placeholder);
+				riched_write(chat, NULL, placeholder);
 				if (!to_front && IMAGELOADPOLICY == 2) get_photo(NULL, &document, &dcInfoMain);
 			}
 			written++;
@@ -465,10 +465,10 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			swprintf(size_str, measure == 0 ? formats[0] : formats[1], size, measures[measure]);
 
 			document.min = cr_startmsg.cpMin + written;
-			written += riched_write(chat, document.filename);
+			written += riched_write(chat, NULL, document.filename);
 			document.max = cr_startmsg.cpMin + written;
-			if (duration_str[0] == ' ') written += riched_write(chat, &duration_str[0]);
-			written += riched_write(chat, &size_str[0]);
+			if (duration_str[0] == ' ') written += riched_write(chat, NULL, &duration_str[0]);
+			written += riched_write(chat, NULL, &size_str[0]);
 		}
 	} else if (doc != NULL && read_le(doc, 4) == 0x695150d7 && (read_le(doc + 4, 4) & (1 << 0))) {
 		added_doc = true;
@@ -521,6 +521,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 					myjpg[166] = doc[offset + 11];
 					hClone = jpg_to_bmp(myjpg, myjpg_size);
 					free(myjpg);
+					if (doc[offset + 5] == 254) offset -= 3;
 				} else if (size > size_main && photosize_cons == 0x75c78e60) {
 					size_main = size;
 					document.size = read_le(doc + offset + 16, 4);
@@ -569,7 +570,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			DeleteObject(hClone);
 		} else {
 			wchar_t placeholder[] = {0xFE0F, 0};
-			SendMessage(chat, EM_REPLACESEL, FALSE, (LPARAM)placeholder);
+			riched_write(chat, NULL, placeholder);
 		}
 		written++;
 		document.max = cr_startmsg.cpMin + written;
@@ -597,7 +598,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			written_info += messages[last_group_msg].end_char - (editing ? messages[editing_index].end_char : 0) + 1;
 			if (!addnewline) written_info--;
 			message_footer = &messages[last_group_msg];
-		} else written_info += riched_write(chat, L"\n");
+		} else written_info += riched_write(chat, NULL, L"\n");
 		
 		int replying_msg_id = 0;
 		if (es) replying_msg_id = ::replying_msg_id;
@@ -620,23 +621,23 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			}
 		}
 		if (msgrpl_another_chat && quote_text) {
-			written_info += riched_write(chat, L"replying to ");
+			written_info += riched_write(chat, NULL, L"replying to ");
 			format_vecs[1].push_back(written - header_len + written_info);
 			written_info += msgfwd_addname(msg_bytes, msgrpl_another_chat, cr_startmsg.cpMin + written + written_info, msg_bytes - msg_id == 12);
-			written_info += riched_write(chat, L": ");
+			written_info += riched_write(chat, NULL, L": ");
 			written_info += set_reply(-1, cr_startmsg.cpMin + written + written_info, quote_text, false);
 			format_vecs[1].push_back(written - header_len + written_info);
-			written_info += riched_write(chat, L"\n");
+			written_info += riched_write(chat, NULL, L"\n");
 		} else {
 			if (to_front && msgrpl) {
-				written_info += riched_write(chat, L"replying to ");
+				written_info += riched_write(chat, NULL, L"replying to ");
 				if (quote_text) {
 					format_vecs[1].push_back(written - header_len + written_info);
 					written_info += set_reply(-1, cr_startmsg.cpMin + written + written_info, quote_text, false);
 					format_vecs[1].push_back(written - header_len + written_info);
 				}
 				message_footer->reply_needed = replying_msg_id;
-				written_info += riched_write(chat, L"\n");
+				written_info += riched_write(chat, NULL, L"\n");
 			}
 			if (!to_front && replying_msg_id && !editing) {
 				if (!format_vecs) format_vecs = new std::vector<int>[9];
@@ -644,16 +645,16 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 					int id = messages[i].id;
 					if (i == -1 || messages[i].id == replying_msg_id) break;
 				}
-				written_info += riched_write(chat, L"replying to ");
+				written_info += riched_write(chat, NULL, L"replying to ");
 				format_vecs[1].push_back(written - header_len + written_info);
 				if (i == -1) {
 					if (quote_text) written_info += set_reply(-1, cr_startmsg.cpMin + written + written_info, quote_text, false);
 					message_footer->reply_needed = replying_msg_id;
-					written_info += riched_write(chat, L"\n");
+					written_info += riched_write(chat, NULL, L"\n");
 					get_message(replying_msg_id, current_peer);
 				} else {
 					written_info += set_reply(i, cr_startmsg.cpMin + written + written_info, quote_text, false);
-					written_info += riched_write(chat, L"\n");
+					written_info += riched_write(chat, NULL, L"\n");
 				}
 				format_vecs[1].push_back(written - header_len + written_info - 1);
 			} else if (replying_msg_id && editing) {
@@ -661,14 +662,14 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 				written_info += SendMessage(chat, EM_STREAMIN, SF_RTF | SF_UNICODE | SFF_SELECTION, (LPARAM)&es_rep);
 				StreamData* sd = (StreamData*)es_rep.dwCookie;
 				free(sd->buf);
-				written_info += riched_write(chat, L"\n");
+				written_info += riched_write(chat, NULL, L"\n");
 			}
 		}
 
 		if (msgfwd) {
-			written_info += riched_write(chat, L"forwarded from ");
+			written_info += riched_write(chat, NULL, L"forwarded from ");
 			written_info += msgfwd_addname(msg_bytes, msgfwd, cr_startmsg.cpMin + written + written_info, msg_bytes - msg_id == 12);
-			written_info += riched_write(chat, L"\n");
+			written_info += riched_write(chat, NULL, L"\n");
 		}
 
 		get_date(info + wcslen(info), date, false);
@@ -683,7 +684,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			if (views_int > 1) swprintf(info, L"%s | %d views", info, views_int);
 			else swprintf(info, L"%s | %d view", info, views_int);
 		}
-		written_info += riched_write(chat, info);
+		written_info += riched_write(chat, NULL, info);
 		if (reactions != NULL) {
 			message.start_reactions = written_info - 1;
 			written_info += set_reactions(reactions, message_footer, format_vecs, written - header_len + written_info, message.id);
@@ -708,7 +709,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			} else messages[last_group_msg].start_reactions = messages[last_group_msg].end_footer;
 			written_info = 0;
 		} else {
-			written_info += riched_write(chat, L"\n");
+			written_info += riched_write(chat, NULL, L"\n");
 			written += written_info;
 		}
 	}
@@ -731,7 +732,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 	GetObject(hFonts[0], sizeof(lf), &lf);
 	wcscpy(cf.szFaceName, lf.lfFaceName);
 	cf.wWeight = lf.lfWeight;
-	cf.dwEffects = 0;
+	cf.dwEffects = lf.lfItalic ? CFE_ITALIC : 0;
 	cf.crTextColor = 0;
 	cf.crBackColor = RGB(255, 255, 255);
 	cf.yHeight = MulDiv(-lf.lfHeight, 144, dpi) * 10;
@@ -766,8 +767,14 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 	if (added_doc && document.photo_size != 1) {
 		cf.dwMask = CFM_LINK;
 		cf.dwEffects = CFE_LINK;
+		if (!document.photo_size) {
+			cf.dwMask |= CFM_COLOR | CFM_UNDERLINE;
+			cf.dwEffects |= CFE_UNDERLINE;
+			cf.crTextColor = RGB(0, 0, 255);
+		}
 		SendMessage(chat, EM_SETSEL, document.min, document.max);
 		SendMessage(chat, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
+		cf.crTextColor = 0;
 	}
 
 	int format_values[9] = {CFM_BOLD, CFM_ITALIC, CFM_UNDERLINE, CFM_STRIKEOUT, CFM_COLOR, CFM_FACE, CFM_BACKCOLOR, CFM_LINK, CFM_LINK};
@@ -790,6 +797,11 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 				for (int k = 0; k < links.size(); k++) if (links[k].chrg.cpMin == -1) break;
 				links[k].chrg.cpMin = cr_startmsg.cpMin + header_len + format_vecs[i][j];
 				links[k].chrg.cpMax = cr_startmsg.cpMin + header_len + format_vecs[i][j+1];
+			}
+			if (cf.dwMask == CFM_LINK) {
+				cf.dwMask |= CFM_UNDERLINE | CFM_COLOR;
+				cf.dwEffects |= CFE_UNDERLINE;
+				cf.crTextColor = RGB(0, 0, 255);
 			}
 			SendMessage(chat, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
 		}
@@ -817,7 +829,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 					SendMessage(chat, EM_SETSEL, cr_startmsg.cpMin + i - deleted_wchars, cr_startmsg.cpMin + i - deleted_wchars + format_vecs[9][j + 1]);
 					if (!insert_emoji(file_name, 15, chat)) {
 						wchar_t placeholder[] = {0xFE0F, 0};
-						SendMessage(chat, EM_REPLACESEL, 0, (LPARAM)placeholder);
+						riched_write(chat, NULL, placeholder);
 						unknown_custom_emoji_solver(message.id, i - deleted_wchars - header_len, 15, custom_emoji_id, false);
 					}
 					deleted_wchars += format_vecs[9][j + 1] - 1;
@@ -867,7 +879,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			cr.cpMax += written;
 		}
 		SendMessage(chat, EM_EXSETSEL, 0, (LPARAM)&cr);
-	} else SendMessage(chat, EM_SETSEL, -1, -1);
+	} else SendMessage(chat, EM_SETSEL, INT_MAX, INT_MAX);
 
 	bool notify = false;
 	if (to_front || editmsgisup) {

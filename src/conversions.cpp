@@ -138,6 +138,10 @@ void insert_image(HWND hRichEdit, HMETAFILEPICT hMetaFilePict, HBITMAP hBitmap) 
     reobject.sizel = sizel;
 
     hr = pRichEditOle->InsertObject(&reobject);
+	if (hr != S_OK) {
+		wchar_t placeholder[] = {0xFE0F, 0};
+		riched_write(hRichEdit, textHost->textServices, placeholder);
+	}
 	pDataObject->Release();
     pObject->Release();
 	pClientSite->Release();
