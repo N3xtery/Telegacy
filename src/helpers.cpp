@@ -361,9 +361,9 @@ void update_chats_order(BYTE* id, BYTE* msg_id, char type) {
 							if (!not_found && &folders[j] == current_folder) SendMessage(hComboBoxChats, CB_DELETESTRING, k, 0);
 							for (int l = k; l > folders[j].pinned_count; l--) folders[j].peers[l] = folders[j].peers[l-1];
 							folders[j].peers[folders[j].pinned_count] = 0;
-							if (!not_found && &folders[j] == current_folder) SendMessage(hComboBoxChats, CB_INSERTSTRING, folders[j].pinned_count, (LPARAM)peers[0].name);
-							if (!not_found && &folders[j] == current_folder) SendMessage(hComboBoxChats, CB_SETITEMDATA, folders[j].pinned_count, (LPARAM)&peers[0]);
-							if (!not_found && &folders[j] == current_folder && current_peer == &peers[0]) SendMessage(hComboBoxChats, CB_SETCURSEL, folders[j].pinned_count, 0);
+							if (&folders[j] == current_folder) SendMessage(hComboBoxChats, CB_INSERTSTRING, folders[j].pinned_count, NULL);
+							if (&folders[j] == current_folder) SendMessage(hComboBoxChats, CB_SETITEMDATA, folders[j].pinned_count, (LPARAM)&peers[0]);
+							if (&folders[j] == current_folder && current_peer == &peers[0]) SendMessage(hComboBoxChats, CB_SETCURSEL, folders[j].pinned_count, 0);
 							break;
 						}
 					} else if (k >= folders[j].pinned_count && folders[j].peers[k] > i) break;

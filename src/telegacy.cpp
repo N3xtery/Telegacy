@@ -296,8 +296,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		}
 		if (major <= 3 || (major == 4 && minor <= 70)) ie4 = false;
 
-		hComboBoxFolders = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE | WS_VSCROLL | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS, 10, 10, 200, 300, hWnd, (HMENU)2, NULL, NULL);
-		hComboBoxChats = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE | WS_VSCROLL | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS, 220, 10, width / 2.5, 300, hWnd, (HMENU)3, NULL, NULL);
+		hComboBoxFolders = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE | WS_VSCROLL | CBS_OWNERDRAWFIXED, 10, 10, 200, 300, hWnd, (HMENU)2, NULL, NULL);
+		hComboBoxChats = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE | WS_VSCROLL | CBS_OWNERDRAWFIXED, 220, 10, width / 2.5, 300, hWnd, (HMENU)3, NULL, NULL);
 		msgInput = CreateWindow(L"RichEdit20W", NULL, WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_BORDER | ES_LEFT | ES_AUTOVSCROLL | ES_MULTILINE | WS_CLIPSIBLINGS,
 			10, height - 120, width - 30, 65, hWnd, NULL, NULL, NULL);
 		writing_str_from = msgInput;
@@ -1459,8 +1459,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			convert_negative_lfheight(&lf, 2);
 			cf.yHeight = MulDiv(-lf.lfHeight, 144, dpi) * 10;
 			wcscpy(cf.szFaceName, lf.lfFaceName);
-			if (nt3) cf.yHeight += 40;
-			else cf.wWeight = lf.lfWeight;
+			if (nt3) {
+				cf.yHeight += 40;
+				cf.wWeight = FW_REGULAR;
+			} else cf.wWeight = lf.lfWeight;
 			textHost->textServices->TxSendMessage(EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf, &res);
 
 			lpdis->rcItem.left += nt3 ? 2 : 1;

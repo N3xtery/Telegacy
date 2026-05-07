@@ -1,5 +1,7 @@
 !include "MUI2.nsh"
 !include "UpgradeDLL.nsh"
+!include "FileFunc.nsh"
+!include "WordFunc.nsh"
 
 !define APPNAME "Telegacy"
 !define APPVER "1.0.3"
@@ -59,19 +61,15 @@ Section "Telegacy" SecMain
 
   SetOutPath "$INSTDIR\emojis"
   File /r /x "Thumbs.db" "Debug\emojis\*.*"
-
+  
+  SetOutPath "$SYSDIR"
   Call IsWin9x
   Pop $0
   StrCmp $0 1 0 skipunicows
-    SetOutPath "$SYSDIR"
     SetOverwrite ifnewer
     !insertmacro UpgradeDLL "dlls\unicows.dll" "$SYSDIR\unicows.dll" "$SYSDIR"
 
   skipunicows:
-  SetOutPath "$SYSDIR"
-  SetOverwrite ifnewer
-  !insertmacro UpgradeDLL "dlls\riched20.dll" "$SYSDIR\riched20.dll" "$SYSDIR"
-  !insertmacro UpgradeDLL "dlls\msls31.dll" "$SYSDIR\msls31.dll" "$SYSDIR"
   SetOverwrite off
   File "dlls\msvcrt.dll"
 
@@ -84,6 +82,11 @@ WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Telegacy" 
 WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Telegacy" "QuietUninstallString" "$INSTDIR\uninstall.exe /S"
 WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Telegacy" "NoModify" 1
 WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Telegacy" "NoRepair" 1
+SectionEnd
+
+Section /o "" SecRichedUpdate
+  !insertmacro UpgradeDLL "dlls\riched20.dll" "$SYSDIR\riched20.dll" "$SYSDIR"
+  !insertmacro UpgradeDLL "dlls\msls31.dll" "$SYSDIR\msls31.dll" "$SYSDIR"
 SectionEnd
 
 Section "Create a Start Menu folder" SecStartMenu
@@ -136,10 +139,19 @@ SectionEnd
 Function .onInit
   Call IsNT3
   Pop $0
-  StrCmp $0 0 +4
+  StrCmp $0 0 skipinit
     SectionSetText ${SecStartMenu} "Create a Program Manager group"
     SectionSetText ${SecDesktop} ""
     SectionSetText ${SecQuickLaunch} ""
+  skipinit:
+  IfFileExists "$SYSDIR\riched20.dll" 0 richedneedupdate
+  ${GetFileVersion} "$SYSDIR\riched20.dll" $0
+  ${VersionCompare} $0 "5.30.23.1230" $1
+  IntCmp $1 2 0 initdone initdone
+  richedneedupdate:
+  SectionSetText ${SecRichedUpdate} "Rich Edit 3.0 Update"
+  SectionSetFlags ${SecRichedUpdate} ${SF_SELECTED}
+  initdone:
 FunctionEnd
 
 Function IsWin9x

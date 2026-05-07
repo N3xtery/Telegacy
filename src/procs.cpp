@@ -75,7 +75,8 @@ void update_fonts(int index) {
 	} else {
 		apply_fonts(hOptionsTabs);
 		apply_fonts(current_dialog);
-		InvalidateRect(hStatus, NULL, TRUE);
+		InvalidateRect(hStatus, NULL, FALSE);
+		InvalidateRect(hOptionsTabs, NULL, FALSE);
 	}
 }
 
@@ -351,6 +352,8 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 					hhp.hinst = NULL;
 					if (id == 19 || id == 20) hhp.idString = 18;
 					else if (id == 22 || id == 23) hhp.idString = 21;
+					else if (id == 36 || id == 37) hhp.idString = 35;
+					else if (id == 39 || id == 40) hhp.idString = 38;
 					else hhp.idString = id;
 					wchar_t path[MAX_PATH];
 					swprintf(path, L"%s::/popups.txt", get_path(exe_path, L"help.chm"));
@@ -694,13 +697,13 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 		HWND hButtonOk = CreateWindow(L"BUTTON", L"OK", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 180, 145, 55, 25, hDlg, peer->perm.canchangedesc ? (HMENU)IDOK : (HMENU)IDCANCEL, NULL, NULL);
 		HWND hButtonCancel = CreateWindow(L"BUTTON", L"Cancel", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 245, 145, 55, 25, hDlg, (HMENU)IDCANCEL, NULL, NULL);
 		dlgPic = CreateWindowEx(WS_EX_CLIENTEDGE, L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY, 10, 10, 160, 160, hDlg, NULL, NULL, NULL);
-		SendMessage(name, EM_REPLACESEL, FALSE, (LPARAM)peer->name);
+		riched_write(name, NULL, peer->name);
 		int name_len = wcslen(peer->name);
 		int deleted_wchars = 0;
 		for (int i = 0; i < name_len; i++) i = emoji_adder(i, peer->name, 0, 15, name, &deleted_wchars);
-		if (peer->handle) SendMessage(handle, EM_REPLACESEL, FALSE, (LPARAM)peer->handle);
+		if (peer->handle) riched_write(handle, NULL, peer->handle);
 		if (peer->full && peer->about) {
-			SendMessage(about, EM_REPLACESEL, FALSE, (LPARAM)peer->about);
+			riched_write(about, NULL, peer->about);
 			int about_len = wcslen(peer->about);
 			int deleted_wchars = 0;
 			for (int i = 0; i < about_len; i++) i = emoji_adder(i, peer->about, 0, 15, about, &deleted_wchars);
@@ -1090,7 +1093,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		}
 		break;
 	case WM_IME_NOTIFY: {
-		if (wParam == IMN_OPENCANDIDATE && (ime_lang == 0 || ime_lang == 2)) {
+		if (g_pAIMM && wParam == IMN_OPENCANDIDATE && (ime_lang == 0 || ime_lang == 2)) {
 			HIMC hIMC = NULL;
 			g_pAIMM->GetContext(hWnd, &hIMC);
 			POINT pt;
@@ -1112,6 +1115,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		break;
 	}
 	case WM_IME_COMPOSITION: {
+		if (!g_pAIMM) break;
 		HIMC hIMC;
 		g_pAIMM->GetContext(hWnd, &hIMC);
 		if (lParam & GCS_RESULTSTR) {
@@ -1202,6 +1206,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		return 0;
 	}
 	case WM_IME_STARTCOMPOSITION: {
+		if (!g_pAIMM) break;
 		ime_composition = true;
 		CHARRANGE cr;
 		SendMessage(msgInput, EM_GETSEL, (WPARAM)&cr.cpMin, (LPARAM)&cr.cpMax);
@@ -1211,6 +1216,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		return 0;
 	}
 	case WM_IME_ENDCOMPOSITION: {
+		if (!g_pAIMM) break;
 		if (ime_lang == 0 || ime_lang == 3) break;
 		CHARRANGE cr;
 		SendMessage(msgInput, EM_GETSEL, (WPARAM)&cr.cpMin, (LPARAM)&cr.cpMax);
@@ -1228,7 +1234,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		return 0;
 	}
 	case WM_CAPTURECHANGED: {
-		if (ime_composition) {
+		if (g_pAIMM && ime_composition) {
 			HIMC hIMC;
 			g_pAIMM->GetContext(hWnd, &hIMC);
 			g_pAIMM->NotifyIME(hIMC, NI_COMPOSITIONSTR, CPS_COMPLETE, 0);
@@ -1238,7 +1244,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	}
 	}
 	LRESULT lResult;
-	if (g_pAIMM == NULL || g_pAIMM->OnDefWindowProc(hWnd, msg, wParam, lParam, &lResult) != S_OK)
+	if (!g_pAIMM || g_pAIMM->OnDefWindowProc(hWnd, msg, wParam, lParam, &lResult) != S_OK)
 		lResult = CallWindowProc(oldMsgInputProc, hWnd, msg, wParam, lParam);
 	return lResult;
 }

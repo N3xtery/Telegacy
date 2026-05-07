@@ -1581,8 +1581,6 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				if (peers[i].name == NULL && memcmp(unenc_response + offset2, peers[i].id, 8) == 0) {
 					BYTE* peer_bytes = find_peer(unenc_response + offset_msg, &peers[i].id[0] - 4, true, &peers[i].type);
 					set_peer_info(peer_bytes, &peers[i], false);
-					if (&folders[0] == current_folder) SendMessage(hComboBoxChats, CB_INSERTSTRING, folders[0].pinned_count, (LPARAM)peers[i].name);
-					if (&folders[0] == current_folder) SendMessage(hComboBoxChats, CB_SETITEMDATA, folders[0].pinned_count, (LPARAM)&peers[i]);
 					neworrep = true;
 					break;
 				}

@@ -30,7 +30,7 @@ An unofficial Telegram client aimed to work on old versions of Windows (NT3.51/9
 
 ## Minimum system requirements
 - Windows 95 RTM / Windows NT 3.51 RTM
-- 386 CPU
+- 486 CPU
 - The client uses a few megabytes of RAM with disabled images and emojis, which, when enabled and many, can eat quite a bit of RAM, so account for that
 
 ## System support
@@ -38,9 +38,11 @@ If you want the best experience, you need to have at least comctl32.dll version 
 
 ## Included DLLs
 - unicows.dll 1.1.3790.0 for Windows 9x
+- msvcrt.dll 6.0.8397.0 for systems without one at all
+
+The Rich Edit 3.0 update includes:
 - riched20.dll 5.30.23.1230
 - msls31.dll 3.10.349.0
-- msvcrt.dll 6.0.8397.0 for systems without one at all
 
 ## Libraries used
 - libtomcrypt + libtommath, for cryptography
