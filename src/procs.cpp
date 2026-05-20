@@ -14,7 +14,7 @@ You should have received a copy of the GNU General Public License along with Tel
 
 WNDPROC oldMsgInputProc, oldChatProc, oldEmojiScrollProc, oldEmojiStaticProc, oldReactionStaticProc, oldEmojiScrollFallbackProc, oldSplitterProc, oldReactionButtonProc;
 WNDPROC oldNameProc, oldHandleProc, oldAboutProc, oldBirthdayProc, oldOptionsTabsProc;
-HWND name, handle, about, birthday, hOptionsTabs, downloadEdit = NULL;
+HWND name, handle, about, birthday, hOptionsTabs, msgEdit, downloadEdit = NULL;
 HWND sound_edits[3] = {0};
 HWND font_edits[3] = {0};
 LRESULT CALLBACK WndProcDisabled(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -62,7 +62,10 @@ void apply_fonts(HWND parent) {
 	HWND child = GetWindow(parent, GW_CHILD);
 	while (child != NULL) {
 		HWND next = GetWindow(child, GW_HWNDNEXT);
-		SendMessage(child, WM_SETFONT, (WPARAM)hFonts[2], TRUE);
+		if (child == hProxyIP) {
+			HFONT hDefaultFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+			SendMessage(child, WM_SETFONT, (WPARAM)hDefaultFont, TRUE);
+		} else SendMessage(child, WM_SETFONT, (WPARAM)hFonts[2], TRUE);
 		child = next;
 	}
 }
@@ -258,6 +261,10 @@ void apply_edits() {
 		GetWindowText(downloadEdit, path, MAX_PATH);
 		SetCurrentDirectory(path);
 		downloadEdit = NULL;
+
+		wchar_t buf[3];
+		GetWindowText(msgEdit, buf, 3);
+		MSGSFETCHCOUNT = _wtoi(buf);
 	}
 	for (int i = 0; i < 3; i++) {
 		if (sound_edits[i]) {
@@ -346,7 +353,7 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 		if (hi->iContextType == HELPINFO_WINDOW) {
 			int id = GetDlgCtrlID((HWND)hi->hItemHandle);
 			if (id >= 6 && id <= 40) {
-				if (GetFileAttributes(get_path(exe_path, L"help.hlp")) == -1 || LOBYTE(LOWORD(GetVersion())) >= 6 || !WinHelp(hDlg, exe_path, HELP_CONTEXTPOPUP, id)) {
+				if (GetFileAttributes(get_path(exe_path, L"help.hlp")) == -1 || nt6 || !WinHelp(hDlg, exe_path, HELP_CONTEXTPOPUP, id)) {
 					HH_POPUP hhp;
 					hhp.cbStruct = sizeof(hhp);
 					hhp.hinst = NULL;
@@ -385,17 +392,30 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 			}
 			switch (TabCtrl_GetCurSel(hOptionsTabs)) {
 			case 0: {
-				HWND downloadInfo = CreateWindow(L"STATIC", L"Current download directory:", WS_CHILD | WS_VISIBLE, 10, 30, 370, 15, hOptionsTabs, (HMENU)6, NULL, NULL);
-				downloadEdit = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 45, 345, 20, hOptionsTabs, (HMENU)6, NULL, NULL);
-				HWND browse = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 360, 45, 20, 20, hOptionsTabs, (HMENU)10, 0, NULL);
+				HWND langInfo = CreateWindow(L"STATIC", L"Language:", WS_CHILD | WS_VISIBLE, 10, 30, 180, 15, hOptionsTabs, (HMENU)42, NULL, NULL);
+				HWND langSelect = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP, 10, 45, 180, 100, hOptionsTabs, (HMENU)42, NULL, NULL);
+				HWND msgInfo = CreateWindow(L"STATIC", L"Messages fetch count:", WS_CHILD | WS_VISIBLE, 200, 30, 180, 15, hOptionsTabs, (HMENU)43, NULL, NULL);
+				msgEdit = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_NUMBER | ES_AUTOHSCROLL, 200, 45, 180, 20, hOptionsTabs, (HMENU)43, NULL, NULL);
+				SendMessage(msgEdit, EM_LIMITTEXT, 2, NULL);
+				HWND msgUpDown = CreateWindow(UPDOWN_CLASS, NULL, WS_CHILD | WS_VISIBLE | UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_ARROWKEYS, 0, 0, 0, 0, hOptionsTabs, NULL, NULL, NULL);
+				SendMessage(msgUpDown, UDM_SETBUDDY, (WPARAM)msgEdit, NULL);
+				SendMessage(msgUpDown, UDM_SETRANGE, 0, MAKELPARAM(99, 0));
 
-				HWND trayCheckbox = CreateWindow(L"BUTTON", L"Minimize to tray when closing", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 70, 370, 20, hOptionsTabs, (HMENU)11, NULL, NULL);
-				HWND balloonCheckbox = CreateWindow(L"BUTTON", L"Use balloon notifications", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 95, 370, 20, hOptionsTabs, (HMENU)12, NULL, NULL);
+				HWND downloadInfo = CreateWindow(L"STATIC", L"Current download directory:", WS_CHILD | WS_VISIBLE, 10, 70, 370, 15, hOptionsTabs, (HMENU)6, NULL, NULL);
+				downloadEdit = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 85, 345, 20, hOptionsTabs, (HMENU)6, NULL, NULL);
+				HWND browse = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 360, 85, 20, 20, hOptionsTabs, (HMENU)10, 0, NULL);
+
+				HWND trayCheckbox = CreateWindow(L"BUTTON", L"Minimize to tray when closing", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 115, 370, 20, hOptionsTabs, (HMENU)11, NULL, NULL);
+				HWND balloonCheckbox = CreateWindow(L"BUTTON", L"Use balloon notifications", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 140, 370, 20, hOptionsTabs, (HMENU)12, NULL, NULL);
 				apply_fonts(hOptionsTabs);
+				SendMessage(langSelect, CB_SETITEMHEIGHT, -1, 14);
 
-				wchar_t path[MAX_PATH];
-				DWORD len = GetCurrentDirectory(MAX_PATH, path);
-				SendMessage(downloadEdit, EM_REPLACESEL, FALSE, (LPARAM)path);
+				wchar_t buf[MAX_PATH];
+				swprintf(buf, L"%d", MSGSFETCHCOUNT);
+				SendMessage(msgEdit, EM_REPLACESEL, FALSE, (LPARAM)buf);
+
+				DWORD len = GetCurrentDirectory(MAX_PATH, buf);
+				SendMessage(downloadEdit, EM_REPLACESEL, FALSE, (LPARAM)buf);
 				SendMessage(downloadEdit, EM_SETSEL, 0, 0);
 				
 				if (CLOSETOTRAY) SendMessage(trayCheckbox, BM_SETCHECK, BST_CHECKED, 0);
@@ -497,6 +517,9 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 				else SendMessage(comboChannels, CB_SETCURSEL, 1, 0);
 
 				apply_fonts(hOptionsTabs);
+				SendMessage(comboSample, CB_SETITEMHEIGHT, -1, 14);
+				SendMessage(comboBits, CB_SETITEMHEIGHT, -1, 14);
+				SendMessage(comboChannels, CB_SETITEMHEIGHT, -1, 14);
 				SetFocus(hOptionsTabs);
 				break;
 			}
@@ -510,8 +533,8 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 				HWND port_label = CreateWindow(L"STATIC", L"Port:", WS_CHILD | WS_VISIBLE, 170, 30, 50, 15, hOptionsTabs, (HMENU)28, NULL, NULL);
 				hProxyPort = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? WS_BORDER : 0) | ES_CENTER | ES_NUMBER, 170, 45, 50, 20, hOptionsTabs, (HMENU)28, NULL, NULL);
 				SendMessage(hProxyPort, EM_LIMITTEXT, 5, 0);
-				HWND username_label = CreateWindow(L"STATIC", L"Username:", WS_CHILD | WS_VISIBLE, 10, 70, 168, 15, hOptionsTabs, (HMENU)29, NULL, NULL);
-				hProxyUsername = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL | (nt3 ? WS_BORDER : 0), 10, 85, 168, 20, hOptionsTabs, (HMENU)29, NULL, NULL);
+				HWND username_label = CreateWindow(L"STATIC", L"Username:", WS_CHILD | WS_VISIBLE, 10, 70, 167, 15, hOptionsTabs, (HMENU)29, NULL, NULL);
+				hProxyUsername = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL | (nt3 ? WS_BORDER : 0), 10, 85, 167, 20, hOptionsTabs, (HMENU)29, NULL, NULL);
 				SendMessage(hProxyUsername, EM_LIMITTEXT, 255, 0);
 				HWND password_label = CreateWindow(L"STATIC", L"Password:", WS_CHILD | WS_VISIBLE, 188, 70, 167, 15, hOptionsTabs, (HMENU)30, NULL, NULL);
 				hProxyPassword = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL | (nt3 ? WS_BORDER : 0) | ES_PASSWORD, 188, 85, 167, 20, hOptionsTabs, (HMENU)30, NULL, NULL);
@@ -572,7 +595,7 @@ INT_PTR CALLBACK DlgProcInfo(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) 
     switch (msg) {
 	case WM_INITDIALOG: {
 		bool about = IsWindowVisible(hMain) ? true : false;
-		infoLabel = CreateWindow(L"STATIC", about ? L"v1.0.3  |  Copyright © 2026 N3xtery  |  GNU GPL v3 License" : L"Connecting to the server...",
+		infoLabel = CreateWindow(L"STATIC", about ? L"v1.0.4  |  Copyright © 2026 N3xtery  |  GNU GPL v3 License" : L"Connecting to the server...",
 			WS_CHILD | WS_VISIBLE | SS_CENTER, 0, 117, 384, 75, hDlg, NULL, NULL, NULL);
 		apply_fonts(hDlg);
 
@@ -697,13 +720,13 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 		HWND hButtonOk = CreateWindow(L"BUTTON", L"OK", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 180, 145, 55, 25, hDlg, peer->perm.canchangedesc ? (HMENU)IDOK : (HMENU)IDCANCEL, NULL, NULL);
 		HWND hButtonCancel = CreateWindow(L"BUTTON", L"Cancel", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 245, 145, 55, 25, hDlg, (HMENU)IDCANCEL, NULL, NULL);
 		dlgPic = CreateWindowEx(WS_EX_CLIENTEDGE, L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY, 10, 10, 160, 160, hDlg, NULL, NULL, NULL);
-		riched_write(name, NULL, peer->name);
+		riched_write(name, peer->name);
 		int name_len = wcslen(peer->name);
 		int deleted_wchars = 0;
 		for (int i = 0; i < name_len; i++) i = emoji_adder(i, peer->name, 0, 15, name, &deleted_wchars);
-		if (peer->handle) riched_write(handle, NULL, peer->handle);
+		if (peer->handle) riched_write(handle, peer->handle);
 		if (peer->full && peer->about) {
-			riched_write(about, NULL, peer->about);
+			riched_write(about, peer->about);
 			int about_len = wcslen(peer->about);
 			int deleted_wchars = 0;
 			for (int i = 0; i < about_len; i++) i = emoji_adder(i, peer->about, 0, 15, about, &deleted_wchars);
@@ -1130,7 +1153,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
                 g_pAIMM->GetCompositionStringW(hIMC, GCS_RESULTSTR, size, &size, &buf);
 				size /= 2;
                 buf[size] = 0;
-				riched_write(msgInput, NULL, buf);
+				riched_write(msgInput, buf);
 				ime_str_start++;
 				ime_composition = false;
 			}
@@ -1161,7 +1184,7 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				SendMessage(msgInput, EM_SETSEL, ime_str_start, ime_str_start+ime_str_len);
 			}
 
-			riched_write(msgInput, NULL, buf + offset);
+			riched_write(msgInput, buf + offset);
 			free(buf);
 			ime_str_len = size;
 
@@ -1295,14 +1318,14 @@ LRESULT CALLBACK WndProcChat(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) 
 			if (submsg == SB_THUMBTRACK) ischatscrolling = true;
 			else if (submsg == SB_THUMBPOSITION) ischatscrolling = false;
 			else if (submsg == SB_BOTTOM) {
-				SCROLLINFO si;
+				SCROLLINFO si = {0};
 				si.cbSize = sizeof(si);
 				si.fMask = SIF_RANGE | SIF_PAGE;
 				GetScrollInfo(chat, SB_VERT, &si);
 				SendMessage(chat, WM_VSCROLL, MAKEWPARAM(SB_THUMBPOSITION, si.nMax - si.nPage), 0);
 				return 0;
 			} else if (submsg == SB_LINEDOWN) {
-				SCROLLINFO si;
+				SCROLLINFO si = {0};
 				si.cbSize = sizeof(si);
 				si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
 				GetScrollInfo(chat, SB_VERT, &si);

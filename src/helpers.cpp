@@ -639,7 +639,7 @@ void get_history() {
 	char offset = place_peer(unenc_query + 36, current_peer, true);
 	memset(unenc_query + 36 + offset, 0, 8);
 	write_le(unenc_query + 44 + offset, messages.size(), 4);
-	write_le(unenc_query + 48 + offset, 10, 4);
+	write_le(unenc_query + 48 + offset, MSGSFETCHCOUNT, 4);
 	write_le(unenc_query + 52 + offset, -1, 4);
 	write_le(unenc_query + 56 + offset, -1, 4);
 	memset(unenc_query + 60 + offset, 0, 8);
@@ -933,7 +933,6 @@ bool insert_emoji(wchar_t* path, int size, HWND richedit) {
 		if (hIcon || (nt3 && GetFileAttributes(path) != -1)) {
 			HDC hdcMeta = CreateMetaFile(NULL);
 			SetWindowExtEx(hdcMeta, 15, 15, NULL);
-			SetViewportExtEx(hdcMeta, size, size, NULL);
 			if (nt3) {
 				RECT rc = {0};
 				paint_emoji_bitmap(hdcMeta, path, &rc);
@@ -959,7 +958,7 @@ bool insert_emoji(wchar_t* path, int size, HWND richedit) {
 		} else return false;
 	} else {
 		wchar_t placeholder[] = {0xFE0F, 0};
-		riched_write(richedit, textHost->textServices, placeholder);
+		riched_write(richedit, placeholder);
 		return true;
 	}
 }
@@ -1020,7 +1019,7 @@ int emoji_adder(int i, wchar_t* msg, int pos, int size, HWND chat, int* deleted_
 		
 		if (!insert_emoji(file_name, size, chat)) {
 			wchar_t placeholder[] = {0xFE0F, 0};
-			riched_write(chat, textHost->textServices, placeholder);
+			riched_write(chat, placeholder);
 		}
 		*deleted_wchars += compound_chars + surr_pair + specials;
 		i += compound_chars + surr_pair + specials;
@@ -1029,6 +1028,9 @@ int emoji_adder(int i, wchar_t* msg, int pos, int size, HWND chat, int* deleted_
 }
 
 int set_reply(int i, int start_footer, BYTE* quote_text, bool setformat) {
+	PARAFORMAT pf = {0};
+	pf.cbSize = sizeof(pf);
+	SendMessage(chat, EM_GETPARAFORMAT, 0, (LPARAM)&pf);
 	int written_info = 0;
 	StreamData sd = {0};
 	EDITSTREAM es = {0};
@@ -1049,12 +1051,12 @@ int set_reply(int i, int start_footer, BYTE* quote_text, bool setformat) {
 		if (quote_text) {
 			wchar_t* quote = read_string(quote_text, NULL);
 			if (wcslen(quote) > 78) wcscpy(quote + 75, L"...");
-			written_info += riched_write(chat, NULL, quote);
+			written_info += riched_write(chat, quote);
 			int deleted_wchars = 0;
 			for (int j = 0; j < wcslen(quote); j++) j = emoji_adder(j, quote, pos_init, 13, chat, &deleted_wchars);
 			written_info -= deleted_wchars;
 			free(quote);
-		} else if (toobig) written_info += riched_write(chat, NULL, L"...");
+		} else if (toobig) written_info += riched_write(chat, L"...");
 	}
 
 	FINDTEXTEX ft = {0};
@@ -1088,6 +1090,7 @@ int set_reply(int i, int start_footer, BYTE* quote_text, bool setformat) {
 		cf.yHeight = 160;
 		cf.wWeight = lf.lfWeight;
 		SendMessage(chat, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
+		SendMessage(chat, EM_SETPARAFORMAT, 0, (LPARAM)&pf);
 	}
 
 	// scale down emojis from 15x15 to 13x13
@@ -1535,7 +1538,7 @@ int set_reactions(BYTE* reactions, Message* message_footer, std::vector<int>* fo
 			wchar_t divider[20];
 			if (!firstemojiset) swprintf(divider, L" | %d ", react_count);
 			else swprintf(divider, L"   %d ", react_count);
-			written_info += riched_write(chat, NULL, divider);
+			written_info += riched_write(chat, divider);
 			if (cons == 0x1b2286b8) wemoji_to_path(emoji_str, file_name, true);
 			else if (cons == 0x523da4eb) wcscat(file_name, L"2b50.ico");
 			wchar_t* file_name_code = wcsrchr(file_name, L'\\') + 1;
@@ -2026,7 +2029,7 @@ int msgfwd_addname(BYTE* peer_bytes, BYTE* msgfwd, int pos_init, bool shortmsg) 
 		}
 	}
 	if (name) {
-		written_info += riched_write(chat, NULL, name);
+		written_info += riched_write(chat, name);
 		int deleted_wchars = 0;
 		for (int j = 0; j < wcslen(name); j++) j = emoji_adder(j, name, pos_init, 13, chat, &deleted_wchars);
 		written_info -= deleted_wchars;
@@ -2095,7 +2098,14 @@ void files_show_dropdown() {
 		for (int i = 0; i < files.size(); i++) AppendMenu(hMenu, MF_STRING, 1000 + i,  files[i]);
 		AppendMenu(hMenu, MF_STRING, 999,  L"Clear this list");
 
-		if (rc.bottom + GetMenuItemCount(hMenu) * GetSystemMetrics(SM_CYMENU) > GetSystemMetrics(SM_CYSCREEN))
+		int screeny;
+		if (nt6) {
+			RECT rcWork;
+			SystemParametersInfo(SPI_GETWORKAREA, 0, &rcWork, 0);
+			screeny = rcWork.bottom;
+		} else screeny = GetSystemMetrics(SM_CYSCREEN);
+
+		if (rc.bottom + GetMenuItemCount(hMenu) * GetSystemMetrics(SM_CYMENU) > screeny)
 			TrackPopupMenu(hMenu, TPM_RIGHTALIGN | TPM_BOTTOMALIGN, rc.right, rc.top, 0, hMain, NULL);
 		else
 			TrackPopupMenu(hMenu, TPM_RIGHTALIGN | TPM_TOPALIGN, rc.right, rc.bottom, 0, hMain, NULL);
@@ -2389,7 +2399,7 @@ void init_default_font(int index) {
 	}
 }
 
-int riched_write(HWND riched, ITextServices* textServices, wchar_t* str) {
+int riched_write(HWND riched, wchar_t* str) {
 	StreamData sd = {0};
 	sd.buf = (BYTE*)str;
 	sd.length = wcslen(str) * 2;
@@ -2399,7 +2409,7 @@ int riched_write(HWND riched, ITextServices* textServices, wchar_t* str) {
 	if (riched) return SendMessage(riched, EM_STREAMIN, SF_TEXT | SF_UNICODE | SFF_SELECTION, (LPARAM)&es) / 2;
 	else {
 		LRESULT res;
-		textServices->TxSendMessage(EM_STREAMIN, SF_TEXT | SF_UNICODE | SFF_SELECTION, (LPARAM)&es, &res);
+		textHost->textServices->TxSendMessage(EM_STREAMIN, SF_TEXT | SF_UNICODE | SFF_SELECTION, (LPARAM)&es, &res);
 		return res / 2;
 	}
 }

@@ -99,6 +99,7 @@ bool ischatscrolling = false;
 bool ie4 = true;
 bool ie3 = true;
 bool nt3 = false;
+bool nt6 = false;
 bool hint_needed = false;
 wchar_t* hint = NULL;
 bool no_more_msgs = false;
@@ -115,6 +116,7 @@ bool balloon_notifications_available = false;
 bool balloon_notifications = true;
 bool SENDMEDIAASFILES = false;
 bool CLOSETOTRAY = true;
+int MSGSFETCHCOUNT = 10;
 int IMAGELOADPOLICY = 2;
 bool EMOJIS = true;
 bool SPOILERS = true;
@@ -156,7 +158,6 @@ unsigned __stdcall SocketWorker(void* param) {
 			else Sleep(5000);
 		} else if (!recv_res) {
 			closesocket(dcInfo->sock);
-			WSACleanup();
 			if (dcInfo == &dcInfoMain) init_connection(dcInfo, true);
 			else break;
 		}
@@ -286,7 +287,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				MyInitCommonControlsEx myInitCommonControlsEx = (MyInitCommonControlsEx)GetProcAddress(hComctlLib, "InitCommonControlsEx");
 				INITCOMMONCONTROLSEX icex;
 				icex.dwSize = sizeof(icex);
-				icex.dwICC = ICC_WIN95_CLASSES | ICC_DATE_CLASSES | ICC_INTERNET_CLASSES;
+				icex.dwICC = ICC_WIN95_CLASSES | ICC_DATE_CLASSES | ICC_INTERNET_CLASSES | ICC_UPDOWN_CLASS;
 				myInitCommonControlsEx(&icex);
 				FreeLibrary(hComctlLib);
 			}
@@ -961,6 +962,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				read_react_ment(true);
 				read_react_ment(false);
 
+				SCROLLINFO si = {0};
+				si.cbSize = sizeof(si);
+				si.fMask = SIF_ALL;
+				SetScrollInfo(chat, SB_VERT, &si, FALSE);
+
 				// messages.getHistory
 				get_history();
 			} else get_full_peer(current_peer);
@@ -1397,7 +1403,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (!name) break;
 
 			LRESULT res;
-			riched_write(NULL, textHost->textServices, name);
+			riched_write(NULL, name);
 
 			LOGFONT lf = {0};
 			GetObject(hFonts[1], sizeof(lf), &lf);
@@ -1433,7 +1439,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 			FillRect(memDC, (RECT*)&myrect, GetSysColorBrush(lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3 ? COLOR_HIGHLIGHT : COLOR_WINDOW));
 			myrect.left++;
-			textHost->textServices->TxDraw(DVASPECT_CONTENT, -1, NULL, NULL, memDC, NULL, &myrect, NULL, NULL, NULL, NULL, TXTVIEW_ACTIVE);
+			textHost->textServices->TxDraw(DVASPECT_CONTENT, -1, NULL, NULL, memDC, NULL, &myrect, NULL, NULL, NULL, NULL, TXTVIEW_INACTIVE);
 			BitBlt(lpdis->hDC, lpdis->rcItem.left, lpdis->rcItem.top, myrect.right, myrect.bottom, memDC, 0, 0, SRCCOPY);
 			SelectObject(memDC, hbmOld);
 			DeleteObject(hbm);
@@ -2002,6 +2008,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		WritePrivateProfileString(L"General", L"maximized", value, appdata_path);
 		swprintf(value, L"%d", edits_border_offset);
 		WritePrivateProfileString(L"General", L"edits_border_offset", value, appdata_path);
+		swprintf(value, L"%d", MSGSFETCHCOUNT);
+		WritePrivateProfileString(L"General", L"msgs_fetch_count", value, appdata_path);
 		wchar_t download_path[MAX_PATH];
 		GetCurrentDirectory(MAX_PATH, download_path);
 		WritePrivateProfileString(L"General", L"download_path", download_path, appdata_path);
@@ -2052,8 +2060,6 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 	}
 
 	// connect to a telegram data center
-	WSADATA wsaData;
-	WSAStartup(MAKEWORD(1, 1), &wsaData);
 	dcInfo->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	sockaddr_in server;
 	server.sin_family = AF_INET;
@@ -2169,7 +2175,6 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 
 void reconnect(DCInfo* dcInfo) {
 	closesocket(dcInfo->sock);
-	WSACleanup();
 	if (init_connection(dcInfo, false)) create_auth_key(dcInfo);
 }
 
@@ -2577,10 +2582,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		*(wcsrchr(appdata_path, L'\\') + 1) = 0;
 	} else wcscat(appdata_path, L"\\");
 
-	if (LOBYTE(LOWORD(GetVersion())) == 3) {
+	int winver = LOBYTE(LOWORD(GetVersion()));
+	if (winver == 3) {
 		nt3 = true;
 		CLOSETOTRAY = false;
-	}
+	} else if (winver >= 6) nt6 = true;
 
 	HDC hdcRef = GetDC(NULL);
 	dpi = GetDeviceCaps(hdcRef, LOGPIXELSY);
@@ -2590,6 +2596,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	height = GetPrivateProfileInt(L"General", L"height", 450, appdata_path);
 	if (GetPrivateProfileInt(L"General", L"maximized", 0, appdata_path)) maximized = true;
 	edits_border_offset = GetPrivateProfileInt(L"General", L"edits_border_offset", 0, appdata_path);
+	MSGSFETCHCOUNT = GetPrivateProfileInt(L"General", L"msgs_fetch_count", 10, appdata_path);
+	if (!MSGSFETCHCOUNT) MSGSFETCHCOUNT = 10;
+	else if (MSGSFETCHCOUNT > 99) MSGSFETCHCOUNT = 99;
 	wchar_t download_path[MAX_PATH];
 	GetPrivateProfileString(L"General", L"download_path", L"", download_path, MAX_PATH, appdata_path);
 	if (!download_path[0]) {
@@ -2693,10 +2702,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	RegisterClass(&wcMain);
 	hMain = CreateWindow(L"Telegacy", L"Telegacy", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, width, height, NULL, NULL, hInstance, NULL);
 
+	WSADATA wsaData;
+	WSAStartup(MAKEWORD(1, 1), &wsaData);
 	if (!init_connection(&dcInfoMain, false)) return 0;
 
 	dcInfoMain.ready = false;
-	FILE* f = _wfopen(get_path(appdata_path, L"session.dat"), L"rb");
+	FILE* f = _wfopen(get_path(appdata_path, L"session.dat"), L"rb+");
 	if (f) {
 		BYTE buf[100];
 		memset(buf, 0, 16);
@@ -2715,6 +2726,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		fread(dcInfoMain.server_salt, 1, 8, f);
 		fread(dcInfoMain.session_id, 1, 8, f);
 		fread(&dcInfoMain.current_seq_no, 4, 1, f);
+		dcInfoMain.current_seq_no += 10;
+		fseek(f, 280, SEEK_SET);
+		fwrite(&dcInfoMain.current_seq_no, 4, 1, f);
+		fseek(f, 284, SEEK_SET);
 		fread(&pts, 4, 1, f);
 		fread(&qts, 4, 1, f);
 		fread(&date, 4, 1, f);
@@ -2747,6 +2762,5 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	}
 
 	closesocket(dcInfoMain.sock);
-	WSACleanup();
 	return 0;
 }

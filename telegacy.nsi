@@ -4,7 +4,7 @@
 !include "WordFunc.nsh"
 
 !define APPNAME "Telegacy"
-!define APPVER "1.0.3"
+!define APPVER "1.0.4"
 
 Name "${APPNAME}"
 OutFile "${APPNAME}-${APPVER}-Setup.exe"
@@ -18,7 +18,7 @@ ShowUninstDetails show
 !define MUI_ICON "res/icons/telegacy.ico"
 !define MUI_UNICON "res/icons/uninstall.ico"
 
-VIProductVersion "1.0.3.0"
+VIProductVersion "1.0.4.0"
 VIAddVersionKey "ProductName" "${APPNAME}"
 VIAddVersionKey "FileVersion" "${APPVER}"
 VIAddVersionKey "FileDescription" "${APPNAME} Setup"

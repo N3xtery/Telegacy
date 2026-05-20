@@ -140,7 +140,7 @@ void insert_image(HWND hRichEdit, HMETAFILEPICT hMetaFilePict, HBITMAP hBitmap) 
     hr = pRichEditOle->InsertObject(&reobject);
 	if (hr != S_OK) {
 		wchar_t placeholder[] = {0xFE0F, 0};
-		riched_write(hRichEdit, textHost->textServices, placeholder);
+		riched_write(hRichEdit, placeholder);
 	}
 	pDataObject->Release();
     pObject->Release();

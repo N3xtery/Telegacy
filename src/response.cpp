@@ -82,7 +82,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			int offset = 52 + tlstr_len(unenc_query + 52, true);
 			write_string(unenc_query + offset, version);
 			offset += tlstr_len(unenc_query + offset, true);
-			write_string(unenc_query + offset, L"1.0.3");
+			write_string(unenc_query + offset, L"1.0.4");
 			write_string(unenc_query + offset + 8, L"en");
 			write_string(unenc_query + offset + 12, L"tdesktop");
 			write_string(unenc_query + offset + 24, L"en");
@@ -368,7 +368,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				write_le(unenc_query + 48, 27752131, 4);
 				write_string(unenc_query + 52, L"com");
 				write_string(unenc_query + 56, L"win");
-				write_string(unenc_query + 60, L"1.0.3");
+				write_string(unenc_query + 60, L"1.0.4");
 				write_string(unenc_query + 68, L"en");
 				write_string(unenc_query + 72, L"tdesktop");
 				write_string(unenc_query + 84, L"en");
@@ -519,6 +519,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					fread(dcInfo.server_salt, 1, 8, f);
 					fread(dcInfo.session_id, 1, 8, f);
 					fread(&dcInfo.current_seq_no, 4, 1, f);
+					dcInfo.current_seq_no += 10;
 					dcInfo.authorized = true;
 					
 				} else {
@@ -969,15 +970,14 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				int flags = read_le(unenc_response + offset + 4, 4);
 				offset += 28;
 				peers[i].last_read = read_le(unenc_response + offset, 4);
-				offset += 16;
-				apply_notifysettings(unenc_response + offset, &peers[i].mute_until, read_le(peers[i].id, 8));
+				offset += 4;
 				int unread_count_old = peers[i].unread_msgs_count;
-				offset -= 12;
-				peers[i].unread_msgs_count = read_le(unenc_response + 40, 4);
+				peers[i].unread_msgs_count = read_le(unenc_response + offset, 4);
+				offset += 12;
+				apply_notifysettings(unenc_response + offset, &peers[i].mute_until, read_le(peers[i].id, 8));				
 				if (unread_count_old != peers[i].unread_msgs_count && !peers[i].mute_until && !muted_types[peers[i].type]) update_total_unread_msgs_count(peers[i].unread_msgs_count - unread_count_old);
 				if (flags & (1 << 0)) {
-					offset += 12;
-					offset += peernotifyset_offset(unenc_response + 52);
+					offset += peernotifyset_offset(unenc_response + offset);
 					peers[i].channel_pts = read_le(unenc_response + offset, 4);
 				}
 				memset(peers[i].channel_msg_id, 0, 8);
@@ -1627,7 +1627,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			SetTimer(hMain, 3, 30000, NULL);
 		}
 		UpdateWindow(chat);
-		if (messages.size() - messages_count_old < 10) no_more_msgs = true;
+		if (messages.size() - messages_count_old < MSGSFETCHCOUNT) no_more_msgs = true;
 		else if (SendMessage(chat, EM_GETFIRSTVISIBLELINE, 0, 0) == 0) get_history();
 		break;
 	}

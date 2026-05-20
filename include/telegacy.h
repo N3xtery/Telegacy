@@ -313,6 +313,7 @@ extern bool ischatscrolling;
 extern bool ie4;
 extern bool ie3;
 extern bool nt3;
+extern bool nt6;
 extern bool hint_needed;
 extern wchar_t* hint;
 extern bool no_more_msgs;
@@ -328,6 +329,7 @@ extern bool balloon_notifications_available;
 extern bool balloon_notifications;
 extern bool SENDMEDIAASFILES;
 extern bool CLOSETOTRAY;
+extern int MSGSFETCHCOUNT;
 extern int IMAGELOADPOLICY;
 extern bool EMOJIS;
 extern bool SPOILERS;
@@ -367,7 +369,7 @@ public:
     }
 
 	HDC TxGetDC() { return 0; }
-	INT TxReleaseDC(HDC hdc) { return 1; }
+	INT TxReleaseDC(HDC) { return 1; }
 	HRESULT TxGetClientRect(LPRECT) { return E_FAIL; }
 	COLORREF TxGetSysColor(int nIndex) { return GetSysColor(nIndex); }
 	HBRUSH TxGetSysColorBrush(int nIndex) { return GetSysColorBrush(nIndex); }
@@ -618,7 +620,7 @@ void paint_emoji_button(DRAWITEMSTRUCT* dis);
 void paint_password_button(DRAWITEMSTRUCT* dis, bool options);
 void bring_me_to_life();
 void init_default_font(int index);
-int riched_write(HWND riched, ITextServices* textServices, wchar_t* str);
+int riched_write(HWND riched, wchar_t* str);
 void convert_negative_lfheight(LOGFONT* lf, int index);
 
 // message.cpp
