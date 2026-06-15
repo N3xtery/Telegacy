@@ -158,7 +158,8 @@ void create_seq_no(DCInfo* dcInfo, BYTE* buf, bool content_related) {
 			if (f) {
 				if (dcInfo == &dcInfoMain) fseek(f, 280, SEEK_SET);
 				else fseek(f, dcInfo->dc_file_index + 284, SEEK_SET);
-				fwrite(&dcInfo->current_seq_no, 4, 1, f);
+				int current_seq_no_plus = dcInfo->current_seq_no + 10;
+				fwrite(&current_seq_no_plus, 4, 1, f);
 				fclose(f);
 			}
 		}
@@ -195,6 +196,7 @@ void send_query(BYTE* enc_query, int length) {
 int set_peer_info(BYTE* unenc_response, Peer* peer, bool just_update) {
 	if (!just_update) {
 		peer->reaction_list = &reaction_list;
+		peer->chat_users = NULL;
 		peer->full = false;
 	} else {
 		free(peer->name);
@@ -379,7 +381,6 @@ void download_file(DCInfo* dcInfo, Document* document) {
 	BYTE enc_query[168];
 	internal_header(dcInfo, unenc_query, true);
 	memcpy(document, unenc_query + 16, 8);
-	
 	write_le(unenc_query + 32, 0xbe5335be, 4);
 	memset(unenc_query + 36, 0, 4);
 	if (document->photo_size && document->photo_size != 1) write_le(unenc_query + 40, 0x40181ffe, 4);
@@ -415,8 +416,10 @@ void download_file(DCInfo* dcInfo, Document* document) {
 	send_query(dcInfo, enc_query, offset + 24);
 	wchar_t status_str[100];
 	int percentage = (int)((double)file_size / (double)document->size * 100.0);
-	swprintf(status_str, L"Downloading %s... %d%%", document->filename, percentage);
+	GetPrivateProfileString(LANG, L"s_down", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+	swprintf(status_str, lang_str, document->filename, percentage);
 	SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)status_str);
+	KillTimer(hMain, 2);
 }
 
 int folder_handler(BYTE* unenc_response, ChatsFolder* folder, int i, bool update) {
@@ -771,13 +774,15 @@ int replace_in_chat(FINDTEXTEX* ft, CHARRANGE* cr, wchar_t* replacement, HBITMAP
 		} else if (rf) {
 			drawchat = false;
 			bool addmsg = (rf->message) ? true : false;
+			GetPrivateProfileString(LANG, L"c_rep", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			int replying_len = wcslen(lang_str);
 			if (addmsg) {
 				message_handler(true, rf->message, false, false, true);
 				if (si.nPos >= (int)(si.nMax - si.nPage) - 15) SendMessage(chat, WM_VSCROLL, SB_BOTTOM, 0);
-				ft->chrg.cpMin = messages[rf->i+1].end_char + 12;
-				ft->chrg.cpMax = messages[rf->i+1].end_char + 13;
+				ft->chrg.cpMin = messages[rf->i+1].end_char + replying_len + 1;
+				ft->chrg.cpMax = messages[rf->i+1].end_char + replying_len + 2;
 			}
-			diff = set_reply(addmsg ? 0 : rf->j, messages[rf->i+addmsg].end_char + 12, SendMessage(chat, EM_FINDTEXTEX, FR_DOWN, (LPARAM)ft) == -1 ? (BYTE*)-1 : NULL, true);
+			diff = set_reply(addmsg ? 0 : rf->j, messages[rf->i+addmsg].end_char + replying_len + 1, SendMessage(chat, EM_FINDTEXTEX, FR_DOWN, (LPARAM)ft) == -1 ? (BYTE*)-1 : NULL, true);
 			if (addmsg) delete_message(0, false);
 			messages[rf->i].end_footer += diff;
 			messages[rf->i].start_reactions += diff;
@@ -794,7 +799,7 @@ int replace_in_chat(FINDTEXTEX* ft, CHARRANGE* cr, wchar_t* replacement, HBITMAP
 		}
 
 		if (cr.cpMin != cr.cpMax) SendMessage(chat, EM_EXSETSEL, 0, (LPARAM)&cr);
-		else SendMessage(chat, EM_SETSEL, -1, 0);
+		else SendMessage(chat, EM_SETSEL, INT_MAX - 1, INT_MAX - 1);
 
 		if (ischatscrolling) {
 			si.nPos = si.nTrackPos;
@@ -861,8 +866,10 @@ void set_reply_tofront(int i, BYTE* message, int j) {
 	rf.j = j;
 	rf.message = message;
 	FINDTEXTEX ft;
-	ft.chrg.cpMin = messages[i].end_char + 12;
-	ft.chrg.cpMax = messages[i].end_char + 13;
+	GetPrivateProfileString(LANG, L"c_rep", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+	int replying_len = wcslen(lang_str);
+	ft.chrg.cpMin = messages[i].end_char + replying_len + 1;
+	ft.chrg.cpMax = messages[i].end_char + replying_len + 2;
 	ft.lpstrText = L"\r";
 	replace_in_chat(&ft, NULL, NULL, NULL, NULL, NULL, &rf);
 }
@@ -881,12 +888,19 @@ void get_date(wchar_t* buf, int date_init, bool preposition) {
 	st.wSecond = t.tm_sec;
 	st.wMilliseconds = 0;
 	if (t.tm_year == t_now.tm_year && t.tm_yday == t_now.tm_yday) {
-		if (preposition) wcscpy(buf, L"at ");
-	}
-	else if (t.tm_year == t_now.tm_year && t.tm_yday == t_now.tm_yday-1) wcscpy(buf, L"yesterday at ");
-	else {
-		if (preposition) wcscpy(buf, L"on ");
-		GetDateFormat(LOCALE_USER_DEFAULT, DATE_SHORTDATE, &st, NULL, buf + (preposition ? 3 : 0), 100);
+		if (preposition) {
+			GetPrivateProfileString(LANG, L"s_ptime", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			swprintf(buf, L"%s ", lang_str);
+		}
+	} else if (t.tm_year == t_now.tm_year && t.tm_yday == t_now.tm_yday-1) {
+		GetPrivateProfileString(LANG, L"s_pyest", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(buf, L"%s ", lang_str);
+	} else {
+		if (preposition) {
+			GetPrivateProfileString(LANG, L"s_pdate", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			swprintf(buf, L"%s ", lang_str);
+		}
+		GetDateFormat(LOCALE_USER_DEFAULT, DATE_SHORTDATE, &st, NULL, buf + (preposition ? wcslen(lang_str) + 1 : 0), 100);
 		wcscat(buf, L" ");
 	}
 	GetTimeFormat(LOCALE_USER_DEFAULT, 0, &st, NULL, buf + wcslen(buf), 100);
@@ -1146,34 +1160,40 @@ void status_bar_status(Peer* peer) {
 			SendMessage(hStatus, SB_SETTEXTA, 0, (LPARAM)"");
 			return;
 		case 0:
-			wcscat(status_str, L"is online");
+			GetPrivateProfileString(LANG, L"s_on", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			wcscat(status_str, lang_str);
 			break;
 		case 1:
-			wcscat(status_str, L"was online recently");
+			GetPrivateProfileString(LANG, L"s_rec", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			wcscat(status_str, lang_str);
 			break;
 		case 2:
-			wcscat(status_str, L"was online last week");
+			GetPrivateProfileString(LANG, L"s_week", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			wcscat(status_str, lang_str);
 			break;
 		case 3:
-			wcscat(status_str, L"was online last month");
+			GetPrivateProfileString(LANG, L"s_mon", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			wcscat(status_str, lang_str);
 			break;
 		default:
-			wcscat(status_str, L"was online ");
+			GetPrivateProfileString(LANG, L"s_was", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			wcscat(status_str, lang_str);
+			wcscat(status_str, L" ");
 			get_date(&status_str[wcslen(status_str)], peer->online, true);
 			break;
 		}
 	} else if (peer->type == 1) {
 		int count = peer->chat_users->size();
-		if (count == 1) swprintf(status_str, L"%d participant", count);
-		else swprintf(status_str, L"%d participants", count);
+		GetPrivateProfileString(LANG, L"s_par", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(status_str, lang_str, count);
 	} else {
 		int count = (int)peer->chat_users;
 		if (peer->perm.cansendmsg) {
-			if (count == 1) swprintf(status_str, L"%d participant", count);
-			else swprintf(status_str, L"%d participants", count);
+			GetPrivateProfileString(LANG, L"s_par", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			swprintf(status_str, lang_str, count);
 		} else {
-			if (count == 1) swprintf(status_str, L"%d subscriber", count);
-			else swprintf(status_str, L"%d subscribers", count);
+			GetPrivateProfileString(LANG, L"s_sub", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			swprintf(status_str, lang_str, count);
 		}
 	}
 	SendMessage(hStatus, SB_SETTEXTA, 0 | SBT_OWNERDRAW, wcslen(peer->name));
@@ -1359,6 +1379,25 @@ HBITMAP jpg_to_bmp(BYTE* myjpg, int myjpg_size) {
 }
 
 void get_full_peer(Peer* peer) {
+	if (peer->full) {
+		if (peer->about) {
+			free(peer->about);
+			peer->about = NULL;
+		}
+		if (peer->reaction_list && peer->reaction_list != &reaction_list) {
+			for (int i = 0; i < peer->reaction_list->size(); i++) free(peer->reaction_list->at(i));
+			peer->reaction_list->clear();
+			delete peer->reaction_list;
+			peer->reaction_list = &reaction_list;
+		}
+		if (peer->type == 1 && peer->chat_users) {
+			for (int j = 0; j < peer->chat_users->size(); j++) {
+				free(peer->chat_users->at(j).name);
+				if (peer->chat_users->at(j).handle) free(peer->chat_users->at(j).handle);
+			}
+			peer->chat_users->clear();
+		}
+	}
 	if (peer->type == 0) {
 		// users.getFullUser
 		BYTE unenc_query[80];
@@ -1953,9 +1992,8 @@ void set_tray_icon() {
 	nid.uCallbackMessage = WM_TRAYICON;
 	nid.hIcon = hIcon;
 	if (total_unread_msgs_count) {
-		swprintf(nid.szTip, L"Telegacy (%d)", total_unread_msgs_count);
-		if (total_unread_msgs_count == 1) swprintf(nid.szTip, L"Telegacy | %d unread message", total_unread_msgs_count);
-		else swprintf(nid.szTip, L"Telegacy | %d unread messages", total_unread_msgs_count);
+		GetPrivateProfileString(LANG, L"t_unr", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(nid.szTip, lang_str, total_unread_msgs_count);
 	} else wcscpy(nid.szTip, L"Telegacy");
 	Shell_NotifyIcon(NIM_ADD, &nid);
 	DWORD minor, major;
@@ -1977,9 +2015,12 @@ void change_mute_all(int type, bool unmuted) {
 	MENUITEMINFO mii = {0};
 	mii.cbSize = sizeof(MENUITEMINFO);
 	mii.fMask = MIIM_STRING;
-	if (type == 0) mii.dwTypeData = unmuted ? L"Mute all users" : L"Unmute all users";
-	else if (type == 1) mii.dwTypeData = unmuted ? L"Mute all groups" : L"Unmute all groups";
-	else mii.dwTypeData = unmuted ? L"Mute all channels" : L"Unmute all channels";
+	wchar_t* lang_id = NULL;
+	if (type == 0) lang_id = unmuted ? L"m_m0" : L"m_u0";
+	else if (type == 1) lang_id = unmuted ? L"m_m1" : L"m_u1";
+	else lang_id = unmuted ? L"m_m2" : L"m_u2";
+	GetPrivateProfileString(LANG, lang_id, L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+	mii.dwTypeData = lang_str;
 	SetMenuItemInfo(hMenuMute, type, TRUE, &mii);
 }
 
@@ -2096,7 +2137,8 @@ void files_show_dropdown() {
 
 		HMENU hMenu = CreatePopupMenu();
 		for (int i = 0; i < files.size(); i++) AppendMenu(hMenu, MF_STRING, 1000 + i,  files[i]);
-		AppendMenu(hMenu, MF_STRING, 999,  L"Clear this list");
+		GetPrivateProfileString(LANG, L"m_clr", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		AppendMenu(hMenu, MF_STRING, 999, lang_str);
 
 		int screeny;
 		if (nt6) {
@@ -2424,6 +2466,225 @@ void convert_negative_lfheight(LOGFONT* lf, int index) {
 		ReleaseDC(NULL, hdcRef);
 		lf->lfHeight = tm.tmInternalLeading - tm.tmHeight;
 	}
+}
+
+void set_menu(HWND hWnd) {
+	hMenuBar = CreateMenu();
+	HMENU hMenuProfile = CreatePopupMenu();
+	HMENU hMenuMute = CreatePopupMenu();
+	HMENU hMenuChat = CreatePopupMenu();
+	HMENU hMenuTheme = CreatePopupMenu();
+	HMENU hMenuTools = CreatePopupMenu();
+	HMENU hMenuHelp = CreatePopupMenu();
+	GetPrivateProfileString(LANG, L"m_pvw", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+	AppendMenu(hMenuProfile, MF_STRING, 30, lang_str);
+	AppendMenu(hMenuChat, MF_STRING | (current_peer == &myself ? MF_GRAYED : 0), 31, lang_str);
+	GetPrivateProfileString(LANG, L"m_mu", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuProfile, MF_POPUP, (UINT_PTR)hMenuMute, lang_str);
+	GetPrivateProfileString(LANG, muted_types[0] > 0 ? L"m_u0" : L"m_m0", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuMute, MF_STRING, 38, lang_str);
+	GetPrivateProfileString(LANG, muted_types[1] > 0 ? L"m_u1" : L"m_m1", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuMute, MF_STRING, 39, lang_str);
+	GetPrivateProfileString(LANG, muted_types[2] > 0 ? L"m_u2" : L"m_m2", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuMute, MF_STRING, 40, lang_str);
+	GetPrivateProfileString(LANG, L"m_ext", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuProfile, MF_STRING, 37, lang_str);
+	GetPrivateProfileString(LANG, L"m_lgo", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuProfile, MF_STRING, 36, lang_str);
+	GetPrivateProfileString(LANG, current_peer && current_peer->mute_until ? L"m_uc" : L"m_mc", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuChat, MF_STRING, 41, lang_str);
+	GetPrivateProfileString(LANG, L"m_thn", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuTheme, MF_STRING | MF_CHECKED, 600, lang_str);
+	GetPrivateProfileString(LANG, L"m_ths", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuChat, MF_POPUP, (UINT_PTR)hMenuTheme, lang_str);
+	GetPrivateProfileString(LANG, L"m_rf", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuChat, MF_STRING, 43, lang_str);
+	GetPrivateProfileString(LANG, L"m_mf", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuTools, MF_STRING, 32, lang_str);
+	GetPrivateProfileString(LANG, L"m_sup", L"", lang_str, 100, exe_path);
+	if (!ie4) AppendMenu(hMenuTools, MF_STRING, 42,  lang_str);
+	GetPrivateProfileString(LANG, L"m_opt", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuTools, MF_STRING, 33, lang_str);
+	GetPrivateProfileString(LANG, L"m_ug", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuHelp, MF_STRING, 34, lang_str);
+	GetPrivateProfileString(LANG, L"a", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuHelp, MF_STRING, 35, lang_str);
+	GetPrivateProfileString(LANG, L"m_p", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hMenuProfile, lang_str);
+	GetPrivateProfileString(LANG, L"m_c", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuBar, MF_POPUP | (current_peer ? 0 : MF_GRAYED), (UINT_PTR)hMenuChat, lang_str);
+	GetPrivateProfileString(LANG, L"m_t", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hMenuTools, lang_str);
+	GetPrivateProfileString(LANG, L"m_h", L"", lang_str, 100, exe_path);
+	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hMenuHelp, lang_str);
+	SetMenu(hWnd, hMenuBar);
+	DrawMenuBar(hWnd);
+}
+
+void create_service_msg(BYTE* message, wchar_t* sender, wchar_t* service_msg, bool channel) {
+	int msgact_cons = read_le(message, 4);
+	int offset_msg = 4;
+	switch (msgact_cons) {
+	case 0xbd47cbad:
+	case 0xb5a1ce5a: {
+		wchar_t* chat_name = read_string(message + offset_msg, NULL);
+		if (channel) {
+			GetPrivateProfileString(LANG, msgact_cons == 0xbd47cbad ? L"i_ccr" : L"i_cch", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			swprintf(service_msg, lang_str, chat_name);
+		} else {
+			GetPrivateProfileString(LANG, msgact_cons == 0xbd47cbad ? L"i_gcr" : L"i_gch", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			swprintf(service_msg, lang_str, sender, chat_name);
+		}
+		free(chat_name);
+		break;
+	}
+	case 0x95d2ac92: {
+		wchar_t* chat_name = read_string(message + offset_msg, NULL);
+		GetPrivateProfileString(LANG, L"i_ccr", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(service_msg, lang_str, chat_name);
+		free(chat_name);
+		break;
+	}
+	case 0x7fcb13a8:
+		GetPrivateProfileString(LANG, channel ? L"i_cphc" : L"i_phc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(service_msg, lang_str, sender);
+		break;
+	case 0x95e3fbef:
+		GetPrivateProfileString(LANG, channel ? L"i_cphd" : L"i_phd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(service_msg, lang_str, sender);
+		break;
+	case 0x15cefd00: {
+		if (memcmp(message + 16, message + offset_msg + 8, 8) == 0) {
+			GetPrivateProfileString(LANG, L"i_j", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			swprintf(service_msg, lang_str, sender);
+		} else {
+			wchar_t* name = NULL;
+			if (current_peer->type == 1) for (int i = 0; i < current_peer->chat_users->size(); i++) {
+				if (memcmp(message + offset_msg + 8, current_peer->chat_users->at(i).id, 8) == 0) {
+					name = current_peer->chat_users->at(i).name;
+					break;
+				}
+			}
+			bool name_allocated = false;
+			if (!name) {
+				char type = -1;
+				BYTE* peer_bytes = find_peer(message + offset_msg + 16, message + offset_msg + 4, false, &type);
+				peer_set_name(peer_bytes, &name, type);
+				name_allocated = true;
+			}
+			GetPrivateProfileString(LANG, L"i_add", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			swprintf(service_msg, lang_str, name, sender);
+			if (name_allocated) free(name);
+		}
+		break;
+	}
+	case 0xa43f30cc:
+		GetPrivateProfileString(LANG, L"i_l", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(service_msg, lang_str, sender);
+		break;
+	case 0x31224c3:
+		GetPrivateProfileString(LANG, L"i_jl", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(service_msg, lang_str, sender);
+		break;
+	case 0xfae69f56:
+		read_string(message + offset_msg, service_msg);
+		break;
+	case 0xe1037f92:
+		GetPrivateProfileString(LANG, L"i_m", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(service_msg, lang_str, sender);
+		break;
+	case 0xea3948e9:
+		GetPrivateProfileString(LANG, L"i_m2", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(service_msg, lang_str, sender);
+		break;
+	case 0x94bd38ed:
+		GetPrivateProfileString(LANG, channel ? L"i_cp" : L"i_p", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(service_msg, lang_str, sender);
+		break;
+	case 0x9fbab604:
+		GetPrivateProfileString(LANG, channel ? L"i_cd" : L"i_d", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(service_msg, lang_str, sender);
+		break;
+	case 0x80e11a7f: {
+		int flags = read_le(message + offset_msg, 4);
+		offset_msg += 12;
+		if (flags & (1 << 0)) {
+			offset_msg += 4;
+			if (flags & (1 << 2)) GetPrivateProfileString(LANG, L"i_vc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			else GetPrivateProfileString(LANG, L"i_c", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		} else {
+			if (flags & (1 << 2)) GetPrivateProfileString(LANG, L"i_ovc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			else GetPrivateProfileString(LANG, L"i_oc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		}
+		if (flags & (1 << 1)) {
+			wchar_t duration_str[10];
+			int duration = read_le(message + offset_msg, 4);
+			offset_msg += 4;
+			int hours = duration / 3600;
+			int minutes = (duration % 3600) / 60;
+			int seconds = duration % 60;
+			if (hours != 0) swprintf(duration_str, L"(%02d:%02d:%02d)", hours, minutes, seconds);
+			else swprintf(duration_str, L"(%02d:%02d)", minutes, seconds);
+			swprintf(service_msg, L"%s %s", lang_str, duration_str);
+		} else wcscpy(service_msg, lang_str);
+		break;
+	}
+	case 0x4792929b:
+		GetPrivateProfileString(LANG, L"i_s", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(service_msg, lang_str, sender);
+		break;
+	case 0xaa786345:
+		if (tlstr_len(message + offset_msg, false) == 0) {
+			GetPrivateProfileString(LANG, channel ? L"i_ctho" : L"i_tho", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			swprintf(service_msg, lang_str, sender);
+		} else {
+			GetPrivateProfileString(LANG, channel ? L"i_cth" : L"i_th", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			wcscat(lang_str, L" ");
+			int emoji_start = wcslen(lang_str);
+			read_string(message + offset_msg, lang_str + emoji_start);
+			wchar_t file_name[MAX_PATH];
+			swprintf(file_name, L"%s\\", get_path(exe_path, L"emojis"));
+			for (int j = emoji_start; j < wcslen(lang_str); j++) {
+				int cr;
+				if (lang_str[j] >= 0xD800 && lang_str[j] <= 0xDBFF) {
+					cr = ((lang_str[j] - 0xD800) << 10) + (lang_str[j+1] - 0xDC00) + 0x10000;
+					j++;
+				} else cr = lang_str[j];
+				if (file_name[7] == 0) swprintf(file_name, L"%s%x", file_name, cr);
+				else swprintf(file_name, L"%s-%x", file_name, cr);
+			}
+			wcscat(file_name, L".ico");
+			FILE* f = _wfopen(file_name, L"rb");
+			if (!f) {
+				wcscpy(file_name + wcslen(file_name) - 4, L"-fe0f.ico");
+				f = _wfopen(file_name, L"rb");
+				if (f) {
+					lang_str[wcslen(lang_str) + 1] = 0;
+					lang_str[wcslen(lang_str)] = 0xFE0F;
+					fclose(f);
+				}
+			} else fclose(f);
+			swprintf(service_msg, lang_str, sender);
+		}
+		break;
+	case 0xd999256:
+		read_string(message + 8, service_msg);
+		break;
+	case 0xc0944820: {
+		GetPrivateProfileString(LANG, L"i_t", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		wchar_t* topic_name = read_string(message + 8, NULL);
+		swprintf(service_msg, lang_str, sender, topic_name);
+		free(topic_name);
+		break;
+	}
+	case 0x5060a3f4: {
+		GetPrivateProfileString(LANG, channel ? L"i_cw" : L"i_w", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(service_msg, lang_str, sender);
+		break;
+	}
+	default:
+		GetPrivateProfileString(LANG, L"i_no", L"", service_msg, 100, get_path(exe_path, L"lang.ini"));
+	} 
 }
 
 BYTE pubkey_der[] = {

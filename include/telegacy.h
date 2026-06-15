@@ -337,173 +337,79 @@ extern wchar_t sound_paths[3][MAX_PATH];
 extern int SAMPLERATE;
 extern int BITSPERSAMPLE;
 extern int CHANNELS;
+extern wchar_t LANG[4];
+extern wchar_t lang_str[100];
 
 class CTextHost : public ITextHost {
 public:
 	ULONG refCount;
     ITextServices* textServices;
-
-    CTextHost() {
-		refCount = 1;
-		IUnknown* unknown;
-		CreateTextServices(NULL, this, &unknown);
-		const IID IID_ITextServices_fixed = {0x8d33f740, 0xcf58, 0x11ce, {0xa8, 0x9d, 0x00, 0xaa, 0x00, 0x6c, 0xad, 0xc5}};
-		unknown->QueryInterface(IID_ITextServices_fixed, (void**)&textServices);
-		unknown->Release();
-	}
-	
-	STDMETHODIMP QueryInterface(REFIID riid, void** ppvObject) {
-		if (riid == IID_IUnknown || riid == IID_ITextHost) {
-            *ppvObject = this;
-            AddRef();
-            return S_OK;
-        }
-        *ppvObject = NULL;
-        return E_NOINTERFACE;
-    }
-    STDMETHODIMP_(ULONG) AddRef() { return ++refCount; }
-    STDMETHODIMP_(ULONG) Release() {
-        ULONG c = --refCount;
-        if (!c) delete this;
-        return c;
-    }
-
-	HDC TxGetDC() { return 0; }
-	INT TxReleaseDC(HDC) { return 1; }
-	HRESULT TxGetClientRect(LPRECT) { return E_FAIL; }
-	COLORREF TxGetSysColor(int nIndex) { return GetSysColor(nIndex); }
-	HBRUSH TxGetSysColorBrush(int nIndex) { return GetSysColorBrush(nIndex); }
-	void TxInvalidateRect(LPCRECT, BOOL) {}
-	BOOL TxSetScrollRange(int, LONG, int, BOOL) { return TRUE; }
-	BOOL TxSetScrollPos(int, int, BOOL) { return TRUE; }
-	BOOL TxShowScrollBar(INT, BOOL) { return FALSE; }
-	BOOL TxEnableScrollBar(INT, INT) { return FALSE; }
-	void TxScrollWindowEx(INT, INT, LPCRECT, LPCRECT, HRGN, LPRECT, UINT) {}
-	void TxSetCapture(BOOL) {}
-	void TxSetFocus() {}
-	void TxSetCursor(HCURSOR, BOOL) {}
-	BOOL TxScreenToClient(LPPOINT) { return FALSE; }
-	BOOL TxClientToScreen(LPPOINT) { return FALSE; }
-	HRESULT TxActivate(LONG*) { return S_OK; }
-	HRESULT TxDeactivate(LONG) { return S_OK; }
-	HRESULT TxGetCharFormat(const CHARFORMATW**) { return E_NOTIMPL; }
-	HRESULT TxGetParaFormat(const PARAFORMAT**) { return E_NOTIMPL; }
-	HRESULT TxGetViewInset(LPRECT prc) {
-		memset(prc, 0, sizeof(RECT));
-		return S_OK;
-	}
-	HRESULT TxGetBackStyle(TXTBACKSTYLE *pstyle) {
-		*pstyle = TXTBACK_TRANSPARENT;
-		return S_OK;
-	}
-	HRESULT TxGetMaxLength(DWORD *plength) {
-		*plength = 1024*1024*16;
-		return S_OK;
-	}
-	HRESULT TxGetScrollBars(DWORD *pdwScrollBar) {
-		*pdwScrollBar = 0;
-		return S_OK;
-	}
-	HRESULT TxGetPasswordChar(TCHAR*) { return S_FALSE; }
-	HRESULT TxGetAcceleratorPos(LONG* pcp) {
-		*pcp = -1;
-		return S_OK;
-	}
-	HRESULT TxGetExtent(LPSIZEL) { return E_NOTIMPL; }
-	HRESULT OnTxCharFormatChange(const CHARFORMATW*) { return S_OK; }
-	HRESULT OnTxParaFormatChange(const PARAFORMAT*) { return S_OK; }
-	HRESULT TxGetPropertyBits(DWORD dwMask, DWORD *pdwBits) {
-		DWORD bits = TXTBIT_RICHTEXT | TXTBIT_WORDWRAP;
-		*pdwBits = bits & dwMask;
-		return S_OK;
-	}
-	HRESULT TxNotify(DWORD, void*) { return S_OK; }
-	HIMC TxImmGetContext() { return 0; }
-	void TxImmReleaseContext(HIMC) {}
-	HRESULT TxGetSelectionBarWidth(LONG *lSelBarWidth) {
-		*lSelBarWidth = 0;
-		return S_OK;
-	}
-	BOOL TxCreateCaret(HBITMAP, int, int) { return TRUE; }
-	BOOL TxSetCaretPos(int, int) { return TRUE; }
-	BOOL TxShowCaret(BOOL) { return TRUE; }
-	BOOL TxDestroyCaret() { return TRUE; }
-	BOOL TxSetTimer(UINT, UINT) { return TRUE; }
-	void TxKillTimer(UINT) {}
-	void TxViewChange(BOOL) {}
-	BOOL TxIsVisible() { return TRUE; }
+    CTextHost();
+	STDMETHODIMP QueryInterface(REFIID riid, void** ppvObject);
+    STDMETHODIMP_(ULONG) AddRef();
+    STDMETHODIMP_(ULONG) Release();
+	HDC TxGetDC();
+	INT TxReleaseDC(HDC);
+	HRESULT TxGetClientRect(LPRECT);
+	COLORREF TxGetSysColor(int nIndex);
+	HBRUSH TxGetSysColorBrush(int nIndex);
+	void TxInvalidateRect(LPCRECT, BOOL);
+	BOOL TxSetScrollRange(int, LONG, int, BOOL);
+	BOOL TxSetScrollPos(int, int, BOOL);
+	BOOL TxShowScrollBar(INT, BOOL);
+	BOOL TxEnableScrollBar(INT, INT);
+	void TxScrollWindowEx(INT, INT, LPCRECT, LPCRECT, HRGN, LPRECT, UINT);
+	void TxSetCapture(BOOL);
+	void TxSetFocus();
+	void TxSetCursor(HCURSOR, BOOL);
+	BOOL TxScreenToClient(LPPOINT);
+	BOOL TxClientToScreen(LPPOINT);
+	HRESULT TxActivate(LONG*);
+	HRESULT TxDeactivate(LONG);
+	HRESULT TxGetCharFormat(const CHARFORMATW**);
+	HRESULT TxGetParaFormat(const PARAFORMAT**);
+	HRESULT TxGetViewInset(LPRECT prc);
+	HRESULT TxGetBackStyle(TXTBACKSTYLE *pstyle);
+	HRESULT TxGetMaxLength(DWORD *plength);
+	HRESULT TxGetScrollBars(DWORD *pdwScrollBar);
+	HRESULT TxGetPasswordChar(TCHAR*);
+	HRESULT TxGetAcceleratorPos(LONG* pcp);
+	HRESULT TxGetExtent(LPSIZEL);
+	HRESULT OnTxCharFormatChange(const CHARFORMATW*);
+	HRESULT OnTxParaFormatChange(const PARAFORMAT*);
+	HRESULT TxGetPropertyBits(DWORD dwMask, DWORD *pdwBits);
+	HRESULT TxNotify(DWORD, void*);
+	HIMC TxImmGetContext();
+	void TxImmReleaseContext(HIMC);
+	HRESULT TxGetSelectionBarWidth(LONG *lSelBarWidth);
+	BOOL TxCreateCaret(HBITMAP, int, int);
+	BOOL TxSetCaretPos(int, int);
+	BOOL TxShowCaret(BOOL);
+	BOOL TxDestroyCaret();
+	BOOL TxSetTimer(UINT, UINT);
+	void TxKillTimer(UINT);
+	void TxViewChange(BOOL);
+	BOOL TxIsVisible();
 };
 
 class COleCallback : public IRichEditOleCallback {
 public:
 	ULONG refCount;
 	HWND hWnd;
-	COleCallback(HWND hWnd) {
-		refCount = 1;
-		this->hWnd = hWnd;
-	}
-    STDMETHODIMP QueryInterface(REFIID riid, void** ppvObject) {
-        if (riid == IID_IUnknown || riid == IID_IRichEditOleCallback) {
-            *ppvObject = this;
-            AddRef();
-            return S_OK;
-        }
-        *ppvObject = NULL;
-        return E_NOINTERFACE;
-    }
-    STDMETHODIMP_(ULONG) AddRef() { return ++refCount; }
-    STDMETHODIMP_(ULONG) Release() {
-        ULONG c = --refCount;
-        if (!c) delete this;
-        return c;
-    }
-    STDMETHODIMP GetNewStorage(LPSTORAGE* lpstg) {
-        return StgCreateDocfile(NULL, STGM_READWRITE | STGM_SHARE_EXCLUSIVE | STGM_CREATE, 0, lpstg);
-    }
-    STDMETHODIMP GetInPlaceContext(LPOLEINPLACEFRAME*, LPOLEINPLACEUIWINDOW*, LPOLEINPLACEFRAMEINFO) { return S_FALSE; }
-    STDMETHODIMP ShowContainerUI(BOOL) { return S_OK; }
-    STDMETHODIMP QueryInsertObject(LPCLSID clsid, LPSTORAGE lpstg, LONG cr) {
-		if (*clsid == CLSID_StaticMetafile || (hWnd != msgInput && *clsid == CLSID_StaticDib)) {
-			BYTE* p = (BYTE*)clsid;
-			p[40] = REO_BELOWBASELINE;
-			return S_OK;
-		} else return E_FAIL;
-	}
-    STDMETHODIMP DeleteObject(LPOLEOBJECT pOleObj) { return S_OK; }
-    STDMETHODIMP QueryAcceptData(LPDATAOBJECT pDataObj, CLIPFORMAT*, DWORD, BOOL, HGLOBAL) { return S_OK; }
-    STDMETHODIMP ContextSensitiveHelp(BOOL) { return E_NOTIMPL; }
-    STDMETHODIMP GetClipboardData(CHARRANGE*, DWORD, LPDATAOBJECT*) { return E_NOTIMPL; }
-    STDMETHODIMP GetDragDropEffect(BOOL, DWORD, DWORD*) { return S_OK; }
-    STDMETHODIMP GetContextMenu(WORD, LPOLEOBJECT, CHARRANGE* cr, HMENU*) {
-		if (hWnd == chat) {
-			for (int i = messages.size() - 1; i >= 0; i--) {
-				if (cr->cpMin >= messages[i].start_char && cr->cpMin <= messages[i].end_footer) {
-					sel_msg_id = messages[i].id;
-					if (cr->cpMin > messages[i].end_char) {
-						POINT pt;
-						GetCursorPos(&pt);
-						int width = (current_peer->reaction_list->size() < 12) ? 15 + current_peer->reaction_list->size() * 20 : 255;
-						int height = 15 + 20 * ((current_peer->reaction_list->size() + 12) / 12);
-						SetWindowPos(reactionStatic, NULL, pt.x, pt.y, NULL, NULL, SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_NOSIZE);
-					} else { // not using the function's HMENU* because that way the caret is shown
-						HideCaret(hWnd);
-						POINT pt;
-						GetCursorPos(&pt);
-						HMENU hMenu = CreatePopupMenu();
-						AppendMenu(hMenu, editing_msg_id ? (MF_STRING | MF_GRAYED) : MF_STRING, 23,  L"Reply");
-						if (messages[i].outgoing || memcmp(current_peer->id, myself.id, 8) == 0) AppendMenu(hMenu, (replying_msg_id || forwarding_msg_id) ? (MF_STRING | MF_GRAYED) : MF_STRING, 20,  L"Edit");
-						AppendMenu(hMenu, editing_msg_id ? (MF_STRING | MF_GRAYED) : MF_STRING, 24,  L"Forward");
-						AppendMenu(hMenu, MF_STRING, 21,  L"Delete for everyone");
-						AppendMenu(hMenu, MF_STRING, 22,  L"Delete for myself");
-						TrackPopupMenu(hMenu, TPM_RIGHTBUTTON | TPM_LEFTALIGN, pt.x, pt.y, 0, hMain, NULL);
-					}
-					break;
-				}
-			}
-			HideCaret(chat);
-		}
-		return S_OK;
-	}
+	COleCallback(HWND hWnd);
+    STDMETHODIMP QueryInterface(REFIID riid, void** ppvObject);
+    STDMETHODIMP_(ULONG) AddRef();
+    STDMETHODIMP_(ULONG) Release();
+    STDMETHODIMP GetNewStorage(LPSTORAGE* lpstg);
+    STDMETHODIMP GetInPlaceContext(LPOLEINPLACEFRAME*, LPOLEINPLACEUIWINDOW*, LPOLEINPLACEFRAMEINFO);
+    STDMETHODIMP ShowContainerUI(BOOL);
+    STDMETHODIMP QueryInsertObject(LPCLSID clsid, LPSTORAGE lpstg, LONG cr);
+    STDMETHODIMP DeleteObject(LPOLEOBJECT pOleObj);
+    STDMETHODIMP QueryAcceptData(LPDATAOBJECT pDataObj, CLIPFORMAT*, DWORD, BOOL, HGLOBAL);
+    STDMETHODIMP ContextSensitiveHelp(BOOL);
+    STDMETHODIMP GetClipboardData(CHARRANGE*, DWORD, LPDATAOBJECT*);
+    STDMETHODIMP GetDragDropEffect(BOOL, DWORD, DWORD*);
+    STDMETHODIMP GetContextMenu(WORD, LPOLEOBJECT, CHARRANGE* cr, HMENU*);
 };
 extern CTextHost* textHost;
 
@@ -622,10 +528,12 @@ void bring_me_to_life();
 void init_default_font(int index);
 int riched_write(HWND riched, wchar_t* str);
 void convert_negative_lfheight(LOGFONT* lf, int index);
+void set_menu(HWND hWnd);
+void create_service_msg(BYTE* message, wchar_t* sender, wchar_t* service_msg, bool channel);
 
 // message.cpp
 int message_handler(bool to_front, BYTE* message, bool update_order, bool editing, bool rplhelper);
-void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* msg_bytes, wchar_t* service_msg, EDITSTREAM* es, BYTE* chat_member_id, std::vector<int>* format_vecs, BYTE* reactions, BYTE* msgrpl, BYTE* msgfwd, BYTE* views, bool groupmed_end, bool footer, bool editing, int date);
+void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* msg_bytes, EDITSTREAM* es, BYTE* chat_member_id, std::vector<int>* format_vecs, BYTE* reactions, BYTE* msgrpl, BYTE* msgfwd, BYTE* views, bool groupmed_end, bool footer, bool editing, int date);
 
 // response.cpp
 void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement, int length);
@@ -665,7 +573,7 @@ int replymarkup_offset(BYTE* unenc_response);
 int msgreact_offset(BYTE* unenc_response);
 int textwithent_offset(BYTE* unenc_response);
 int wallpaper_offset(BYTE* unenc_response);
-int msgact_offset(BYTE* message, int offset_msg, wchar_t** service_msg, bool* service_msg_allocated);
+int msgact_offset(BYTE* message);
 int sendmsgaction_offset(BYTE* message);
 int doc_offset(BYTE* unenc_response);
 int photo_offset(BYTE* unenc_response);

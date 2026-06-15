@@ -1337,22 +1337,12 @@ int stargift_offset(BYTE* message) {
 	return offset_msg;
 }
 
-int msgact_offset(BYTE* message, int offset_msg, wchar_t** service_msg, bool* service_msg_allocated) {
-	bool message_adding = (service_msg == NULL) ? false : true;
-	int msgact_cons = read_le(message + offset_msg, 4);
-	offset_msg += 4;
+int msgact_offset(BYTE* message) {
+	int msgact_cons = read_le(message, 4);
+	int offset_msg = 4;
 	switch (msgact_cons) {
 	case 0xbd47cbad:
 	case 0xb5a1ce5a: {
-		if (message_adding) {
-			wchar_t* chat_name = read_string(message + offset_msg, NULL);
-			wchar_t* info = (msgact_cons == 0xbd47cbad) ? L"This group was created with the name" : L"This group's name was changed to";
-			int length = wcslen(chat_name) + wcslen(info) + 10;
-			*service_msg = (wchar_t*)malloc(2*length);
-			*service_msg_allocated = true;
-			swprintf(*service_msg, L"%s \"%s\" by %%s", info, chat_name);
-			free(chat_name);
-		}
 		offset_msg += tlstr_len(message + offset_msg, true);
 		if (msgact_cons == 0xbd47cbad) {
 			int count = read_le(message + offset_msg + 4, 4);
@@ -1362,87 +1352,38 @@ int msgact_offset(BYTE* message, int offset_msg, wchar_t** service_msg, bool* se
 		break;
 	}
 	case 0x95d2ac92: {
-		if (message_adding) {
-			wchar_t* chat_name = read_string(message + offset_msg, NULL);
-			wchar_t* info = L"This channel was created with the name";
-			int length = wcslen(chat_name) + wcslen(info) + 4;
-			*service_msg = (wchar_t*)malloc(2*length);
-			*service_msg_allocated = true;
-			swprintf(*service_msg, L"%s \"%s\"", info, chat_name);
-			free(chat_name);
-		}
 		offset_msg += tlstr_len(message + offset_msg, true);
 		break;
 	}
 	case 0x7fcb13a8:
-		if (message_adding) *service_msg = L"The chat's photo was changed by %s";
 		offset_msg += photo_offset(message + offset_msg);
 		break;
 	case 0x95e3fbef:
-		if (message_adding) *service_msg = L"The chat's photo was deleted by %s";
 		break;
 	case 0x15cefd00: {
-		if (message_adding) {
-			if (memcmp(message + 16, message + offset_msg + 8, 8) == 0) *service_msg = L"%s joined the chat";
-			else {
-				wchar_t* name = NULL;
-				if (current_peer->type == 1) for (int i = 0; i < current_peer->chat_users->size(); i++) {
-					if (memcmp(message + offset_msg + 8, current_peer->chat_users->at(i).id, 8) == 0) {
-						name = current_peer->chat_users->at(i).name;
-						break;
-					}
-				}
-				bool name_allocated = false;
-				if (!name) {
-					char type = -1;
-					BYTE* peer_bytes = find_peer(message + offset_msg + 16, message + offset_msg + 4, false, &type);
-					peer_set_name(peer_bytes, &name, type);
-					name_allocated = true;
-				}
-				wchar_t* base = L" was added by %s";
-				*service_msg = (wchar_t*)malloc(2 * (wcslen(base) + wcslen(name) + 1));
-				swprintf(*service_msg, L"%s%s", name, base);
-				*service_msg_allocated = true;
-				if (name_allocated) free(name);
-			}
-		}
 		int count = read_le(message + offset_msg + 4, 4);
 		offset_msg += 8;
 		for (int i = 0; i < count; i++) offset_msg += 8;
 		break;
 	}
 	case 0xa43f30cc:
-		if (message_adding) *service_msg = L"%s left the chat";
 		offset_msg += 8;
 		break;
 	case 0x31224c3:
-		if (message_adding) *service_msg = L"%s joined the chat by a link";
 		offset_msg += 8;
 		break;
 	case 0xfae69f56:
-		if (message_adding) {
-			*service_msg = read_string(message + offset_msg, NULL);
-			*service_msg_allocated = true;
-		}
 		offset_msg += tlstr_len(message + offset_msg, true);
 		break;
 	case 0xb4c38cb5:
 		offset_msg += tlstr_len(message + offset_msg, true);
 		break;
 	case 0xe1037f92:
-		if (message_adding) *service_msg = L"This chat was migrated to a supergroup by %s";
 		offset_msg += 8;
 		break;
 	case 0xea3948e9:
-		if (message_adding) *service_msg = L"This supergroup was migrated from a chat by %s";
 		offset_msg += tlstr_len(message + offset_msg, true);
 		offset_msg += 8;
-		break;
-	case 0x94bd38ed:
-		if (message_adding) *service_msg = L"A message was pinned";
-		break;
-	case 0x9fbab604:
-		if (message_adding) *service_msg = L"The chat's history was deleted by %s";
 		break;
 	case 0x92a72876:
 	case 0x87e2f155:
@@ -1484,38 +1425,10 @@ int msgact_offset(BYTE* message, int offset_msg, wchar_t** service_msg, bool* se
 	case 0x80e11a7f: {
 		int flags = read_le(message + offset_msg, 4);
 		offset_msg += 12;
-		wchar_t* info;
-		if (flags & (1 << 0)) {
-			offset_msg += 4;
-			if (message_adding) {
-				if (flags & (1 << 2)) info = L"Video call";
-				else info = L"Call";
-			}
-		} else if (message_adding) {
-			if (flags & (1 << 2)) info = L"Ongoing video call";
-			else info = L"Ongoing call";
-		}
-		if (message_adding) {
-			if (flags & (1 << 1)) {
-				wchar_t duration_str[10];
-				int duration = read_le(message + offset_msg, 4);
-				offset_msg += 4;
-				int hours = duration / 3600;
-				int minutes = (duration % 3600) / 60;
-				int seconds = duration % 60;
-				if (hours != 0) swprintf(duration_str, L"(%02d:%02d:%02d)", hours, minutes, seconds);
-				else swprintf(duration_str, L"(%02d:%02d)", minutes, seconds);
-				int length = wcslen(duration_str) + wcslen(info) + 2;
-				*service_msg = (wchar_t*)malloc(2*length);
-				*service_msg_allocated = true;
-				swprintf(*service_msg, L"%s %s", info, duration_str);
-			} else *service_msg = info;
-		} else if (flags & (1 << 1)) offset_msg += 4;
+		if (flags & (1 << 0)) offset_msg += 4;
+		if (flags & (1 << 1)) offset_msg += 4;
 		break;
 	}
-	case 0x4792929b:
-		if (message_adding) *service_msg = L"A screenshot was taken by %s";
-		break;
 	case 0xc516d679: {
 		int flags = read_le(message + offset_msg, 4);
 		offset_msg += 4;
@@ -1594,39 +1507,6 @@ int msgact_offset(BYTE* message, int offset_msg, wchar_t** service_msg, bool* se
 		offset_msg += 24;
 		break;
 	case 0xaa786345:
-		if (message_adding) {
-			if (tlstr_len(message + offset_msg, false) == 0) *service_msg = L"The chat's theme was turned off by %s";
-			else {
-				wchar_t msg[45] = L"The chat's theme was changed by %s to ";
-				int emoji_start = wcslen(msg);
-				read_string(message + offset_msg, msg + emoji_start);
-				wchar_t file_name[MAX_PATH];
-				swprintf(file_name, L"%s\\", get_path(exe_path, L"emojis"));
-				for (int j = emoji_start; j < wcslen(msg); j++) {
-					int cr;
-					if (msg[j] >= 0xD800 && msg[j] <= 0xDBFF) {
-						cr = ((msg[j] - 0xD800) << 10) + (msg[j+1] - 0xDC00) + 0x10000;
-						j++;
-					} else cr = msg[j];
-					if (file_name[7] == 0) swprintf(file_name, L"%s%x", file_name, cr);
-					else swprintf(file_name, L"%s-%x", file_name, cr);
-				}
-				wcscat(file_name, L".ico");
-				FILE* f = _wfopen(file_name, L"rb");
-				if (!f) {
-					wcscpy(file_name + wcslen(file_name) - 4, L"-fe0f.ico");
-					f = _wfopen(file_name, L"rb");
-					if (f) {
-						msg[wcslen(msg) + 1] = 0;
-						msg[wcslen(msg)] = 0xFE0F;
-						fclose(f);
-					}
-				} else fclose(f);
-				*service_msg = (wchar_t*)malloc(2*(wcslen(msg)+1));
-				wcscpy(*service_msg, msg);
-				*service_msg_allocated = true;
-			}
-		}
 		offset_msg += tlstr_len(message + offset_msg, true);
 		break;
 	case 0x47dd8079: {
@@ -1646,10 +1526,6 @@ int msgact_offset(BYTE* message, int offset_msg, wchar_t** service_msg, bool* se
 	case 0xd999256: {
 		int flags = read_le(message + offset_msg, 4);
 		offset_msg += 4;
-		if (message_adding) {
-			*service_msg = read_string(message + offset_msg, NULL);
-			*service_msg_allocated = true;
-		}
 		offset_msg += tlstr_len(message + offset_msg, true);
 		offset_msg += 4;
 		if (flags & (1 << 0)) offset_msg += 8;
@@ -1658,15 +1534,6 @@ int msgact_offset(BYTE* message, int offset_msg, wchar_t** service_msg, bool* se
 	case 0xc0944820: {
 		int flags = read_le(message + offset_msg, 4);
 		offset_msg += 4;
-		if (message_adding) {
-			wchar_t* info = L"The topic's name was changed to";
-			wchar_t* topic_name = read_string(message + offset_msg, NULL);
-			int length = wcslen(topic_name) + wcslen(info) + 10;
-			*service_msg = (wchar_t*)malloc(2*length);
-			*service_msg_allocated = true;
-			swprintf(*service_msg, L"%s \"%s\" by %%s", info, topic_name);
-			free(topic_name);
-		}
 		if (flags & (1 << 0)) offset_msg += tlstr_len(message + offset_msg, true);
 		if (flags & (1 << 1)) offset_msg += 8;
 		if (flags & (1 << 2)) offset_msg += 4;
@@ -1684,7 +1551,6 @@ int msgact_offset(BYTE* message, int offset_msg, wchar_t** service_msg, bool* se
 		break;
 	}
 	case 0x5060a3f4: {
-		if (message_adding) *service_msg = L"The chat's wallpaper was set by %s";
 		offset_msg += 4;
 		offset_msg += wallpaper_offset(message + offset_msg);
 		break;
@@ -1774,8 +1640,7 @@ int msgact_offset(BYTE* message, int offset_msg, wchar_t** service_msg, bool* se
 		if (flags & (1 << 4)) offset_msg += 8;
 		break;
 	}
-	}
-	if (message_adding && *service_msg == (wchar_t*)1) *service_msg = L"This service message isn't supported in Telegacy"; 
+	} 
 	return offset_msg;
 }
 

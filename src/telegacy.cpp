@@ -124,6 +124,168 @@ wchar_t sound_paths[3][MAX_PATH];
 int SAMPLERATE;
 int BITSPERSAMPLE;
 int CHANNELS;
+wchar_t LANG[4];
+wchar_t lang_str[100];
+
+CTextHost::CTextHost() {
+	refCount = 1;
+	IUnknown* unknown;
+	CreateTextServices(NULL, this, &unknown);
+	const IID IID_ITextServices_fixed = {0x8d33f740, 0xcf58, 0x11ce, {0xa8, 0x9d, 0x00, 0xaa, 0x00, 0x6c, 0xad, 0xc5}};
+	unknown->QueryInterface(IID_ITextServices_fixed, (void**)&textServices);
+	unknown->Release();
+}
+STDMETHODIMP CTextHost::QueryInterface(REFIID riid, void** ppvObject) {
+	if (riid == IID_IUnknown || riid == IID_ITextHost) {
+        *ppvObject = this;
+        AddRef();
+        return S_OK;
+    }
+    *ppvObject = NULL;
+    return E_NOINTERFACE;
+}
+STDMETHODIMP_(ULONG) CTextHost::AddRef() { return ++refCount; }
+STDMETHODIMP_(ULONG) CTextHost::Release() {
+    ULONG c = --refCount;
+    if (!c) delete this;
+    return c;
+}
+HDC CTextHost::TxGetDC() { return 0; }
+INT CTextHost::TxReleaseDC(HDC) { return 1; }
+HRESULT CTextHost::TxGetClientRect(LPRECT) { return E_FAIL; }
+COLORREF CTextHost::TxGetSysColor(int nIndex) { return GetSysColor(nIndex); }
+HBRUSH CTextHost::TxGetSysColorBrush(int nIndex) { return GetSysColorBrush(nIndex); }
+void CTextHost::TxInvalidateRect(LPCRECT, BOOL) {}
+BOOL CTextHost::TxSetScrollRange(int, LONG, int, BOOL) { return TRUE; }
+BOOL CTextHost::TxSetScrollPos(int, int, BOOL) { return TRUE; }
+BOOL CTextHost::TxShowScrollBar(INT, BOOL) { return FALSE; }
+BOOL CTextHost::TxEnableScrollBar(INT, INT) { return FALSE; }
+void CTextHost::TxScrollWindowEx(INT, INT, LPCRECT, LPCRECT, HRGN, LPRECT, UINT) {}
+void CTextHost::TxSetCapture(BOOL) {}
+void CTextHost::TxSetFocus() {}
+void CTextHost::TxSetCursor(HCURSOR, BOOL) {}
+BOOL CTextHost::TxScreenToClient(LPPOINT) { return FALSE; }
+BOOL CTextHost::TxClientToScreen(LPPOINT) { return FALSE; }
+HRESULT CTextHost::TxActivate(LONG*) { return S_OK; }
+HRESULT CTextHost::TxDeactivate(LONG) { return S_OK; }
+HRESULT CTextHost::TxGetCharFormat(const CHARFORMATW**) { return E_NOTIMPL; }
+HRESULT CTextHost::TxGetParaFormat(const PARAFORMAT**) { return E_NOTIMPL; }
+HRESULT CTextHost::TxGetViewInset(LPRECT prc) {
+	memset(prc, 0, sizeof(RECT));
+	return S_OK;
+}
+HRESULT CTextHost::TxGetBackStyle(TXTBACKSTYLE *pstyle) {
+	*pstyle = TXTBACK_TRANSPARENT;
+	return S_OK;
+}
+HRESULT CTextHost::TxGetMaxLength(DWORD *plength) {
+	*plength = 1024*1024*16;
+	return S_OK;
+}
+HRESULT CTextHost::TxGetScrollBars(DWORD *pdwScrollBar) {
+	*pdwScrollBar = 0;
+	return S_OK;
+}
+HRESULT CTextHost::TxGetPasswordChar(TCHAR*) { return S_FALSE; }
+HRESULT CTextHost::TxGetAcceleratorPos(LONG* pcp) {
+	*pcp = -1;
+	return S_OK;
+}
+HRESULT CTextHost::TxGetExtent(LPSIZEL) { return E_NOTIMPL; }
+HRESULT CTextHost::OnTxCharFormatChange(const CHARFORMATW*) { return S_OK; }
+HRESULT CTextHost::OnTxParaFormatChange(const PARAFORMAT*) { return S_OK; }
+HRESULT CTextHost::TxGetPropertyBits(DWORD dwMask, DWORD *pdwBits) {
+	DWORD bits = TXTBIT_RICHTEXT | TXTBIT_WORDWRAP;
+	*pdwBits = bits & dwMask;
+	return S_OK;
+}
+HRESULT CTextHost::TxNotify(DWORD, void*) { return S_OK; }
+HIMC CTextHost::TxImmGetContext() { return 0; }
+void CTextHost::TxImmReleaseContext(HIMC) {}
+HRESULT CTextHost::TxGetSelectionBarWidth(LONG *lSelBarWidth) {
+	*lSelBarWidth = 0;
+	return S_OK;
+}
+BOOL CTextHost::TxCreateCaret(HBITMAP, int, int) { return TRUE; }
+BOOL CTextHost::TxSetCaretPos(int, int) { return TRUE; }
+BOOL CTextHost::TxShowCaret(BOOL) { return TRUE; }
+BOOL CTextHost::TxDestroyCaret() { return TRUE; }
+BOOL CTextHost::TxSetTimer(UINT, UINT) { return TRUE; }
+void CTextHost::TxKillTimer(UINT) {}
+void CTextHost::TxViewChange(BOOL) {}
+BOOL CTextHost::TxIsVisible() { return TRUE; }
+
+COleCallback::COleCallback(HWND hWnd) {
+	refCount = 1;
+	this->hWnd = hWnd;
+}
+STDMETHODIMP COleCallback::QueryInterface(REFIID riid, void** ppvObject) {
+    if (riid == IID_IUnknown || riid == IID_IRichEditOleCallback) {
+        *ppvObject = this;
+        AddRef();
+        return S_OK;
+    }
+    *ppvObject = NULL;
+    return E_NOINTERFACE;
+}
+STDMETHODIMP_(ULONG) COleCallback::AddRef() { return ++refCount; }
+STDMETHODIMP_(ULONG) COleCallback::Release() {
+    ULONG c = --refCount;
+    if (!c) delete this;
+    return c;
+}
+STDMETHODIMP COleCallback::GetNewStorage(LPSTORAGE* lpstg) {
+    return StgCreateDocfile(NULL, STGM_READWRITE | STGM_SHARE_EXCLUSIVE | STGM_CREATE, 0, lpstg);
+}
+STDMETHODIMP COleCallback::GetInPlaceContext(LPOLEINPLACEFRAME*, LPOLEINPLACEUIWINDOW*, LPOLEINPLACEFRAMEINFO) { return S_FALSE; }
+STDMETHODIMP COleCallback::ShowContainerUI(BOOL) { return S_OK; }
+STDMETHODIMP COleCallback::QueryInsertObject(LPCLSID clsid, LPSTORAGE lpstg, LONG cr) {
+	if (*clsid == CLSID_StaticMetafile || (hWnd != msgInput && *clsid == CLSID_StaticDib)) {
+		BYTE* p = (BYTE*)clsid;
+		p[40] = REO_BELOWBASELINE;
+		return S_OK;
+	} else return E_FAIL;
+}
+STDMETHODIMP COleCallback::DeleteObject(LPOLEOBJECT pOleObj) { return S_OK; }
+STDMETHODIMP COleCallback::QueryAcceptData(LPDATAOBJECT pDataObj, CLIPFORMAT*, DWORD, BOOL, HGLOBAL) { return S_OK; }
+STDMETHODIMP COleCallback::ContextSensitiveHelp(BOOL) { return E_NOTIMPL; }
+STDMETHODIMP COleCallback::GetClipboardData(CHARRANGE*, DWORD, LPDATAOBJECT*) { return E_NOTIMPL; }
+STDMETHODIMP COleCallback::GetDragDropEffect(BOOL, DWORD, DWORD*) { return S_OK; }
+STDMETHODIMP COleCallback::GetContextMenu(WORD, LPOLEOBJECT, CHARRANGE* cr, HMENU*) {
+	if (hWnd == chat) {
+		for (int i = messages.size() - 1; i >= 0; i--) {
+			if (cr->cpMin >= messages[i].start_char && cr->cpMin <= messages[i].end_footer) {
+				sel_msg_id = messages[i].id;
+				if (cr->cpMin > messages[i].end_char) {
+					POINT pt;
+					GetCursorPos(&pt);
+					int width = (current_peer->reaction_list->size() < 12) ? 15 + current_peer->reaction_list->size() * 20 : 255;
+					int height = 15 + 20 * ((current_peer->reaction_list->size() + 12) / 12);
+					SetWindowPos(reactionStatic, NULL, pt.x, pt.y, NULL, NULL, SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_NOSIZE);
+				} else { // not using the function's HMENU* because that way the caret is shown
+					HideCaret(hWnd);
+					POINT pt;
+					GetCursorPos(&pt);
+					HMENU hMenu = CreatePopupMenu();
+					GetPrivateProfileString(LANG, L"m_rep", L"", lang_str, 100, exe_path);
+					AppendMenu(hMenu, editing_msg_id ? (MF_STRING | MF_GRAYED) : MF_STRING, 23, lang_str);
+					GetPrivateProfileString(LANG, L"m_edt", L"", lang_str, 100, exe_path);
+					if (messages[i].outgoing || memcmp(current_peer->id, myself.id, 8) == 0) AppendMenu(hMenu, (replying_msg_id || forwarding_msg_id) ? (MF_STRING | MF_GRAYED) : MF_STRING, 20, lang_str);
+					GetPrivateProfileString(LANG, L"m_for", L"", lang_str, 100, exe_path);
+					AppendMenu(hMenu, editing_msg_id ? (MF_STRING | MF_GRAYED) : MF_STRING, 24, lang_str);
+					GetPrivateProfileString(LANG, L"m_dev", L"", lang_str, 100, exe_path);
+					AppendMenu(hMenu, MF_STRING, 21, lang_str);
+					GetPrivateProfileString(LANG, L"m_dmy", L"", lang_str, 100, exe_path);
+					AppendMenu(hMenu, MF_STRING, 22, lang_str);
+					TrackPopupMenu(hMenu, TPM_RIGHTBUTTON | TPM_LEFTALIGN, pt.x, pt.y, 0, hMain, NULL);
+				}
+				break;
+			}
+		}
+		HideCaret(chat);
+	}
+	return S_OK;
+}
 
 unsigned __stdcall SocketWorker(void* param) {
 	DCInfo* dcInfo = (DCInfo*)param;
@@ -131,7 +293,8 @@ unsigned __stdcall SocketWorker(void* param) {
 		init_connection(dcInfo, false);
 		if (!dcInfo->authorized) {
 			KillTimer(hMain, 2);
-			SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)L"Logging in to the needed file's datacenter...");
+			GetPrivateProfileString(LANG, L"s_dclg", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)lang_str);
 			create_auth_key(dcInfo);
 			send_ping(dcInfo);
 			BYTE unenc_query[64];
@@ -225,7 +388,8 @@ unsigned __stdcall FileSenderWorker(void* param) {
 		for (int j = 0; j < parts; j++) {
 			if (j > 0) WaitForSingleObject(ute.event, INFINITE);
 			ResetEvent(ute.event);
-			swprintf(status_msg, L"Uploading %s... %d%%", docstemp[i].filename, 100 * _ftelli64(f) / docstemp[i].size);
+			GetPrivateProfileString(LANG, L"s_upl", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			swprintf(status_msg, lang_str, docstemp[i].filename, 100 * _ftelli64(f) / docstemp[i].size);
 			SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)status_msg);
 			write_le(unenc_query + 44, j, 4);
 			int part_size = (j == parts - 1) ? (docstemp[i].size - 524288 * j) : 524288;
@@ -254,7 +418,8 @@ unsigned __stdcall FileSenderWorker(void* param) {
 			send_query(enc_query, offset + 24);
 		}
 		WaitForSingleObject(ute.event, INFINITE);
-		swprintf(status_msg, L"Uploading %s... done!", docstemp[i].filename);
+		GetPrivateProfileString(LANG, L"s_upd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		swprintf(status_msg, lang_str, docstemp[i].filename);
 		SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)status_msg);
 		fclose(f);
 		free(files[i]);
@@ -325,35 +490,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		LRESULT res;
 		textHost->textServices->TxSendMessage(EM_SETSEL, 0, 0, &res);
 
-		hMenuBar = CreateMenu();
-		HMENU hMenuProfile = CreatePopupMenu();
-		HMENU hMenuMute = CreatePopupMenu();
-		HMENU hMenuChat = CreatePopupMenu();
-		HMENU hMenuTheme = CreatePopupMenu();
-		HMENU hMenuTools = CreatePopupMenu();
-		HMENU hMenuHelp = CreatePopupMenu();
-		AppendMenu(hMenuProfile, MF_STRING, 30,  TEXT("&View profile"));
-		AppendMenu(hMenuProfile, MF_POPUP, (UINT_PTR)hMenuMute, TEXT("&Mute/unmute..."));
-		AppendMenu(hMenuMute, MF_STRING, 38,  TEXT("&Mute all users"));
-		AppendMenu(hMenuMute, MF_STRING, 39,  TEXT("&Mute all groups"));
-		AppendMenu(hMenuMute, MF_STRING, 40,  TEXT("&Mute all channels"));
-		AppendMenu(hMenuProfile, MF_STRING, 37,  TEXT("&Exit"));
-		AppendMenu(hMenuProfile, MF_STRING, 36,  TEXT("&Log out and exit"));
-		AppendMenu(hMenuChat, MF_STRING, 31,  TEXT("&View profile"));
-		AppendMenu(hMenuChat, MF_STRING, 41,  TEXT("&Mute this chat"));
-		AppendMenu(hMenuTheme, MF_STRING | MF_CHECKED, 600,  TEXT("&None"));
-		AppendMenu(hMenuChat, MF_POPUP, (UINT_PTR)hMenuTheme,  TEXT("&Set theme..."));
-		AppendMenu(hMenuTools, MF_STRING, 32,  TEXT("&Send media as files"));
-		if (!ie4) AppendMenu(hMenuTools, MF_STRING, 42,  TEXT("S&how the uploading list"));
-		AppendMenu(hMenuTools, MF_STRING, 33,  TEXT("&Options..."));
-		AppendMenu(hMenuHelp, MF_STRING, 34, TEXT("&User Guide"));
-		AppendMenu(hMenuHelp, MF_STRING, 35,  TEXT("&About"));
-		AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hMenuProfile, TEXT("&Profile"));
-		AppendMenu(hMenuBar, MF_POPUP | MF_GRAYED, (UINT_PTR)hMenuChat, TEXT("&Chat"));
-		AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hMenuTools, TEXT("&Tools"));
-		AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hMenuHelp, TEXT("&Help"));
-		SetMenu(hWnd, hMenuBar);
-		DrawMenuBar(hWnd);
+		set_menu(hWnd);
 
 		hToolbar = CreateWindow(TOOLBARCLASSNAME, NULL, WS_CHILD | WS_VISIBLE | (ie3 ? TBSTYLE_FLAT : 0) | TBSTYLE_TOOLTIPS | CCS_NORESIZE | CCS_NOPARENTALIGN | WS_CLIPSIBLINGS,
 			10, height - 145, width - 30, 25, hWnd, NULL, NULL, NULL);
@@ -370,66 +507,145 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		tbb[0].iBitmap = 0;
 		tbb[0].idCommand = 10;
 		tbb[0].fsState = TBSTATE_ENABLED;
-		tbb[0].iString = (INT_PTR)"Bold";
 		tbb[1].iBitmap = 1;
 		tbb[1].idCommand = 11;
 		tbb[1].fsState = TBSTATE_ENABLED;
-		tbb[1].iString = (INT_PTR)"Italic";
 		tbb[2].iBitmap = 2;
 		tbb[2].idCommand = 12;
 		tbb[2].fsState = TBSTATE_ENABLED;
-		tbb[2].iString = (INT_PTR)"Underline";
 		tbb[3].iBitmap = 3;
 		tbb[3].idCommand = 13;
 		tbb[3].fsState = TBSTATE_ENABLED;
-		tbb[3].iString = (INT_PTR)"Strikethrough";
 		tbb[4].iBitmap = 4;
 		tbb[4].idCommand = 14;
 		tbb[4].fsState = TBSTATE_ENABLED;
-		tbb[4].iString = (INT_PTR)"Quote";
 		tbb[5].iBitmap = 5;
 		tbb[5].idCommand = 15;
 		tbb[5].fsState = TBSTATE_ENABLED;
-		tbb[5].iString = (INT_PTR)"Monospace";
 		tbb[6].iBitmap = 6;
 		tbb[6].idCommand = 16;
 		tbb[6].fsState = TBSTATE_ENABLED;
-		tbb[6].iString = (INT_PTR)"Spoiler";
 		tbb[7].iBitmap = width - 296;
 		tbb[7].idCommand = 9;
 		tbb[7].fsStyle = TBSTYLE_SEP;
 		tbb[8].iBitmap = 7;
 		tbb[8].idCommand = 7;
 		tbb[8].fsState = TBSTATE_HIDDEN;
-		tbb[8].iString = (INT_PTR)"You're replying to a message. Click to cancel.";
 		tbb[9].iBitmap = 8;
 		tbb[9].idCommand = 8;
 		tbb[9].fsState = TBSTATE_HIDDEN;
-		tbb[9].iString = (INT_PTR)"You're editing a message. Click to cancel.";
 		tbb[10].iBitmap = 9;
 		tbb[10].idCommand = 19;
 		tbb[10].fsState = TBSTATE_HIDDEN;
-		tbb[10].iString = (INT_PTR)"You're forwarding a message. Click to cancel.";
 		tbb[11].iBitmap = 10;
 		tbb[11].idCommand = 4;
 		tbb[11].fsState = TBSTATE_ENABLED;
 		if (ie4) tbb[11].fsStyle = TBSTYLE_DROPDOWN;
-		tbb[11].iString = (INT_PTR)"Attach files";
 		tbb[12].iBitmap = 11;
 		tbb[12].idCommand = 6;
 		tbb[12].fsState = TBSTATE_ENABLED;
 		tbb[12].fsStyle = TBSTYLE_CHECK;
-		tbb[12].iString = (INT_PTR)"Record a voice message";
 		tbb[13].iBitmap = 12;
 		tbb[13].idCommand = 5;
 		tbb[13].fsState = EMOJIS ? TBSTATE_ENABLED : 0;
 		tbb[13].fsStyle = TBSTYLE_CHECK;
-		tbb[13].iString = (INT_PTR)"Emojis";
 		tbb[14].iBitmap = 13;
 		tbb[14].idCommand = 1;
 		tbb[14].fsState = TBSTATE_ENABLED;
-		tbb[14].iString = (INT_PTR)"Send message";
-		SendMessage(hToolbar, TB_ADDBUTTONSA, 15, (LPARAM)&tbb);
+		if (ie4) {
+			wchar_t bold_str[20];
+			GetPrivateProfileString(LANG, L"t_b", L"", bold_str, 20, get_path(exe_path, L"lang.ini"));
+			tbb[0].iString = (INT_PTR)bold_str;
+			wchar_t italic_str[20];
+			GetPrivateProfileString(LANG, L"t_i", L"", italic_str, 20, exe_path);
+			tbb[1].iString = (INT_PTR)italic_str;
+			wchar_t under_str[20];
+			GetPrivateProfileString(LANG, L"t_u", L"", under_str, 20, exe_path);
+			tbb[2].iString = (INT_PTR)under_str;
+			wchar_t strike_str[20];
+			GetPrivateProfileString(LANG, L"t_s", L"", strike_str, 20, exe_path);
+			tbb[3].iString = (INT_PTR)strike_str;
+			wchar_t quote_str[20];
+			GetPrivateProfileString(LANG, L"t_q", L"", quote_str, 20, exe_path);
+			tbb[4].iString = (INT_PTR)quote_str;
+			wchar_t mono_str[20];
+			GetPrivateProfileString(LANG, L"t_m", L"", mono_str, 20, exe_path);
+			tbb[5].iString = (INT_PTR)mono_str;
+			wchar_t spoiler_str[20];
+			GetPrivateProfileString(LANG, L"t_spl", L"", spoiler_str, 20, exe_path);
+			tbb[6].iString = (INT_PTR)spoiler_str;
+			wchar_t reply_str[75];
+			GetPrivateProfileString(LANG, L"t_rep", L"", reply_str, 75, exe_path);
+			tbb[8].iString = (INT_PTR)reply_str;
+			wchar_t edit_str[75];
+			GetPrivateProfileString(LANG, L"t_edt", L"", edit_str, 75, exe_path);
+			tbb[9].iString = (INT_PTR)edit_str;
+			wchar_t forward_str[75];
+			GetPrivateProfileString(LANG, L"t_for", L"", forward_str, 75, exe_path);
+			tbb[10].iString = (INT_PTR)forward_str;
+			wchar_t attach_str[20];
+			GetPrivateProfileString(LANG, L"t_att", L"", attach_str, 20, exe_path);
+			tbb[11].iString = (INT_PTR)attach_str;
+			wchar_t record_str[50];
+			GetPrivateProfileString(LANG, L"t_rec", L"", record_str, 50, exe_path);
+			tbb[12].iString = (INT_PTR)record_str;
+			wchar_t emoji_str[20];
+			GetPrivateProfileString(LANG, L"t_emj", L"", emoji_str, 20, exe_path);
+			tbb[13].iString = (INT_PTR)emoji_str;
+			wchar_t send_str[20];
+			GetPrivateProfileString(LANG, L"t_snd", L"", send_str, 20, exe_path);
+			tbb[14].iString = (INT_PTR)send_str;
+			SendMessage(hToolbar, TB_ADDBUTTONS, 15, (LPARAM)&tbb);
+		} else {
+			char bold_str[20];
+			get_path(exe_path, L"lang.ini");
+			char exe_path[MAX_PATH];
+			WideCharToMultiByte(CP_ACP, 0, ::exe_path, -1, exe_path, sizeof(exe_path), NULL, NULL);
+			char LANG[4];
+			WideCharToMultiByte(CP_ACP, 0, ::LANG, -1, LANG, sizeof(LANG), NULL, NULL);
+			GetPrivateProfileStringA(LANG, "t_b", "", bold_str, 20, exe_path);
+			tbb[0].iString = (INT_PTR)bold_str;
+			char italic_str[20];
+			GetPrivateProfileStringA(LANG, "t_i", "", italic_str, 20, exe_path);
+			tbb[1].iString = (INT_PTR)italic_str;
+			char under_str[20];
+			GetPrivateProfileStringA(LANG, "t_u", "", under_str, 20, exe_path);
+			tbb[2].iString = (INT_PTR)under_str;
+			char strike_str[20];
+			GetPrivateProfileStringA(LANG, "t_s", "", strike_str, 20, exe_path);
+			tbb[3].iString = (INT_PTR)strike_str;
+			char quote_str[20];
+			GetPrivateProfileStringA(LANG, "t_q", "", quote_str, 20, exe_path);
+			tbb[4].iString = (INT_PTR)quote_str;
+			char mono_str[20];
+			GetPrivateProfileStringA(LANG, "t_m", "", mono_str, 20, exe_path);
+			tbb[5].iString = (INT_PTR)mono_str;
+			char spoiler_str[20];
+			GetPrivateProfileStringA(LANG, "t_spl", "", spoiler_str, 20, exe_path);
+			tbb[6].iString = (INT_PTR)spoiler_str;
+			char reply_str[75];
+			GetPrivateProfileStringA(LANG, "t_rep", "", reply_str, 75, exe_path);
+			tbb[8].iString = (INT_PTR)reply_str;
+			char edit_str[75];
+			GetPrivateProfileStringA(LANG, "t_edt", "", edit_str, 75, exe_path);
+			tbb[9].iString = (INT_PTR)edit_str;
+			char forward_str[75];
+			GetPrivateProfileStringA(LANG, "t_for", "", forward_str, 75, exe_path);
+			tbb[10].iString = (INT_PTR)forward_str;
+			char attach_str[20];
+			GetPrivateProfileStringA(LANG, "t_att", "", attach_str, 20, exe_path);
+			tbb[11].iString = (INT_PTR)attach_str;
+			char record_str[50];
+			GetPrivateProfileStringA(LANG, "t_rec", "", record_str, 50, exe_path);
+			tbb[12].iString = (INT_PTR)record_str;
+			char emoji_str[20];
+			GetPrivateProfileStringA(LANG, "t_emj", "", emoji_str, 20, exe_path);
+			tbb[13].iString = (INT_PTR)emoji_str;
+			char send_str[20];
+			GetPrivateProfileStringA(LANG, "t_snd", "", send_str, 20, exe_path);
+			tbb[14].iString = (INT_PTR)send_str;
+			SendMessage(hToolbar, TB_ADDBUTTONSA, 15, (LPARAM)&tbb);
+		}
 		SendMessage(hToolbar, TB_SETEXTENDEDSTYLE, 0, TBSTYLE_EX_DRAWDDARROWS);
 		tbSeparatorHider = CreateWindowEx(0, L"Static", NULL, WS_CHILD | (ie3 ? WS_VISIBLE : 0) | WS_CLIPSIBLINGS, width / 2, height - 143, 25, 21, hWnd, NULL, NULL, NULL);
 		
@@ -686,7 +902,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				SendMessage(msgInput, EM_SETSEL, 0, length);
 				SendMessage(msgInput, EM_STREAMOUT, SF_RTF | SF_UNICODE | SFF_SELECTION, (LPARAM)&es);
 				es.pfnCallback = StreamInCallback;
-				message_adder(false, false, 2, NULL, NULL, NULL, &es, NULL, NULL, NULL, NULL, NULL, NULL, false, true, false, current_time());
+				message_adder(false, false, 2, NULL, NULL, &es, NULL, NULL, NULL, NULL, NULL, NULL, false, true, false, current_time());
 				free(sd.buf);
 				update_chats_order(current_peer->id, NULL, current_peer->type);
 				message_added = true;
@@ -856,10 +1072,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (HIWORD(wParam) != CBN_SELCHANGE) break;
 			int selIndex = SendMessage(hComboBoxChats, CB_GETCURSEL, 0, 0);
 			SetFocus(msgInput);
-			if (selIndex == - 1 || (messages.size() > 0 && current_peer == &peers[current_folder->peers[selIndex]])) break;
+			if (selIndex == - 1 || (lParam && current_peer == &peers[current_folder->peers[selIndex]])) break;
 			KillTimer(hWnd, 3);
-			SendMessage(chat, WM_SETTEXT, 0, (LPARAM)L"");
-			SendMessage(hStatus, SB_SETTEXTA, 0, (LPARAM)"");
+			if (lParam) {
+				SendMessage(chat, WM_SETTEXT, 0, (LPARAM)L"");
+				SendMessage(hStatus, SB_SETTEXTA, 0, (LPARAM)"");
+			} else status_bar_status(current_peer);
 			old_peer = current_peer;
 			current_peer = (Peer*)SendMessage(hComboBoxChats, CB_GETITEMDATA, selIndex, 0);
 			if (old_peer == current_peer) old_peer = NULL;
@@ -958,17 +1176,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					EnableMenuItem(hMenuChat, 1, MF_BYPOSITION | MF_ENABLED);
 				}
 				EnableMenuItem(hMenuChat, 2, MF_BYPOSITION | (current_peer->type == 0 ? MF_ENABLED : MF_GRAYED));
-				ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, current_peer->mute_until ? L"Unmute this chat" : L"Mute this chat");
-				read_react_ment(true);
-				read_react_ment(false);
+				GetPrivateProfileString(LANG, current_peer->mute_until ? L"m_uc" : L"m_mc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, lang_str);
 
-				SCROLLINFO si = {0};
-				si.cbSize = sizeof(si);
-				si.fMask = SIF_ALL;
-				SetScrollInfo(chat, SB_VERT, &si, FALSE);
+				if (messages.size() == 0) {
+					read_react_ment(true);
+					read_react_ment(false);
 
-				// messages.getHistory
-				get_history();
+					SCROLLINFO si = {0};
+					si.cbSize = sizeof(si);
+					si.fMask = SIF_ALL;
+					SetScrollInfo(chat, SB_VERT, &si, FALSE);
+
+					// messages.getHistory
+					get_history();
+				}
 			} else get_full_peer(current_peer);
 			break;
 		}
@@ -1325,7 +1547,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				int mute_until_old = current_peer->mute_until;
 				memcpy(&current_peer->mute_until, unenc_query + offset - 4, 4);
 				HMENU hMenuChat = GetSubMenu(hMenuBar, 1);
-				ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, current_peer->mute_until ? L"Unmute this chat" : L"Mute this chat");
+				GetPrivateProfileString(LANG, current_peer->mute_until ? L"m_uc" : L"m_mc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, lang_str);
 				if (current_peer->unread_msgs_count && !muted_types[current_peer->type])
 					update_total_unread_msgs_count(current_peer->mute_until ? (0 - current_peer->unread_msgs_count) : current_peer->unread_msgs_count);
 			}
@@ -1348,6 +1571,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		}
 		case 42:
 			files_show_dropdown();
+			break;
+		case 43:
+			get_full_peer(current_peer);
 			break;
 		case 999: {
 			for (int i = 0; i < files.size(); i++) free(files[i]);
@@ -1420,7 +1646,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 			if (peer && peer != current_peer && peer->unread_msgs_count) {
 				if (peer->mute_until || muted_types[peer->type]) {
-					cf.crTextColor = RGB(128, 128, 128);
+					cf.crTextColor = lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3 ? RGB(196, 196, 196) : RGB(128, 128, 128);
 					textHost->textServices->TxSendMessage(EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf, &res);
 				}
 				wchar_t unread_count[15];
@@ -1460,7 +1686,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			CHARFORMAT2 cf;
 			cf.cbSize = sizeof(cf);
 			cf.dwMask = CFM_COLOR | CFM_FACE | CFM_SIZE | CFM_WEIGHT | CFM_ITALIC;
-			cf.crTextColor = COLOR_WINDOWTEXT;
+			cf.crTextColor = 0;
 			cf.dwEffects = lf.lfItalic ? CFE_ITALIC : 0;
 			convert_negative_lfheight(&lf, 2);
 			cf.yHeight = MulDiv(-lf.lfHeight, 144, dpi) * 10;
@@ -1601,7 +1827,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 									if (peers[j].unread_msgs_count && !muted_types[peers[j].type]) update_total_unread_msgs_count(peers[j].unread_msgs_count);
 									if (&peers[j] == current_peer) {
 										HMENU hMenuChat = GetSubMenu(hMenuBar, 1);
-										ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, L"Mute this chat");
+										GetPrivateProfileString(LANG, L"m_mc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+										ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, lang_str);
 									}
 								}
 								break;
@@ -2017,6 +2244,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		WritePrivateProfileString(L"General", L"close_to_tray", value, appdata_path);
 		swprintf(value, L"%d", balloon_notifications);
 		WritePrivateProfileString(L"General", L"balloon_notifications", value, appdata_path);
+		WritePrivateProfileString(L"General", L"lang", LANG, appdata_path);
 
 		swprintf(value, L"%d", IMAGELOADPOLICY);
 		WritePrivateProfileString(L"Content", L"image_load_policy", value, appdata_path);
@@ -2064,11 +2292,15 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 	sockaddr_in server;
 	server.sin_family = AF_INET;
 
+	wchar_t error_title[10];
+	GetPrivateProfileString(LANG, L"e", L"", error_title, 10, get_path(exe_path, L"lang.ini"));
+
 	// proxy
 	wchar_t proxy_ip_uni[16];
 	GetPrivateProfileString(L"Proxy", L"ip", L"n", proxy_ip_uni, 16, get_path(appdata_path, L"options.ini"));
 	if (proxy_ip_uni[0] == L'n' || retrying_proxy_connection) {
-		int res = MessageBox(hMain, L"Set up a proxy connection?", L"Telegacy", MB_YESNOCANCEL | MB_ICONQUESTION);
+		GetPrivateProfileString(LANG, L"pr", L"", lang_str, 100, exe_path);
+		int res = MessageBox(hMain, lang_str, L"Telegacy", MB_YESNOCANCEL | MB_ICONQUESTION);
 		if (res == IDYES) {
 			BYTE buffer[24] = {0};
 			LONG dlgUnits = GetDialogBaseUnits();
@@ -2092,7 +2324,8 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 		server.sin_port = htons(proxy_port);
 		server.sin_addr.S_un.S_addr = inet_addr(proxy_ip);
 		if (connect(dcInfo->sock, (sockaddr*)&server, sizeof(server))) {
-			MessageBox(hMain, L"Couldn't connect to the proxy!", L"Error", MB_OK | MB_ICONERROR);
+			GetPrivateProfileString(LANG, L"e_prc", L"", lang_str, 100, exe_path);
+			MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
 			return retry_proxy_connection(dcInfo, socketworkerreconnect);
 		} else {
 			wchar_t proxy_username[256];
@@ -2103,11 +2336,13 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 			unsigned char greeting[] = {5, 2, 0, 2};
 			send(dcInfo->sock, (char*)greeting, 4, 0);
 			if (recv(dcInfo->sock, (char*)buf, 2, 0) != 2) {
-				MessageBox(hMain, L"Proxy handshake failed!", L"Error", MB_OK | MB_ICONERROR);
+				GetPrivateProfileString(LANG, L"e_prh", L"", lang_str, 100, exe_path);
+				MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
 				return retry_proxy_connection(dcInfo, socketworkerreconnect);
 			}
 			if (buf[1] == 0xFF) {
-				MessageBox(hMain, L"Connection to this proxy is not allowed!", L"Error", MB_OK | MB_ICONERROR);
+				GetPrivateProfileString(LANG, L"e_prf", L"", lang_str, 100, exe_path);
+				MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
 				return retry_proxy_connection(dcInfo, socketworkerreconnect);
 			}
 			if (buf[1] == 0x02) {
@@ -2116,11 +2351,13 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 				buf[2 + buf[1]] = WideCharToMultiByte(CP_ACP, 0, proxy_password, -1, (char*)(buf + 3 + buf[1]), 256, NULL, NULL);
 				send(dcInfo->sock, (char*)buf, 3 + buf[1] + buf[2 + buf[1]], 0);
 				if (recv(dcInfo->sock, (char*)buf, 2, 0) != 2) {
-					MessageBox(hMain, L"Proxy handshake failed!", L"Error", MB_OK | MB_ICONERROR);
+					GetPrivateProfileString(LANG, L"e_prh", L"", lang_str, 100, exe_path);
+					MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
 					return retry_proxy_connection(dcInfo, socketworkerreconnect);
 				}
 				if (buf[1] != 0) {
-					MessageBox(hMain, L"Proxy login failed!", L"Error", MB_OK | MB_ICONERROR);
+					GetPrivateProfileString(LANG, L"e_prl", L"", lang_str, 100, exe_path);
+					MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
 					return retry_proxy_connection(dcInfo, socketworkerreconnect);
 				}
 			}
@@ -2154,16 +2391,19 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 		memcpy(buf + 8, &server.sin_port, 2);
 		send(dcInfo->sock, (char*)buf, 10, 0);
 		if (recv(dcInfo->sock, (char*)buf, 10, 0) != 10) {
-			MessageBox(hMain, L"Proxy handshake failed!", L"Error", MB_OK | MB_ICONERROR);
+			GetPrivateProfileString(LANG, L"e_prh", L"", lang_str, 100, exe_path);
+			MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
 			return retry_proxy_connection(dcInfo, socketworkerreconnect);
 		}
 		if (buf[1] != 0) {
-			MessageBox(hMain, L"Couldn't connect to a Telegram DC through the proxy!", L"Error", MB_OK | MB_ICONERROR);
+			GetPrivateProfileString(LANG, L"e_prtg", L"", lang_str, 100, exe_path);
+			MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
 			return retry_proxy_connection(dcInfo, socketworkerreconnect);
 		}
 		retrying_proxy_connection = false;
 	} else if (connect(dcInfo->sock, (sockaddr*)&server, sizeof(server))) {
-		MessageBox(hMain, L"Couldn't connect to a Telegram DC!", L"Error", MB_OK | MB_ICONERROR);
+		GetPrivateProfileString(LANG, L"e_conn", L"", lang_str, 100, exe_path);
+		MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
 		return 0;
 	}
 
@@ -2179,7 +2419,10 @@ void reconnect(DCInfo* dcInfo) {
 }
 
 void create_auth_key(DCInfo* dcInfo) {
-	if (current_info) SetWindowText(infoLabel, L"Creating an authorization key...");
+	if (current_info) {
+		GetPrivateProfileString(LANG, L"a_auth", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		SetWindowText(infoLabel, lang_str);
+	}
 
 	// query
 	BYTE req_pq_multi[40];
@@ -2647,6 +2890,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	BITSPERSAMPLE = GetPrivateProfileInt(L"Voice", L"bits_per_sample", 16, appdata_path);
 	CHANNELS = GetPrivateProfileInt(L"Voice", L"channels", 1, appdata_path);
 
+	GetPrivateProfileString(L"General", L"lang", L"", LANG, MAX_PATH, appdata_path);
+	if (!LANG[0]) {
+		LCID lcID = GetSystemDefaultLCID();
+		GetLocaleInfo(lcID, LOCALE_SABBREVLANGNAME, LANG, 4);
+		GetPrivateProfileString(L"List", L"list", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		if (!wcsstr(lang_str, LANG)) wcscpy(LANG, L"ENU");
+	}
+
 	// random number generator
 	HCRYPTPROV hProv;
 	BYTE entropy[36];
@@ -2726,9 +2977,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		fread(dcInfoMain.server_salt, 1, 8, f);
 		fread(dcInfoMain.session_id, 1, 8, f);
 		fread(&dcInfoMain.current_seq_no, 4, 1, f);
-		dcInfoMain.current_seq_no += 10;
 		fseek(f, 280, SEEK_SET);
-		fwrite(&dcInfoMain.current_seq_no, 4, 1, f);
+		int current_seq_no_plus = dcInfoMain.current_seq_no + 10;
+		fwrite(&current_seq_no_plus, 4, 1, f);
 		fseek(f, 284, SEEK_SET);
 		fread(&pts, 4, 1, f);
 		fread(&qts, 4, 1, f);
@@ -2747,7 +2998,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (current_dialog) DestroyWindow(current_dialog);
 		current_dialog = CreateDialogIndirect(GetModuleHandle(NULL), dlg, NULL, DlgProcLogin);
 	} else {
-		SetWindowText(infoLabel, L"Updating data...");
+		GetPrivateProfileString(LANG, L"a_upd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		SetWindowText(infoLabel, lang_str);
 		get_future_salt(&dcInfoMain);
 	}
 	unsigned threadID;

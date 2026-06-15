@@ -131,15 +131,18 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		if (flags & (1 << 2)) {
 			if (hint_needed) {
 				hint_needed = false;
+				GetPrivateProfileString(LANG, L"2fa_hint_title", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
 				if (flags & (1 << 3)) {
 					int offset = tlstr_len(unenc_response + 12, true);
 					offset += tlstr_len(unenc_response + 12 + offset, true) + 4;
 					offset += tlstr_len(unenc_response + 12 + offset, true);
 					offset += tlstr_len(unenc_response + 12 + offset, true) + 8;
 					hint = read_string(unenc_response + 12 + offset, NULL);
-					MessageBox(current_dialog, hint, L"Hint", MB_OK | MB_ICONINFORMATION);
+					MessageBox(current_dialog, hint, lang_str, MB_OK | MB_ICONINFORMATION);
 				} else {
-					MessageBox(current_dialog, L"No hint!", L"Hint", MB_OK | MB_ICONERROR);
+					wchar_t nohint_str[25];
+					GetPrivateProfileString(LANG, L"e_hn", L"", nohint_str, 25, exe_path);
+					MessageBox(current_dialog, nohint_str, lang_str, MB_OK | MB_ICONERROR);
 					EnableWindow(h2FAHint, FALSE);
 				}
 			} else {
@@ -153,7 +156,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				int password_len = tlstr_len(u8password, false);
 
 				ShowWindow(current_dialog, SW_HIDE);
-				SetWindowText(infoLabel, L"Going through the SRP protocol...");
+				GetPrivateProfileString(LANG, L"a_srp", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				SetWindowText(infoLabel, lang_str);
 				ShowWindow(current_info, SW_SHOW);
 				UpdateWindow(current_info);
 				mp_int g, a, p, k, u, g_a, g_b, x, v, k_v, t, s_a, temp;
@@ -315,7 +319,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				fclose(f);
 				DestroyWindow(current_dialog);
 				current_dialog = NULL;
-				SetWindowText(infoLabel, L"Logged in, getting data...");
+				GetPrivateProfileString(LANG, L"a_log", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				SetWindowText(infoLabel, lang_str);
 				ShowWindow(current_info, SW_SHOW);
 
 				// updates.getState
@@ -381,7 +386,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				offset += padding_len;
 				convert_message(active_dc, unenc_query, enc_query, offset, 0);
 				send_query(active_dc, enc_query, offset + 24);
-				SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)L"Logged in to the needed file's datacenter!");
+				GetPrivateProfileString(LANG, L"s_dclgd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)lang_str);
 				if (uploadEvents.size() == 0 && downloading_docs.size() == 0) SetTimer(hMain, 2, 3000, NULL);
 				break;
 			}
@@ -402,7 +408,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 	case 0xa7eff811: { // bad_msg_notification
 		int error_code = read_le(unenc_response + 16, 4);
 		wchar_t error_message[14];
-		wsprintf(error_message, L"Error code %d", error_code);
+		GetPrivateProfileString(LANG, L"e_c", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		wsprintf(error_message, lang_str, error_code);
 		MessageBox(NULL, error_message, L"bad_msg_notification", MB_OK | MB_ICONERROR);
 		if (error_code == 16 || error_code == 17) {
 			time_diff = read_le(unenc_response - 12, 4) - time(NULL);
@@ -444,7 +451,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		if (error_code == 303) {
 			if (error_message[0] == L'P') {
 				ShowWindow(current_dialog, SW_HIDE);
-				SetWindowText(infoLabel, L"Account is on a different DC! Reconnecting...");
+				GetPrivateProfileString(LANG, L"a_ddc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				SetWindowText(infoLabel, lang_str);
 				ShowWindow(current_info, SW_SHOW);
 				UpdateWindow(current_info);
 				dcInfoMain.dc = error_message[14] - L'0';
@@ -541,26 +549,34 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			if (current_dialog) DestroyWindow(current_dialog);
 			current_dialog = CreateDialogIndirect(GetModuleHandle(NULL), dlg, NULL, DlgProc2FA);
 		} else if (error_code == 400) {
+			wchar_t error_title[10];
+			GetPrivateProfileString(LANG, L"e", L"", error_title, 10, get_path(exe_path, L"lang.ini"));
 			if (wcscmp(error_message, L"AUTH_TOKEN_EXPIRED") == 0) {
-				MessageBox(NULL, L"Auth token expired! Try again.", L"Error", MB_OK | MB_ICONERROR);
+				GetPrivateProfileString(LANG, L"e_2xp", L"", lang_str, 100, exe_path);
+				MessageBox(NULL, lang_str, error_title, MB_OK | MB_ICONERROR);
 				if (qrCodeToken) {
 					free(qrCodeToken);
 					qrCodeToken = NULL;
 				}
 				SendMessage(current_dialog, WM_INITDIALOG, 0, 10);
 			} else if (wcscmp(error_message, L"PASSWORD_HASH_INVALID") == 0) {
-				MessageBox(NULL, L"Incorrect password!", L"Error", MB_OK | MB_ICONERROR);
+				GetPrivateProfileString(LANG, L"e_2ps", L"", lang_str, 100, exe_path);
+				MessageBox(NULL, lang_str, error_title, MB_OK | MB_ICONERROR);
 				ShowWindow(current_info, SW_HIDE);
 				ShowWindow(current_dialog, SW_SHOW);
 			} else if (wcscmp(error_message, L"SRP_ID_INVALID") == 0) {
-				MessageBox(NULL, L"Wasn't able to finish in time! If you just used your hint, you can try again. If not, your CPU is likely too slow for 2FA :(", L"Error", MB_OK | MB_ICONERROR);
+				GetPrivateProfileString(LANG, L"e_2lt", L"", lang_str, 100, exe_path);
+				MessageBox(NULL, lang_str, error_title, MB_OK | MB_ICONERROR);
 				ShowWindow(current_info, SW_HIDE);
 				ShowWindow(current_dialog, SW_SHOW);
 			}
 		} else if (error_code == 401 && wcscmp(error_message, L"AUTH_KEY_UNREGISTERED") == 0) {
 			if (!closed_logged_out) {
 				closed_logged_out = true;
-				MessageBox(hMain, L"Not logged in! Cleaning up and exiting...", L"Error", MB_OK | MB_ICONERROR);
+				GetPrivateProfileString(LANG, L"a_nlog", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				wchar_t error_title[10];
+				GetPrivateProfileString(LANG, L"e", L"", error_title, 10, exe_path);
+				MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
 				logout_cleanup();
 			}
 			return;
@@ -571,7 +587,9 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			SetTimer(hMain, 4, wait_time * 1000, NULL);
 		} else {
 			wchar_t error_message2[50];
-			swprintf(error_message2, L"Error code %d: %s", error_code, error_message);
+			GetPrivateProfileString(LANG, L"e_c", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			wcscat(lang_str, L": %s");
+			swprintf(error_message2, lang_str, error_code, error_message);
 			MessageBox(NULL, error_message2, L"rpc_error", MB_OK | MB_ICONERROR);
 		}
 		break;
@@ -630,9 +648,18 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			if (f) {
 				fread(&muted_types, 4, 3, f);
 				HMENU hMenuMute = GetSubMenu(GetSubMenu(hMenuBar, 0), 1);
-				if (muted_types[0]) ModifyMenu(hMenuMute, 0, MF_BYPOSITION | MF_STRING, 38, L"Unmute all chats");
-				if (muted_types[1]) ModifyMenu(hMenuMute, 1, MF_BYPOSITION | MF_STRING, 39, L"Unmute all groups");
-				if (muted_types[2]) ModifyMenu(hMenuMute, 2, MF_BYPOSITION | MF_STRING, 40, L"Unmute all channels");
+				if (muted_types[0]) {
+					GetPrivateProfileString(LANG, L"menu_unmute_users", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+					ModifyMenu(hMenuMute, 0, MF_BYPOSITION | MF_STRING, 38, lang_str);
+				}
+				if (muted_types[1]) {
+					GetPrivateProfileString(LANG, L"menu_unmute_groups", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+					ModifyMenu(hMenuMute, 1, MF_BYPOSITION | MF_STRING, 39, lang_str);
+				}
+				if (muted_types[2]) {
+					GetPrivateProfileString(LANG, L"menu_unmute_channels", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+					ModifyMenu(hMenuMute, 2, MF_BYPOSITION | MF_STRING, 40, lang_str);
+				}
 				fread(&peers_count, 4, 1, f);
 				peers = (Peer*)malloc(peers_count*sizeof(Peer));
 				int new_unread_msgs_count = 0;
@@ -664,6 +691,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 						fread(&peer->name_set_time, 4, 1, f);
 						fread(&peer->pfp_set_time, 4, 1, f);
 					}
+					peer->chat_users = NULL;
 					peer->reaction_list = &reaction_list;
 					peer->status_updated = false;
 					if (peer->full) {
@@ -1038,7 +1066,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				offset += 8;
 				for (int i = 0; i < count; i++) offset += msgent_offset(unenc_response + offset, &format_vecs[0]);
 			}
-			message_adder(false, false, flags, unenc_response + 8, msg_bytes, NULL, NULL, unenc_response + 12, &format_vecs[0], NULL, msgrpl, msgfwd, NULL, false, true, false, date);
+			message_adder(false, false, flags, unenc_response + 8, msg_bytes, NULL, unenc_response + 12, &format_vecs[0], NULL, msgrpl, msgfwd, NULL, false, true, false, date);
 		} else if (!(flags & (1 << 1))) {
 			for (int i = 0; i < peers_count; i++) if (memcmp(peers[i].id, msg_bytes - 8, 8) == 0) {
 				new_msg_notification(&peers[i], msg_bytes, false);
@@ -1056,8 +1084,11 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				FINDTEXTEX ft;
 				ft.chrg.cpMin = messages[i].end_char;
 				ft.chrg.cpMax = messages[i].end_footer;
-				ft.lpstrText = L"sending";
-				int diff = replace_in_chat(&ft, NULL, L"delivered", NULL, NULL, NULL, NULL);
+				GetPrivateProfileString(LANG, L"c_snd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				ft.lpstrText = lang_str;
+				wchar_t deliv[25];
+				GetPrivateProfileString(LANG, L"c_dlv", L"", deliv, 25, exe_path);
+				int diff = replace_in_chat(&ft, NULL, deliv, NULL, NULL, NULL, NULL);
 				messages[i].end_footer += diff;
 				break;
 			}
@@ -1099,7 +1130,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		if (!peers) {
 			if (!total_peers_count) total_peers_count = peers_count;
 			folders = (ChatsFolder*)malloc(sizeof(ChatsFolder));
-			folders[0].name = L"All chats";
+			GetPrivateProfileString(LANG, L"all", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			folders[0].name = _wcsdup(lang_str);
 			folders[0].pinned_count = 0;
 			memset(folders[0].id, 0, 4);
 			SendMessage(hComboBoxFolders, CB_ADDSTRING, 0, (LPARAM)folders[0].name);
@@ -1403,7 +1435,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		case 0x2633421b: { // chatFull
 			for (int i = 0; i < peers_count; i++) {
 				if (memcmp(peers[i].id, unenc_response + 12, 8) == 0) {
-					peers[i].chat_users = new std::vector<Peer>();
+					if (!peers[i].chat_users) peers[i].chat_users = new std::vector<Peer>();
 					peers[i].full = true;
 					int flags = read_le(unenc_response + 8, 4);
 					int offset = tlstr_len(unenc_response + 20, true);
@@ -1696,7 +1728,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					int percentage = (int)((double)file_size / (double)downloading_docs[i].size * 100.0);
 					if (size < 1048576) {
 						wchar_t status_str[100];
-						swprintf(status_str, L"Downloading %s... done!", downloading_docs[i].filename);
+						GetPrivateProfileString(LANG, L"s_dowd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+						swprintf(status_str, lang_str, downloading_docs[i].filename);
 						SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)status_str);
 						free(downloading_docs[i].filename);
 						free(downloading_docs[i].file_reference);
@@ -2050,34 +2083,44 @@ int update_handler(BYTE* update) {
 				status_bar_status(current_peer);
 				break;
 			case 0x16bf744e:
-				swprintf(status_str, L"%s is typing...", name);
+				GetPrivateProfileString(LANG, L"s_typ", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				swprintf(status_str, lang_str, name);
 				break;
 			case 0xa187d66f:
-				swprintf(status_str, L"%s is recording a video...", name);
+				GetPrivateProfileString(LANG, L"s_vrec", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				swprintf(status_str, lang_str, name);
 				break;
 			case 0xe9763aec:
-				swprintf(status_str, L"%s is uploading a video...", name);
+				GetPrivateProfileString(LANG, L"s_vup", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				swprintf(status_str, lang_str, name);
 				break;
 			case 0xd52f73f7:
-				swprintf(status_str, L"%s is recording a voice message...", name);
+				GetPrivateProfileString(LANG, L"s_vorec", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				swprintf(status_str, lang_str, name);
 				break;
 			case 0xf351d7ab:
-				swprintf(status_str, L"%s is uploading a voice message...", name);
+				GetPrivateProfileString(LANG, L"s_voup", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				swprintf(status_str, lang_str, name);
 				break;
 			case 0xd1d34a26:
-				swprintf(status_str, L"%s is uploading a photo...", name);
+				GetPrivateProfileString(LANG, L"s_ph", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				swprintf(status_str, lang_str, name);
 				break;
 			case 0xaa0cd9e4:
-				swprintf(status_str, L"%s is uploading a file...", name);
+				GetPrivateProfileString(LANG, L"s_f", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				swprintf(status_str, lang_str, name);
 				break;
 			case 0x88f27fbc:
-				swprintf(status_str, L"%s is recording a round video...", name);
+				GetPrivateProfileString(LANG, L"s_rrec", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				swprintf(status_str, lang_str, name);
 				break;
 			case 0x243e1c66:
-				swprintf(status_str, L"%s is uploading a round video...", name);
+				GetPrivateProfileString(LANG, L"s_rup", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				swprintf(status_str, lang_str, name);
 				break;
 			case 0xb05ac6b1:
-				swprintf(status_str, L"%s is choosing a sticker...", name);
+				GetPrivateProfileString(LANG, L"s_stk", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				swprintf(status_str, lang_str, name);
 				break;
 			}
 			if (sendmsgaction_cons != 0xfd5ec8f5) {
@@ -2114,8 +2157,11 @@ int update_handler(BYTE* update) {
 							FINDTEXTEX ft;
 							ft.chrg.cpMin = messages[j].end_char;
 							ft.chrg.cpMax = messages[j].end_footer;
-							ft.lpstrText = L"delivered";
-							int diff = replace_in_chat(&ft, NULL, L"seen", NULL, NULL, NULL, NULL);
+							GetPrivateProfileString(LANG, L"c_dlv", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+							ft.lpstrText = lang_str;
+							wchar_t seen[25];
+							GetPrivateProfileString(LANG, L"c_sn", L"", seen, 25, exe_path);
+							int diff = replace_in_chat(&ft, NULL, seen, NULL, NULL, NULL, NULL);
 							messages[j].end_footer += diff;
 						}
 					}
@@ -2406,11 +2452,8 @@ int update_handler(BYTE* update) {
 			BYTE* peer_bytes = find_peer(update + bytes_count, &peer->id[0] - 4, true, &peer->type);
 			if (peer->type != 0 && (peer_bytes[4] & (1 << 2))) remove_peer(peer);
 			else if (peer->name) {
+				set_peer_info(peer_bytes, peer, true);
 				if (peer->full) get_full_peer(peer);
-				free(peer->name);
-				if (peer->handle) free(peer->handle);
-				if (peer->full && peer->about) free(peer->about);
-				set_peer_info(peer_bytes, peer, false);
 			}
 		} else if (update_constructor == 0x635b4c09) update_chats_order(update + 4, update + 4, 2);
 		break;
@@ -2436,7 +2479,8 @@ int update_handler(BYTE* update) {
 							update_total_unread_msgs_count(mute_until_old ? peers[i].unread_msgs_count : (0 - peers[i].unread_msgs_count));
 						if (&peers[i] == current_peer) {
 							HMENU hMenuChat = GetSubMenu(hMenuBar, 1);
-							ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, mute_until_old ? L"Mute this chat" : L"Unmute this chat");
+							GetPrivateProfileString(LANG, mute_until_old ? L"menu_mute_chat" : L"menu_unmute_chat", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+							ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, lang_str);
 						}
 					}
 					break;
