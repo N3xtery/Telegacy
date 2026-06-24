@@ -12,6 +12,8 @@ You should have received a copy of the GNU General Public License along with Tel
 
 #include <telegacy.h>
 
+wchar_t* version = L"1.0.4";
+
 prng_state prng;
 hash_state md;
 CRITICAL_SECTION csSock, csCM;
@@ -28,7 +30,6 @@ bool drawchat = true;
 bool closing = false;
 HWND current_dialog = NULL, current_notification = NULL, current_info = NULL, current_about = NULL;
 HWND dlgPic, infoLabel;
-HBITMAP infoBmp = NULL, infoBmpMask = NULL;
 int width = 500;
 int height = 450;
 bool maximized = false;
@@ -43,7 +44,10 @@ HWND hComboBoxChats, hComboBoxFolders, msgInput, chat, hMain, hStatus, hToolbar,
 HWND hNumber = NULL, hNumberBtn = NULL, hCode = NULL, hCodeBtn = NULL, hQRCode = NULL, h2FA = NULL, hPass = NULL, h2FAHint = NULL, hProxyIP = NULL, hProxyPort = NULL, hProxyUsername = NULL, hProxyPassword = NULL, hProxyHidePassword = NULL;
 IActiveIMMApp* g_pAIMM = NULL;
 HMENU hMenuBar;
+HBITMAP tbBmp = NULL;
 HFONT hFonts[3];
+HBRUSH hBrushes[4];
+COLORREF colors[4];
 
 wchar_t* last_tofront_sender;
 BYTE group_id_tofront[8] = {0};
@@ -107,6 +111,8 @@ int get_dialogs_lowest_date = 0;
 bool closed_logged_out = false;
 int dpi = 0;
 CTextHost* textHost = NULL;
+char* hostBuf = NULL;
+BYTE* notif_newpeer_msg = NULL;
 
 HWAVEIN hWaveIn = NULL;
 WAVEHDR hdr_buf[4];
@@ -116,16 +122,21 @@ bool balloon_notifications_available = false;
 bool balloon_notifications = true;
 bool SENDMEDIAASFILES = false;
 bool CLOSETOTRAY = true;
+bool CHECKUPDATES = true;
 int MSGSFETCHCOUNT = 10;
 int IMAGELOADPOLICY = 2;
 bool EMOJIS = true;
 bool SPOILERS = true;
+bool CHATTHEMES = true;
 wchar_t sound_paths[3][MAX_PATH];
 int SAMPLERATE;
 int BITSPERSAMPLE;
 int CHANNELS;
-wchar_t LANG[4];
+char LANG[4];
+char lang_path[100];
 wchar_t lang_str[100];
+char lang_str_ansi[100];
+int lang_codepage = 0;
 
 CTextHost::CTextHost() {
 	refCount = 1;
@@ -267,15 +278,15 @@ STDMETHODIMP COleCallback::GetContextMenu(WORD, LPOLEOBJECT, CHARRANGE* cr, HMEN
 					POINT pt;
 					GetCursorPos(&pt);
 					HMENU hMenu = CreatePopupMenu();
-					GetPrivateProfileString(LANG, L"m_rep", L"", lang_str, 100, exe_path);
+					get_lang_string("m_rep", lang_str, NULL);
 					AppendMenu(hMenu, editing_msg_id ? (MF_STRING | MF_GRAYED) : MF_STRING, 23, lang_str);
-					GetPrivateProfileString(LANG, L"m_edt", L"", lang_str, 100, exe_path);
+					get_lang_string("m_edt", lang_str, NULL);
 					if (messages[i].outgoing || memcmp(current_peer->id, myself.id, 8) == 0) AppendMenu(hMenu, (replying_msg_id || forwarding_msg_id) ? (MF_STRING | MF_GRAYED) : MF_STRING, 20, lang_str);
-					GetPrivateProfileString(LANG, L"m_for", L"", lang_str, 100, exe_path);
+					get_lang_string("m_fwd", lang_str, NULL);
 					AppendMenu(hMenu, editing_msg_id ? (MF_STRING | MF_GRAYED) : MF_STRING, 24, lang_str);
-					GetPrivateProfileString(LANG, L"m_dev", L"", lang_str, 100, exe_path);
+					get_lang_string("m_dev", lang_str, NULL);
 					AppendMenu(hMenu, MF_STRING, 21, lang_str);
-					GetPrivateProfileString(LANG, L"m_dmy", L"", lang_str, 100, exe_path);
+					get_lang_string("m_dmy", lang_str, NULL);
 					AppendMenu(hMenu, MF_STRING, 22, lang_str);
 					TrackPopupMenu(hMenu, TPM_RIGHTBUTTON | TPM_LEFTALIGN, pt.x, pt.y, 0, hMain, NULL);
 				}
@@ -287,13 +298,31 @@ STDMETHODIMP COleCallback::GetContextMenu(WORD, LPOLEOBJECT, CHARRANGE* cr, HMEN
 	return S_OK;
 }
 
+void socketworker_reconnect() {
+	if (init_connection(&dcInfoMain, true)) {
+		send_ping(&dcInfoMain);
+		get_lang_string("s_rcond", lang_str, NULL);
+		SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)lang_str);
+		SetTimer(hMain, 2, 3000, NULL);
+	} else {
+		for (int i = 5; i > 0; i--) {
+			get_lang_string("s_rcon", lang_str, NULL);
+			wchar_t str[50];
+			swprintf(str, lang_str, i);
+			SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)str);
+			Sleep(1000);
+		}
+		
+	}
+}
+
 unsigned __stdcall SocketWorker(void* param) {
 	DCInfo* dcInfo = (DCInfo*)param;
 	if (dcInfo != &dcInfoMain) {
 		init_connection(dcInfo, false);
 		if (!dcInfo->authorized) {
 			KillTimer(hMain, 2);
-			GetPrivateProfileString(LANG, L"s_dclg", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("s_dclg", lang_str, NULL);
 			SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)lang_str);
 			create_auth_key(dcInfo);
 			send_ping(dcInfo);
@@ -317,19 +346,19 @@ unsigned __stdcall SocketWorker(void* param) {
 		int recv_res = recv(dcInfo->sock, (char*)&res_len, 1, 0);
 		if (recv_res == SOCKET_ERROR) {
 			int err = WSAGetLastError();
-			if (err == WSAECONNABORTED) break;
-			else Sleep(5000);
+			if (err == WSAECONNABORTED || dcInfo != &dcInfoMain) break;
+			else socketworker_reconnect();
 		} else if (!recv_res) {
-			closesocket(dcInfo->sock);
-			if (dcInfo == &dcInfoMain) init_connection(dcInfo, true);
+			if (dcInfo == &dcInfoMain) socketworker_reconnect();
 			else break;
 		}
 		if (res_len == 0) continue;
 		if (res_len == 1) {
 			recv(dcInfo->sock, (char*)&res_len, 4, 0);
-			wchar_t error_message[11];
-			wsprintf(error_message, L"Error %d", res_len);
-			MessageBox(NULL, error_message, L"Error", MB_OK | MB_ICONERROR);
+			wchar_t error_message[20];
+			get_lang_string("e", lang_str, NULL);
+			wsprintf(error_message, L"%s %d", lang_str, res_len);
+			MessageBox(NULL, error_message, lang_str, MB_OK | MB_ICONERROR);
 			continue;
 		}
 		if (res_len == 127) recv(dcInfo->sock, (char*)&res_len, 3, 0);
@@ -388,7 +417,7 @@ unsigned __stdcall FileSenderWorker(void* param) {
 		for (int j = 0; j < parts; j++) {
 			if (j > 0) WaitForSingleObject(ute.event, INFINITE);
 			ResetEvent(ute.event);
-			GetPrivateProfileString(LANG, L"s_upl", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("s_upl", lang_str, NULL);
 			swprintf(status_msg, lang_str, docstemp[i].filename, 100 * _ftelli64(f) / docstemp[i].size);
 			SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)status_msg);
 			write_le(unenc_query + 44, j, 4);
@@ -418,7 +447,7 @@ unsigned __stdcall FileSenderWorker(void* param) {
 			send_query(enc_query, offset + 24);
 		}
 		WaitForSingleObject(ute.event, INFINITE);
-		GetPrivateProfileString(LANG, L"s_upd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("s_upd", lang_str, NULL);
 		swprintf(status_msg, lang_str, docstemp[i].filename);
 		SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)status_msg);
 		fclose(f);
@@ -445,6 +474,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 		DWORD minor, major;
 		get_dll_version(L"comctl32.dll", &minor, &major);
+		if (major <= 3 || (major == 4 && minor <= 70)) ie4 = false;
 		if (major >= 5 || (major == 4 && minor >= 70)) {
 			HINSTANCE hComctlLib = LoadLibraryA("comctl32.dll");
 			if (hComctlLib) {
@@ -452,7 +482,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				MyInitCommonControlsEx myInitCommonControlsEx = (MyInitCommonControlsEx)GetProcAddress(hComctlLib, "InitCommonControlsEx");
 				INITCOMMONCONTROLSEX icex;
 				icex.dwSize = sizeof(icex);
-				icex.dwICC = ICC_WIN95_CLASSES | ICC_DATE_CLASSES | ICC_INTERNET_CLASSES | ICC_UPDOWN_CLASS;
+				icex.dwICC = ICC_WIN95_CLASSES | ICC_DATE_CLASSES | (ie4 ? ICC_INTERNET_CLASSES : 0) | ICC_UPDOWN_CLASS;
 				myInitCommonControlsEx(&icex);
 				FreeLibrary(hComctlLib);
 			}
@@ -460,7 +490,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			ie3 = false;
 			InitCommonControls();
 		}
-		if (major <= 3 || (major == 4 && minor <= 70)) ie4 = false;
 
 		hComboBoxFolders = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE | WS_VSCROLL | CBS_OWNERDRAWFIXED, 10, 10, 200, 300, hWnd, (HMENU)2, NULL, NULL);
 		hComboBoxChats = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE | WS_VSCROLL | CBS_OWNERDRAWFIXED, 220, 10, width / 2.5, 300, hWnd, (HMENU)3, NULL, NULL);
@@ -472,6 +501,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		splitter = CreateWindow(L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_NOTIFY, 10, height - 149, width - 30, 3, hWnd, NULL, NULL, NULL);
 		SendMessage(chat, WM_SETFONT, (WPARAM)hFonts[0], FALSE);
 		SendMessage(msgInput, WM_SETFONT, (WPARAM)hFonts[0], FALSE);
+		SendMessage(chat, EM_SETBKGNDCOLOR, 0, colors[1]);
+		SendMessage(msgInput, EM_SETBKGNDCOLOR, 0, colors[1]);
+		CHARFORMAT2 cf;
+		cf.cbSize = sizeof(cf);
+		cf.dwMask = CFM_COLOR;
+		cf.dwEffects = 0;
+		cf.crTextColor = colors[3];
+		SendMessage(msgInput, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
 		COleCallback* coc_chat = new COleCallback(chat);
 		SendMessage(chat, EM_SETOLECALLBACK, 0, (LPARAM)coc_chat);
 		coc_chat->Release();
@@ -492,16 +529,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 		set_menu(hWnd);
 
-		hToolbar = CreateWindow(TOOLBARCLASSNAME, NULL, WS_CHILD | WS_VISIBLE | (ie3 ? TBSTYLE_FLAT : 0) | TBSTYLE_TOOLTIPS | CCS_NORESIZE | CCS_NOPARENTALIGN | WS_CLIPSIBLINGS,
+		hToolbar = CreateWindow(TOOLBARCLASSNAME, NULL, WS_CHILD | WS_VISIBLE | (ie3 ? (TBSTYLE_FLAT | TBSTYLE_CUSTOMERASE) : 0) | TBSTYLE_TOOLTIPS | CCS_NORESIZE | CCS_NOPARENTALIGN | WS_CLIPSIBLINGS,
 			10, height - 145, width - 30, 25, hWnd, NULL, NULL, NULL);
 		SendMessage(hToolbar, TB_BUTTONSTRUCTSIZE, sizeof(TBBUTTON), 0);
 		SendMessage(hToolbar, TB_SETMAXTEXTROWS, 0, 0);
 		SendMessage(hToolbar, TB_SETBITMAPSIZE, 0, MAKELONG(16, 16));
-		COLORMAP cmap = { RGB(128, 0, 128), GetSysColor(COLOR_BTNFACE) };
-		HBITMAP hBmpTb = CreateMappedBitmap(GetModuleHandle(NULL), IDB_ICONS, 0, &cmap, 1);
+		COLORMAP cmaps[2];
+		cmaps[0].from = RGB(128, 0, 128);
+		cmaps[0].to = ie3 ? colors[0] : GetSysColor(COLOR_BTNFACE);
+		cmaps[1].from = RGB(0, 0, 0);
+		cmaps[1].to = ie3 ? colors[3] : GetSysColor(COLOR_WINDOWTEXT);
+		tbBmp = CreateMappedBitmap(GetModuleHandle(NULL), IDB_ICONS, 0, cmaps, 2);
 		TBADDBITMAP tbab;
 		tbab.hInst = NULL;
-		tbab.nID = (UINT_PTR)hBmpTb;
+		tbab.nID = (UINT_PTR)tbBmp;
 		SendMessage(hToolbar, TB_ADDBITMAP, 14, (LPARAM)&tbab);
 		TBBUTTON tbb[15] = {0};
 		tbb[0].iBitmap = 0;
@@ -554,95 +595,90 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		tbb[14].fsState = TBSTATE_ENABLED;
 		if (ie4) {
 			wchar_t bold_str[20];
-			GetPrivateProfileString(LANG, L"t_b", L"", bold_str, 20, get_path(exe_path, L"lang.ini"));
+			get_lang_string("t_b", bold_str, NULL);
 			tbb[0].iString = (INT_PTR)bold_str;
 			wchar_t italic_str[20];
-			GetPrivateProfileString(LANG, L"t_i", L"", italic_str, 20, exe_path);
+			get_lang_string("t_i", italic_str, NULL);
 			tbb[1].iString = (INT_PTR)italic_str;
 			wchar_t under_str[20];
-			GetPrivateProfileString(LANG, L"t_u", L"", under_str, 20, exe_path);
+			get_lang_string("t_u", under_str, NULL);
 			tbb[2].iString = (INT_PTR)under_str;
 			wchar_t strike_str[20];
-			GetPrivateProfileString(LANG, L"t_s", L"", strike_str, 20, exe_path);
+			get_lang_string("t_s", strike_str, NULL);
 			tbb[3].iString = (INT_PTR)strike_str;
 			wchar_t quote_str[20];
-			GetPrivateProfileString(LANG, L"t_q", L"", quote_str, 20, exe_path);
+			get_lang_string("t_q", quote_str, NULL);
 			tbb[4].iString = (INT_PTR)quote_str;
 			wchar_t mono_str[20];
-			GetPrivateProfileString(LANG, L"t_m", L"", mono_str, 20, exe_path);
+			get_lang_string("t_m", mono_str, NULL);
 			tbb[5].iString = (INT_PTR)mono_str;
 			wchar_t spoiler_str[20];
-			GetPrivateProfileString(LANG, L"t_spl", L"", spoiler_str, 20, exe_path);
+			get_lang_string("t_spl", spoiler_str, NULL);
 			tbb[6].iString = (INT_PTR)spoiler_str;
 			wchar_t reply_str[75];
-			GetPrivateProfileString(LANG, L"t_rep", L"", reply_str, 75, exe_path);
+			get_lang_string("t_rep", reply_str, NULL);
 			tbb[8].iString = (INT_PTR)reply_str;
 			wchar_t edit_str[75];
-			GetPrivateProfileString(LANG, L"t_edt", L"", edit_str, 75, exe_path);
+			get_lang_string("t_edt", edit_str, NULL);
 			tbb[9].iString = (INT_PTR)edit_str;
 			wchar_t forward_str[75];
-			GetPrivateProfileString(LANG, L"t_for", L"", forward_str, 75, exe_path);
+			get_lang_string("t_fwd", forward_str, NULL);
 			tbb[10].iString = (INT_PTR)forward_str;
 			wchar_t attach_str[20];
-			GetPrivateProfileString(LANG, L"t_att", L"", attach_str, 20, exe_path);
+			get_lang_string("t_att", attach_str, NULL);
 			tbb[11].iString = (INT_PTR)attach_str;
 			wchar_t record_str[50];
-			GetPrivateProfileString(LANG, L"t_rec", L"", record_str, 50, exe_path);
+			get_lang_string("t_rec", record_str, NULL);
 			tbb[12].iString = (INT_PTR)record_str;
 			wchar_t emoji_str[20];
-			GetPrivateProfileString(LANG, L"t_emj", L"", emoji_str, 20, exe_path);
+			get_lang_string("t_emj", emoji_str, NULL);
 			tbb[13].iString = (INT_PTR)emoji_str;
 			wchar_t send_str[20];
-			GetPrivateProfileString(LANG, L"t_snd", L"", send_str, 20, exe_path);
+			get_lang_string("t_snd", send_str, NULL);
 			tbb[14].iString = (INT_PTR)send_str;
 			SendMessage(hToolbar, TB_ADDBUTTONS, 15, (LPARAM)&tbb);
 		} else {
 			char bold_str[20];
-			get_path(exe_path, L"lang.ini");
-			char exe_path[MAX_PATH];
-			WideCharToMultiByte(CP_ACP, 0, ::exe_path, -1, exe_path, sizeof(exe_path), NULL, NULL);
-			char LANG[4];
-			WideCharToMultiByte(CP_ACP, 0, ::LANG, -1, LANG, sizeof(LANG), NULL, NULL);
-			GetPrivateProfileStringA(LANG, "t_b", "", bold_str, 20, exe_path);
+			get_lang_string("t_b", NULL, bold_str);
 			tbb[0].iString = (INT_PTR)bold_str;
 			char italic_str[20];
-			GetPrivateProfileStringA(LANG, "t_i", "", italic_str, 20, exe_path);
+			get_lang_string("t_i", NULL, italic_str);
 			tbb[1].iString = (INT_PTR)italic_str;
 			char under_str[20];
-			GetPrivateProfileStringA(LANG, "t_u", "", under_str, 20, exe_path);
+			get_lang_string("t_u", NULL, under_str);
 			tbb[2].iString = (INT_PTR)under_str;
 			char strike_str[20];
-			GetPrivateProfileStringA(LANG, "t_s", "", strike_str, 20, exe_path);
+			get_lang_string("t_s", NULL, strike_str);
 			tbb[3].iString = (INT_PTR)strike_str;
 			char quote_str[20];
-			GetPrivateProfileStringA(LANG, "t_q", "", quote_str, 20, exe_path);
+			get_lang_string("t_q", NULL, quote_str);
 			tbb[4].iString = (INT_PTR)quote_str;
 			char mono_str[20];
-			GetPrivateProfileStringA(LANG, "t_m", "", mono_str, 20, exe_path);
+			get_lang_string("t_m", NULL, mono_str);
 			tbb[5].iString = (INT_PTR)mono_str;
 			char spoiler_str[20];
-			GetPrivateProfileStringA(LANG, "t_spl", "", spoiler_str, 20, exe_path);
+			get_lang_string("t_spl", NULL, spoiler_str);
 			tbb[6].iString = (INT_PTR)spoiler_str;
 			char reply_str[75];
-			GetPrivateProfileStringA(LANG, "t_rep", "", reply_str, 75, exe_path);
+			get_lang_string("t_rep", NULL, reply_str);
 			tbb[8].iString = (INT_PTR)reply_str;
 			char edit_str[75];
-			GetPrivateProfileStringA(LANG, "t_edt", "", edit_str, 75, exe_path);
+			get_lang_string("t_edt", NULL, edit_str);
 			tbb[9].iString = (INT_PTR)edit_str;
 			char forward_str[75];
-			GetPrivateProfileStringA(LANG, "t_for", "", forward_str, 75, exe_path);
+			get_lang_string("t_fwd", NULL, forward_str);
 			tbb[10].iString = (INT_PTR)forward_str;
 			char attach_str[20];
-			GetPrivateProfileStringA(LANG, "t_att", "", attach_str, 20, exe_path);
+			get_lang_string("t_att", NULL, attach_str);
 			tbb[11].iString = (INT_PTR)attach_str;
 			char record_str[50];
-			GetPrivateProfileStringA(LANG, "t_rec", "", record_str, 50, exe_path);
+			get_lang_string("t_rec", NULL, record_str);
 			tbb[12].iString = (INT_PTR)record_str;
 			char emoji_str[20];
-			GetPrivateProfileStringA(LANG, "t_emj", "", emoji_str, 20, exe_path);
+			get_lang_string("t_emj", NULL, emoji_str);
 			tbb[13].iString = (INT_PTR)emoji_str;
 			char send_str[20];
-			GetPrivateProfileStringA(LANG, "t_snd", "", send_str, 20, exe_path);
+			get_lang_string("t_snd", NULL, send_str);
 			tbb[14].iString = (INT_PTR)send_str;
 			SendMessage(hToolbar, TB_ADDBUTTONSA, 15, (LPARAM)&tbb);
 		}
@@ -658,17 +694,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		SetWindowPos(tbSeparatorHider, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 		SetWindowPos(emojiScroll, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
-		HIMAGELIST hImgListTabs = ImageList_Create(15, 15, ILC_COLOR24 | ILC_MASK, 10, 0);
-		wchar_t* icons[] = {L"1f553", L"1f600", L"1f44b", L"1f436", L"1f347", L"1f30d", L"1f383", L"1f576", L"1f3e7", L"1f3c1"};
-		get_path(exe_path, L"emojis");
-		wchar_t file_name[MAX_PATH];
-		for (int i = 0; i < 10; i++) {
-			swprintf(file_name, L"%s\\%s.ico", exe_path, icons[i]);
-			HICON hIcon = (HICON)LoadImage(NULL, file_name, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-			ImageList_AddIcon(hImgListTabs, hIcon);
-			DestroyIcon(hIcon);
+		if (!nt3) {
+			HIMAGELIST hImgListTabs = ImageList_Create(15, 15, ILC_COLOR24 | ILC_MASK, 10, 0);
+			wchar_t* icons[] = {L"1f553", L"1f600", L"1f44b", L"1f436", L"1f347", L"1f30d", L"1f383", L"1f576", L"1f3e7", L"1f3c1"};
+			get_path(exe_path, L"emojis");
+			wchar_t file_name[MAX_PATH];
+			for (int i = 0; i < 10; i++) {
+				swprintf(file_name, L"%s\\%s.ico", exe_path, icons[i]);
+				HICON hIcon = (HICON)LoadImage(NULL, file_name, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
+				ImageList_AddIcon(hImgListTabs, hIcon);
+				DestroyIcon(hIcon);
+			}
+			SendMessage(hTabs, TCM_SETIMAGELIST, 0, (LPARAM)hImgListTabs);
 		}
-		SendMessage(hTabs, TCM_SETIMAGELIST, 0, (LPARAM)hImgListTabs);
 		SendMessage(hTabs, TCM_SETITEMSIZE, 0, MAKELPARAM(21, 20));
 		SendMessage(hTabs, TCM_SETPADDING, 0, MAKELPARAM(2, 3));
 
@@ -853,7 +891,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					if ((j < 4 && (cf.dwMask & format_values[j]) && (cf.dwEffects & format_values[j]))
 						|| (j == 4 && cf.crTextColor == RGB(169, 169, 169))
 						|| (j == 5 && wcscmp(cf.szFaceName, L"Courier New") == 0)
-						|| (j == 6 && !(cf.dwEffects & CFE_AUTOBACKCOLOR) && cf.crBackColor == RGB(0, 0, 0))) {
+						|| (j == 6 && !(cf.dwEffects & CFE_AUTOBACKCOLOR) && cf.crBackColor == colors[3])) {
 						if (!formats_active[j]) {
 							bool closelast = (i == length - 1) ? true : false;
 							format_len += 12;
@@ -1049,6 +1087,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			break;
 		}
 		case 2: {
+			if (nt3 && HIWORD(wParam) == CBN_DROPDOWN) nt3_combobox_fit(hComboBoxFolders);
 			if (HIWORD(wParam) != CBN_SELCHANGE) break;
 			SetFocus(hWnd);
 			int selIndex = SendMessage(hComboBoxFolders, CB_GETCURSEL, 0, 0);
@@ -1069,6 +1108,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			break;
 		}
 		case 3: {
+			if (nt3 && HIWORD(wParam) == CBN_DROPDOWN) nt3_combobox_fit(hComboBoxChats);
 			if (HIWORD(wParam) != CBN_SELCHANGE) break;
 			int selIndex = SendMessage(hComboBoxChats, CB_GETCURSEL, 0, 0);
 			SetFocus(msgInput);
@@ -1176,7 +1216,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					EnableMenuItem(hMenuChat, 1, MF_BYPOSITION | MF_ENABLED);
 				}
 				EnableMenuItem(hMenuChat, 2, MF_BYPOSITION | (current_peer->type == 0 ? MF_ENABLED : MF_GRAYED));
-				GetPrivateProfileString(LANG, current_peer->mute_until ? L"m_uc" : L"m_mc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string(current_peer->mute_until ? "m_uc" : "m_mc", lang_str, NULL);
 				ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, lang_str);
 
 				if (messages.size() == 0) {
@@ -1223,7 +1263,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				break;
 			case 14:
 				cf.dwMask = CFM_COLOR | CFM_PROTECTED;
-				if (cf.crTextColor == RGB(169, 169, 169)) cf.crTextColor = 0;
+				if (cf.crTextColor == RGB(169, 169, 169)) cf.crTextColor = colors[3];
 				else cf.crTextColor = RGB(169, 169, 169);
 				cf.dwEffects = CFE_PROTECTED;
 				break;
@@ -1239,6 +1279,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			case 16:
 				cf.dwMask = CFM_BACKCOLOR;
 				cf.dwEffects ^= CFE_AUTOBACKCOLOR;
+				if (!cf.dwEffects) cf.crBackColor = colors[3];
 				break;
 			}
 			SendMessage(msgInput, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
@@ -1481,7 +1522,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			DLGTEMPLATE *dlg = (DLGTEMPLATE*)buffer;
 			dlg->style = WS_POPUP | WS_CAPTION | WS_SYSMENU | DS_MODALFRAME | DS_CONTEXTHELP;
 			dlg->cx = MulDiv(400, 4, LOWORD(dlgUnits));
-			dlg->cy = MulDiv(225, 8, HIWORD(dlgUnits));
+			dlg->cy = MulDiv(230, 8, HIWORD(dlgUnits));
 			if (current_dialog) DestroyWindow(current_dialog);
 			current_dialog = CreateDialogIndirect(GetModuleHandle(NULL), dlg, hWnd, DlgProcOptions);
 			break;
@@ -1547,7 +1588,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				int mute_until_old = current_peer->mute_until;
 				memcpy(&current_peer->mute_until, unenc_query + offset - 4, 4);
 				HMENU hMenuChat = GetSubMenu(hMenuBar, 1);
-				GetPrivateProfileString(LANG, current_peer->mute_until ? L"m_uc" : L"m_mc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string(current_peer->mute_until ? "m_uc" : "m_mc", lang_str, NULL);
 				ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, lang_str);
 				if (current_peer->unread_msgs_count && !muted_types[current_peer->type])
 					update_total_unread_msgs_count(current_peer->mute_until ? (0 - current_peer->unread_msgs_count) : current_peer->unread_msgs_count);
@@ -1614,7 +1655,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		break;
 	case WM_DRAWITEM: {
 		LPDRAWITEMSTRUCT lpdis = (LPDRAWITEMSTRUCT)lParam;
-		if (lpdis->CtlType == ODT_COMBOBOX) {
+		if (lpdis->CtlID == 2 || lpdis->CtlID == 3) {
+			FillRect(lpdis->hDC, &lpdis->rcItem, lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3 ? GetSysColorBrush(COLOR_HIGHLIGHT) : hBrushes[1]);
 			wchar_t* name;
 			Peer* peer = NULL;
 			if (lpdis->hwndItem == hComboBoxChats) {
@@ -1641,7 +1683,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			convert_negative_lfheight(&lf, 1);
 			cf.yHeight = MulDiv(-lf.lfHeight, 144, dpi) * 10;
 			cf.dwEffects = lf.lfItalic ? CFE_ITALIC : 0;
-			cf.crTextColor = GetSysColor(lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3 ? COLOR_HIGHLIGHTTEXT : COLOR_WINDOWTEXT);
+			cf.crTextColor = lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3 ? GetSysColor(COLOR_HIGHLIGHTTEXT) : colors[3];
 			textHost->textServices->TxSendMessage(EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf, &res);
 
 			if (peer && peer != current_peer && peer->unread_msgs_count) {
@@ -1657,20 +1699,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			int deleted_wchars = 0;
 			for (int i = 0; i < wcslen(name); i++) i = emoji_adder(i, name, 0, 15, NULL, &deleted_wchars);
 
-			RECTL myrect = {0, 0, lpdis->rcItem.right - lpdis->rcItem.left, lpdis->rcItem.bottom - lpdis->rcItem.top};
-			HDC hRefDC = GetDC(NULL);
-			HDC memDC = CreateCompatibleDC(hRefDC);
-			HBITMAP hbm = CreateCompatibleBitmap(lpdis->hDC, myrect.right, myrect.bottom);
-			HBITMAP hbmOld = (HBITMAP)SelectObject(memDC, hbm);
-
-			FillRect(memDC, (RECT*)&myrect, GetSysColorBrush(lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3 ? COLOR_HIGHLIGHT : COLOR_WINDOW));
-			myrect.left++;
-			textHost->textServices->TxDraw(DVASPECT_CONTENT, -1, NULL, NULL, memDC, NULL, &myrect, NULL, NULL, NULL, NULL, TXTVIEW_INACTIVE);
-			BitBlt(lpdis->hDC, lpdis->rcItem.left, lpdis->rcItem.top, myrect.right, myrect.bottom, memDC, 0, 0, SRCCOPY);
-			SelectObject(memDC, hbmOld);
-			DeleteObject(hbm);
-			DeleteDC(memDC);
-			ReleaseDC(NULL, hRefDC);
+			lpdis->rcItem.left++;
+			textHost->textServices->TxDraw(DVASPECT_CONTENT, -1, NULL, NULL, lpdis->hDC, NULL, (RECTL*)&lpdis->rcItem, NULL, NULL, NULL, NULL, TXTVIEW_INACTIVE);
 
 			textHost->textServices->TxSendMessage(EM_SETSEL, 0, -1, &res);
 			textHost->textServices->TxSendMessage(EM_REPLACESEL, 0, (LPARAM)L"", &res);
@@ -1704,6 +1734,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			textHost->textServices->TxSendMessage(EM_SETSEL, 0, -1, &res);
 			textHost->textServices->TxSendMessage(EM_REPLACESEL, 0, (LPARAM)L"", &res);
 		} else if (lpdis->hwndItem == hTabs) {
+			FillRect(lpdis->hDC, &lpdis->rcItem, GetSysColorBrush(COLOR_BTNFACE));
 			wchar_t* icons[] = {L"1f553", L"1f600", L"1f44b", L"1f436", L"1f347", L"1f30d", L"1f383", L"1f576", L"1f3e7", L"1f3c1"};
 			wchar_t path[MAX_PATH];
 			swprintf(path, L"%s\\%s.ico", get_path(exe_path, L"emojis"), icons[lpdis->itemID]);
@@ -1764,6 +1795,42 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			PostMessage(hWnd, WM_NULL, 0, 0);
 			break;
 		} else if (lParam == WM_USER + 5) click_on_notification();
+		break;
+	case WM_HOSTRESOLVE:
+		if (!WSAGETASYNCERROR(lParam)) {
+			hostent* he = (hostent*)hostBuf;
+			sockaddr_in addr;
+			addr.sin_family = AF_INET;
+			addr.sin_port = htons(80);
+			addr.sin_addr = *(in_addr*)he->h_addr;
+			SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+			if (connect(sock, (sockaddr*)&addr, sizeof(addr)) != 0) closesocket(sock);
+			else {
+				const char* req = "GET /telegacy/latest.txt HTTP/1.0\r\nHost: webdav.nixxo.net\r\nConnection: close\r\n\r\n";
+				send(sock, req, strlen(req), 0);
+
+				char response[512] = {0};
+				int total = 0, bytes;
+				while ((bytes = recv(sock, response + total, sizeof(response) - 1 - total, 0)) > 0) total += bytes;
+
+				char* ver = strstr(response, "\r\n\r\n");
+				ver += 4;
+				int len = strlen(ver);
+				if (len <= 10) {
+					ver[len-1] = '\0';
+					wchar_t ver_wstr[10];
+					MultiByteToWideChar(CP_ACP, 0, ver, -1, ver_wstr, 10);
+					wchar_t str[100];
+					get_lang_string("upd_v", lang_str, NULL);
+					swprintf(str, lang_str, ver_wstr);
+					get_lang_string("upd", lang_str, NULL);
+					if (wcscmp(ver_wstr, version) != 0 && MessageBox(NULL, str, lang_str, MB_YESNO | MB_ICONINFORMATION) == IDYES)
+						ShellExecute(NULL, L"open", L"http://webdav.nixxo.net/telegacy/", NULL, NULL, SW_SHOW);
+				}
+			}
+			free(hostBuf);
+			hostBuf = 0;
+		}
 		break;
 	case WM_TIMER:
 		if (wParam == 0) {
@@ -1827,7 +1894,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 									if (peers[j].unread_msgs_count && !muted_types[peers[j].type]) update_total_unread_msgs_count(peers[j].unread_msgs_count);
 									if (&peers[j] == current_peer) {
 										HMENU hMenuChat = GetSubMenu(hMenuBar, 1);
-										GetPrivateProfileString(LANG, L"m_mc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+										get_lang_string("m_mc", lang_str, NULL);
 										ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, lang_str);
 									}
 								}
@@ -1882,8 +1949,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		}
 		break;
 	case WM_CTLCOLORSTATIC:
-		if (HWND(lParam) == tbSeparatorHider || HWND(lParam) == splitter) return (long)(theme_brush == NULL ? GetStockObject(WHITE_BRUSH) : theme_brush);
-		break;
+		if ((HWND)lParam == reactionStatic) return (LRESULT)hBrushes[2];
+		return (LRESULT)(theme_brush == NULL ? hBrushes[0] : theme_brush);
 	case WM_SETCURSOR:
 		if ((HWND)wParam == splitter) {
 			SetCursor(LoadCursor(NULL, IDC_SIZENS));
@@ -2000,15 +2067,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					} else emoji_x += 20;
 					wchar_t path[MAX_PATH];
 					swprintf(path, L"%s\\%s.ico", get_path(exe_path, L"emojis"), fav_emojis[i]);
-					HICON hIcon = (HICON)LoadImage(NULL, path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
+					HICON hIcon = NULL;
 					if (nt3) hIcon = (HICON)(GetFileAttributes(path) != -1);
+					else hIcon = (HICON)LoadImage(NULL, path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
 					if (hIcon) {
 						HWND hBtn = CreateWindow(L"BUTTON", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? BS_OWNERDRAW : BS_ICON), emoji_x, emoji_y, 20, 20, emojiStatic, (HMENU)1, GetModuleHandle(NULL), NULL);
 						if (!nt3) SendMessage(hBtn, BM_SETIMAGE, IMAGE_ICON, (LPARAM)hIcon);
 						wchar_t* code = _wcsdup(fav_emojis[i]);
 						SetWindowLongPtr(hBtn, GWLP_USERDATA, (LONG_PTR)code);
-						//WNDPROC oldProc = (WNDPROC)SetWindowLongPtr(hBtn, GWLP_WNDPROC, (LONG_PTR)WndProcReactionButton);
-						//SetProp(hBtn, L"oldproc", (HANDLE)oldProc);
 					}
 				}
 			} else {
@@ -2036,14 +2102,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 							} else emoji_x += 20;
 							wchar_t path[MAX_PATH];
 							swprintf(path, L"%s\\%s", get_path(exe_path, L"emojis"), ffd.cFileName);
-							HICON hIcon = (HICON)LoadImage(NULL, path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
 							HWND hBtn = CreateWindow(L"BUTTON", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? BS_OWNERDRAW : BS_ICON), emoji_x, emoji_y, 20, 20, emojiStatic, (HMENU)1, GetModuleHandle(NULL), NULL);
-							if (!nt3) SendMessage(hBtn, BM_SETIMAGE, IMAGE_ICON, (LPARAM)hIcon);
+							if (!nt3) {
+								HICON hIcon = (HICON)LoadImage(NULL, path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
+								SendMessage(hBtn, BM_SETIMAGE, IMAGE_ICON, (LPARAM)hIcon);
+							}
 							*(wcsrchr(ffd.cFileName, L'.')) = 0;
 							wchar_t* code = _wcsdup(ffd.cFileName);
 							SetWindowLongPtr(hBtn, GWLP_USERDATA, (LONG_PTR)code);
-							//WNDPROC oldProc = (WNDPROC)SetWindowLongPtr(hBtn, GWLP_WNDPROC, (LONG_PTR)WndProcReactionButton);
-							//SetProp(hBtn, L"oldproc", (HANDLE)oldProc);
 						}
 						while (FindNextFile(hFind, &ffd));
 						FindClose(hFind);
@@ -2062,7 +2128,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			si.nPos = 0;
 			SetScrollInfo(emojiScroll, SB_CTL, &si, TRUE);
 			SetFocus(msgInput);
-		} else if (pNMHDR->hwndFrom == hToolbar && pNMHDR->code == TBN_DROPDOWN) files_show_dropdown();
+		} else if (pNMHDR->hwndFrom == hToolbar) {
+			if (pNMHDR->code == TBN_DROPDOWN) files_show_dropdown();
+			else if (pNMHDR->code == NM_CUSTOMDRAW) {
+				NMCUSTOMDRAW* nmcd = (NMCUSTOMDRAW*)lParam;
+				if (nmcd->uItemState & CDIS_CHECKED) nmcd->uItemState -= 7; // transform CHECKED into SELECTED for clean bg
+				if (nmcd->dwDrawStage == CDDS_PREPAINT) return CDRF_NOTIFYITEMDRAW;
+				return CDRF_DODEFAULT;
+			}
+		}
 		break;			
 	}
 	case WM_MOUSEACTIVATE: {
@@ -2127,7 +2201,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					fwrite(&peer->online, 4, 1, f);
 					fwrite(peer->photo, 1, 8, f);
 					fwrite(&peer->photo_dc, 4, 1, f);
-					fwrite(&peer->last_read, 4, 1, f);
+					fwrite(&peer->last_read_out, 4, 1, f);
 					fwrite(&peer->unread_msgs_count, 4, 1, f);
 					fwrite(&peer->mute_until, 4, 1, f);
 					fwrite(&peer->perm, sizeof(Permissions), 1, f);
@@ -2235,6 +2309,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		WritePrivateProfileString(L"General", L"maximized", value, appdata_path);
 		swprintf(value, L"%d", edits_border_offset);
 		WritePrivateProfileString(L"General", L"edits_border_offset", value, appdata_path);
+		MultiByteToWideChar(CP_ACP, 0, LANG, -1, value, 10);
+		WritePrivateProfileString(L"General", L"lang", value, appdata_path);
 		swprintf(value, L"%d", MSGSFETCHCOUNT);
 		WritePrivateProfileString(L"General", L"msgs_fetch_count", value, appdata_path);
 		wchar_t download_path[MAX_PATH];
@@ -2244,7 +2320,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		WritePrivateProfileString(L"General", L"close_to_tray", value, appdata_path);
 		swprintf(value, L"%d", balloon_notifications);
 		WritePrivateProfileString(L"General", L"balloon_notifications", value, appdata_path);
-		WritePrivateProfileString(L"General", L"lang", LANG, appdata_path);
+		swprintf(value, L"%d", CHECKUPDATES);
+		WritePrivateProfileString(L"General", L"check_updates", value, appdata_path);
+
+		swprintf(value, L"%d", colors[0]);
+		WritePrivateProfileString(L"Colors", L"color_main", colors[0] == GetSysColor(COLOR_WINDOW) ? L"" : value, appdata_path);
+		swprintf(value, L"%d", colors[1]);
+		WritePrivateProfileString(L"Colors", L"color_chat", colors[1] == GetSysColor(COLOR_WINDOW) ? L"" : value, appdata_path);
+		swprintf(value, L"%d", colors[2]);
+		WritePrivateProfileString(L"Colors", L"color_back", colors[2] == GetSysColor(nt3 ? COLOR_WINDOW : COLOR_BTNFACE) ? L"" : value, appdata_path);
+		swprintf(value, L"%d", colors[3]);
+		WritePrivateProfileString(L"Colors", L"color_text", colors[3] == GetSysColor(COLOR_WINDOWTEXT) ? L"" : value, appdata_path);
+		swprintf(value, L"%d", CHATTHEMES);
+		WritePrivateProfileString(L"Colors", L"chat_themes", value, appdata_path);
 
 		swprintf(value, L"%d", IMAGELOADPOLICY);
 		WritePrivateProfileString(L"Content", L"image_load_policy", value, appdata_path);
@@ -2271,13 +2359,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 }
 
 bool retrying_proxy_connection = false;
-int retry_proxy_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
+int retry_proxy_connection(DCInfo* dcInfo, bool reconnecting) {
 	retrying_proxy_connection = true;
-	return init_connection(dcInfo, socketworkerreconnect);
+	return init_connection(dcInfo, reconnecting);
 }
 
-int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
-	if (!current_info && dcInfo == &dcInfoMain && !socketworkerreconnect) {
+int init_connection(DCInfo* dcInfo, bool reconnecting) {
+	if (!current_info && dcInfo == &dcInfoMain && !reconnecting) {
 		BYTE buffer[24] = {0};
 		LONG dlgUnits = GetDialogBaseUnits();
 		DLGTEMPLATE *dlg = (DLGTEMPLATE*)buffer;
@@ -2288,18 +2376,19 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 	}
 
 	// connect to a telegram data center
+	if (reconnecting) closesocket(dcInfo->sock);
 	dcInfo->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	sockaddr_in server;
 	server.sin_family = AF_INET;
 
 	wchar_t error_title[10];
-	GetPrivateProfileString(LANG, L"e", L"", error_title, 10, get_path(exe_path, L"lang.ini"));
+	get_lang_string("e", error_title, NULL);
 
 	// proxy
 	wchar_t proxy_ip_uni[16];
 	GetPrivateProfileString(L"Proxy", L"ip", L"n", proxy_ip_uni, 16, get_path(appdata_path, L"options.ini"));
 	if (proxy_ip_uni[0] == L'n' || retrying_proxy_connection) {
-		GetPrivateProfileString(LANG, L"pr", L"", lang_str, 100, exe_path);
+		get_lang_string("pr", lang_str, NULL);
 		int res = MessageBox(hMain, lang_str, L"Telegacy", MB_YESNOCANCEL | MB_ICONQUESTION);
 		if (res == IDYES) {
 			BYTE buffer[24] = {0};
@@ -2307,7 +2396,7 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 			DLGTEMPLATE *dlg = (DLGTEMPLATE*)buffer;
 			dlg->style = WS_POPUP | WS_CAPTION | WS_SYSMENU | DS_MODALFRAME | DS_CONTEXTHELP;
 			dlg->cx = MulDiv(400, 4, LOWORD(dlgUnits));
-			dlg->cy = MulDiv(225, 8, HIWORD(dlgUnits));
+			dlg->cy = MulDiv(230, 8, HIWORD(dlgUnits));
 			DialogBoxIndirectParam(GetModuleHandle(NULL), dlg, hMain, DlgProcOptions, 1);
 		} else if (res == IDNO) {
 			WritePrivateProfileString(L"Proxy", L"ip", L"", appdata_path);
@@ -2324,9 +2413,9 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 		server.sin_port = htons(proxy_port);
 		server.sin_addr.S_un.S_addr = inet_addr(proxy_ip);
 		if (connect(dcInfo->sock, (sockaddr*)&server, sizeof(server))) {
-			GetPrivateProfileString(LANG, L"e_prc", L"", lang_str, 100, exe_path);
+			get_lang_string("e_prc", lang_str, NULL);
 			MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
-			return retry_proxy_connection(dcInfo, socketworkerreconnect);
+			return retry_proxy_connection(dcInfo, reconnecting);
 		} else {
 			wchar_t proxy_username[256];
 			wchar_t proxy_password[256];
@@ -2336,14 +2425,14 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 			unsigned char greeting[] = {5, 2, 0, 2};
 			send(dcInfo->sock, (char*)greeting, 4, 0);
 			if (recv(dcInfo->sock, (char*)buf, 2, 0) != 2) {
-				GetPrivateProfileString(LANG, L"e_prh", L"", lang_str, 100, exe_path);
+				get_lang_string("e_prh", lang_str, NULL);
 				MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
-				return retry_proxy_connection(dcInfo, socketworkerreconnect);
+				return retry_proxy_connection(dcInfo, reconnecting);
 			}
 			if (buf[1] == 0xFF) {
-				GetPrivateProfileString(LANG, L"e_prf", L"", lang_str, 100, exe_path);
+				get_lang_string("e_prf", lang_str, NULL);
 				MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
-				return retry_proxy_connection(dcInfo, socketworkerreconnect);
+				return retry_proxy_connection(dcInfo, reconnecting);
 			}
 			if (buf[1] == 0x02) {
 				buf[0] = 1;
@@ -2351,14 +2440,14 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 				buf[2 + buf[1]] = WideCharToMultiByte(CP_ACP, 0, proxy_password, -1, (char*)(buf + 3 + buf[1]), 256, NULL, NULL);
 				send(dcInfo->sock, (char*)buf, 3 + buf[1] + buf[2 + buf[1]], 0);
 				if (recv(dcInfo->sock, (char*)buf, 2, 0) != 2) {
-					GetPrivateProfileString(LANG, L"e_prh", L"", lang_str, 100, exe_path);
+					get_lang_string("e_prh", lang_str, NULL);
 					MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
-					return retry_proxy_connection(dcInfo, socketworkerreconnect);
+					return retry_proxy_connection(dcInfo, reconnecting);
 				}
 				if (buf[1] != 0) {
-					GetPrivateProfileString(LANG, L"e_prl", L"", lang_str, 100, exe_path);
+					get_lang_string("e_prl", lang_str, NULL);
 					MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
-					return retry_proxy_connection(dcInfo, socketworkerreconnect);
+					return retry_proxy_connection(dcInfo, reconnecting);
 				}
 			}
 		}
@@ -2391,19 +2480,21 @@ int init_connection(DCInfo* dcInfo, bool socketworkerreconnect) {
 		memcpy(buf + 8, &server.sin_port, 2);
 		send(dcInfo->sock, (char*)buf, 10, 0);
 		if (recv(dcInfo->sock, (char*)buf, 10, 0) != 10) {
-			GetPrivateProfileString(LANG, L"e_prh", L"", lang_str, 100, exe_path);
+			get_lang_string("e_prh", lang_str, NULL);
 			MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
-			return retry_proxy_connection(dcInfo, socketworkerreconnect);
+			return retry_proxy_connection(dcInfo, reconnecting);
 		}
 		if (buf[1] != 0) {
-			GetPrivateProfileString(LANG, L"e_prtg", L"", lang_str, 100, exe_path);
+			get_lang_string("e_prtg", lang_str, NULL);
 			MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
-			return retry_proxy_connection(dcInfo, socketworkerreconnect);
+			return retry_proxy_connection(dcInfo, reconnecting);
 		}
 		retrying_proxy_connection = false;
 	} else if (connect(dcInfo->sock, (sockaddr*)&server, sizeof(server))) {
-		GetPrivateProfileString(LANG, L"e_conn", L"", lang_str, 100, exe_path);
-		MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
+		if (!reconnecting) {
+			get_lang_string("e_conn", lang_str, NULL);
+			MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
+		}
 		return 0;
 	}
 
@@ -2420,7 +2511,7 @@ void reconnect(DCInfo* dcInfo) {
 
 void create_auth_key(DCInfo* dcInfo) {
 	if (current_info) {
-		GetPrivateProfileString(LANG, L"a_auth", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("a_auth", lang_str, NULL);
 		SetWindowText(infoLabel, lang_str);
 	}
 
@@ -2835,6 +2926,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	dpi = GetDeviceCaps(hdcRef, LOGPIXELSY);
 	ReleaseDC(NULL, hdcRef);
 
+	get_path(exe_path, L"langs");
+	WideCharToMultiByte(CP_ACP, 0, exe_path, -1, lang_path, sizeof(lang_path), NULL, NULL);
+	strcat(lang_path, "\\");
+
 	width = GetPrivateProfileInt(L"General", L"width", 500, get_path(appdata_path, L"options.ini"));
 	height = GetPrivateProfileInt(L"General", L"height", 450, appdata_path);
 	if (GetPrivateProfileInt(L"General", L"maximized", 0, appdata_path)) maximized = true;
@@ -2856,22 +2951,50 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	SetCurrentDirectory(download_path);
 	if (!GetPrivateProfileInt(L"General", L"close_to_tray", 1, appdata_path)) CLOSETOTRAY = false;
 	if (!GetPrivateProfileInt(L"General", L"balloon_notifications", 1, appdata_path)) balloon_notifications = false;
+	if (!GetPrivateProfileInt(L"General", L"check_updates", 1, appdata_path)) CHECKUPDATES = false;
 
 	IMAGELOADPOLICY = GetPrivateProfileInt(L"Content", L"image_load_policy", 2, appdata_path);
 	if (!GetPrivateProfileInt(L"Content", L"emojis", 1, appdata_path)) EMOJIS = false;
 	if (!GetPrivateProfileInt(L"Content", L"spoilers", 1, appdata_path)) SPOILERS = false;
 
 	LOGFONT lf = {0};
-	wchar_t* sections[] = {L"FontChat", L"FontSystem", L"FontUI"};
+	wchar_t* sections_font[] = {L"FontChat", L"FontSystem", L"FontUI"};
 	for (int i = 0; i < 3; i++) {
-		GetPrivateProfileString(sections[i], L"face", L"", lf.lfFaceName, sizeof(lf.lfFaceName) / 2, appdata_path);
+		GetPrivateProfileString(sections_font[i], L"face", L"", lf.lfFaceName, sizeof(lf.lfFaceName) / 2, appdata_path);
 		if (lf.lfFaceName[0]) {
-			lf.lfHeight = GetPrivateProfileInt(sections[i], L"height", 0, appdata_path);
-			lf.lfWeight = GetPrivateProfileInt(sections[i], L"weight", 400, appdata_path);
-			lf.lfItalic = GetPrivateProfileInt(sections[i], L"italic", 0, appdata_path);
+			lf.lfHeight = GetPrivateProfileInt(sections_font[i], L"height", 0, appdata_path);
+			lf.lfWeight = GetPrivateProfileInt(sections_font[i], L"weight", 400, appdata_path);
+			lf.lfItalic = GetPrivateProfileInt(sections_font[i], L"italic", 0, appdata_path);
 			hFonts[i] = CreateFontIndirect(&lf);
 		} else init_default_font(i);
 	}
+
+	wchar_t* colors_str[] = {L"color_main", L"color_chat", L"color_back", L"color_text"};
+	for (i = 0; i < 4; i++) {
+		wchar_t color[2];
+		GetPrivateProfileString(L"Colors", colors_str[i], L"", color, 2, appdata_path);
+		if (color[0]) {
+			colors[i] = GetPrivateProfileInt(L"Colors", colors_str[i], 0, appdata_path);
+			hBrushes[i] = CreateSolidBrush(colors[i]);
+		} else {
+			if (i == 0) {
+				colors[0] = GetSysColor(COLOR_WINDOW);
+				hBrushes[0] = CreateSolidBrush(colors[0]);
+			}
+			else if (i == 1) {
+				colors[1] = GetSysColor(COLOR_WINDOW);
+				hBrushes[1] = CreateSolidBrush(colors[1]);
+			}
+			else if (i == 2) {
+				colors[2] = GetSysColor(nt3 ? COLOR_WINDOW : COLOR_BTNFACE);
+				hBrushes[2] = CreateSolidBrush(colors[2]);
+			} else {
+				colors[3] = GetSysColor(COLOR_WINDOWTEXT);
+				hBrushes[3] = CreateSolidBrush(colors[3]);
+			}
+		}
+	}
+	if (!GetPrivateProfileInt(L"Colors", L"chat_themes", 1, appdata_path)) CHATTHEMES = false;
 
 	GetPrivateProfileString(L"Sounds", L"notification_sound", L"1", sound_paths[0], MAX_PATH, appdata_path);
 	GetPrivateProfileString(L"Sounds", L"incoming_sound", L"", sound_paths[1], MAX_PATH, appdata_path);
@@ -2890,13 +3013,38 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	BITSPERSAMPLE = GetPrivateProfileInt(L"Voice", L"bits_per_sample", 16, appdata_path);
 	CHANNELS = GetPrivateProfileInt(L"Voice", L"channels", 1, appdata_path);
 
-	GetPrivateProfileString(L"General", L"lang", L"", LANG, MAX_PATH, appdata_path);
+	wchar_t wLANG[4];
+	GetPrivateProfileString(L"General", L"lang", L"", wLANG, MAX_PATH, appdata_path);
+	WideCharToMultiByte(CP_ACP, 0, wLANG, -1, LANG, sizeof(LANG), NULL, NULL);
 	if (!LANG[0]) {
 		LCID lcID = GetSystemDefaultLCID();
-		GetLocaleInfo(lcID, LOCALE_SABBREVLANGNAME, LANG, 4);
-		GetPrivateProfileString(L"List", L"list", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
-		if (!wcsstr(lang_str, LANG)) wcscpy(LANG, L"ENU");
+		GetLocaleInfoA(lcID, LOCALE_SABBREVLANGNAME, LANG, 4);
+		strupr(LANG);
+
+		WIN32_FIND_DATAA fd;
+		strcat(lang_path, "*");
+		HANDLE hFind = FindFirstFileA(lang_path, &fd);
+		bool lang_found = false;
+		if (hFind != INVALID_HANDLE_VALUE) {
+			do {
+				if (fd.cFileName[0] == '.') continue;
+				else if (fd.cFileName[2] == '.') {
+					if (strncmp(fd.cFileName, LANG, 2) == 0) {
+						lang_found = true;
+						LANG[2] = '\0';
+					}
+				} else if (strncmp(fd.cFileName, LANG, 3) == 0) {
+					lang_found = true;
+					break;
+				}
+			} while (FindNextFileA(hFind, &fd));
+			FindClose(hFind);
+		}
+		if (!lang_found) strcpy(LANG, "EN");
 	}
+	strcpy(strrchr(lang_path, '\\') + 1, LANG);
+	strcat(lang_path, ".ini");
+	lang_codepage = GetPrivateProfileIntA(LANG, "codepage", 0, lang_path);
 
 	// random number generator
 	HCRYPTPROV hProv;
@@ -2944,7 +3092,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	// register main class
 	HICON hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON));
 	WNDCLASS wcMain = {0};
-	wcMain.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+	wcMain.hbrBackground = hBrushes[0];
 	wcMain.lpfnWndProc = WndProc;
 	wcMain.hInstance = hInstance;
 	wcMain.lpszClassName = L"Telegacy";
@@ -2998,7 +3146,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (current_dialog) DestroyWindow(current_dialog);
 		current_dialog = CreateDialogIndirect(GetModuleHandle(NULL), dlg, NULL, DlgProcLogin);
 	} else {
-		GetPrivateProfileString(LANG, L"a_upd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("a_upd", lang_str, NULL);
 		SetWindowText(infoLabel, lang_str);
 		get_future_salt(&dcInfoMain);
 	}

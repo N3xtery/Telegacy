@@ -22,7 +22,7 @@ char get_padding(int len) {
 	return padding_len;
 }
 
-void send_query(DCInfo* dcInfo, BYTE* enc_query, int length) {
+int send_query(DCInfo* dcInfo, BYTE* enc_query, int length) {
 	if (dcInfo == &dcInfoMain) EnterCriticalSection(&csSock);
 	BYTE len_b[4];
 	if (length/4 >= 127) {
@@ -34,8 +34,13 @@ void send_query(DCInfo* dcInfo, BYTE* enc_query, int length) {
 		send(dcInfo->sock, (char*)(len_b), 1, 0);
 	}
 	int sent = 0;
-	while (sent < length) sent += send(dcInfo->sock, (char*)(enc_query + sent), length - sent, 0);
+	while (sent < length) {
+		int res = send(dcInfo->sock, (char*)(enc_query + sent), length - sent, 0);
+		if (res == SOCKET_ERROR) break;
+		else sent += res;
+	}
 	if (dcInfo == &dcInfoMain) LeaveCriticalSection(&csSock);
+	return sent;
 }
 
 void create_msg_id(DCInfo* dcInfo, BYTE* buf) {
@@ -189,8 +194,8 @@ void create_msg_key(BYTE* unenc_query, int length, int x, BYTE* msg_key) {
 void create_msg_id(BYTE* buf) {
 	create_msg_id(&dcInfoMain, buf);
 }
-void send_query(BYTE* enc_query, int length) {
-	send_query(&dcInfoMain, enc_query, length);
+int send_query(BYTE* enc_query, int length) {
+	return send_query(&dcInfoMain, enc_query, length);
 }
 
 int set_peer_info(BYTE* unenc_response, Peer* peer, bool just_update) {
@@ -198,11 +203,11 @@ int set_peer_info(BYTE* unenc_response, Peer* peer, bool just_update) {
 		peer->reaction_list = &reaction_list;
 		peer->chat_users = NULL;
 		peer->full = false;
+		peer->last_recv = 0;
 	} else {
 		free(peer->name);
 		if (peer->handle) free(peer->handle);
 	}
-	peer->last_recv = 0;
 	peer->name_set_time = current_time();
 	peer->pfp_set_time = current_time();
 	peer->status_updated = true;
@@ -311,6 +316,11 @@ int set_peer_info(BYTE* unenc_response, Peer* peer, bool just_update) {
 		else if (!peer->amadmin && (flags & (1 << 18))) set_permissions(unenc_response + offset, peer);
 		else memset(&peer->perm, 1, sizeof(Permissions));
 	}
+	if (memcmp(peer->id, notification_peer_id, 8) == 0 && notif_newpeer_msg) {
+		new_msg_notification(peer, notif_newpeer_msg == (BYTE*)-1 ? NULL : notif_newpeer_msg, false);
+		if (notif_newpeer_msg != (BYTE*)-1) free(notif_newpeer_msg);
+		notif_newpeer_msg = NULL;
+	}
 	return offset;
 }
 
@@ -333,7 +343,8 @@ void update_chats_order(BYTE* id, BYTE* msg_id, char type) {
 				folders[0].count++;
 				folders[0].peers[folders[0].count-1] = folders[0].count-1;
 				peers[peers_count-1].type = type;
-				peers[peers_count-1].last_read = 0;
+				peers[peers_count-1].last_read_out = 0;
+				peers[peers_count-1].last_read_in = 0;
 				peers[peers_count-1].mute_until = 0;
 				peers[peers_count-1].unread_msgs_count = 0;
 				if (current_peer != NULL) current_peer = &peers[current_peer_pos];
@@ -416,7 +427,7 @@ void download_file(DCInfo* dcInfo, Document* document) {
 	send_query(dcInfo, enc_query, offset + 24);
 	wchar_t status_str[100];
 	int percentage = (int)((double)file_size / (double)document->size * 100.0);
-	GetPrivateProfileString(LANG, L"s_down", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+	get_lang_string("s_down", lang_str, NULL);
 	swprintf(status_str, lang_str, document->filename, percentage);
 	SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)status_str);
 	KillTimer(hMain, 2);
@@ -621,7 +632,7 @@ void get_future_salt(DCInfo* dcInfo) {
 	send_query(dcInfo, enc_query, 88);
 }
 
-void update_own_status(bool status) {
+int update_own_status(bool status) {
 	BYTE unenc_query[64];
 	BYTE enc_query[88];
 	internal_header(unenc_query, true);
@@ -631,7 +642,7 @@ void update_own_status(bool status) {
 	else write_le(unenc_query + 36, 0x997275b5, 4);
 	fortuna_read(unenc_query + 40, 24, &prng);
 	convert_message(unenc_query, enc_query, 64, 0);
-	send_query(enc_query, 88);
+	return send_query(enc_query, 88);
 }
 
 void get_history() {
@@ -774,7 +785,7 @@ int replace_in_chat(FINDTEXTEX* ft, CHARRANGE* cr, wchar_t* replacement, HBITMAP
 		} else if (rf) {
 			drawchat = false;
 			bool addmsg = (rf->message) ? true : false;
-			GetPrivateProfileString(LANG, L"c_rep", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("c_rep", lang_str, NULL);
 			int replying_len = wcslen(lang_str);
 			if (addmsg) {
 				message_handler(true, rf->message, false, false, true);
@@ -806,7 +817,7 @@ int replace_in_chat(FINDTEXTEX* ft, CHARRANGE* cr, wchar_t* replacement, HBITMAP
 			ischatscrolling = false;
 		}
 		if (drawchat) {
-			if (si.nPos >= (int)(si.nMax - si.nPage) - 15) SendMessage(chat, WM_VSCROLL, SB_BOTTOM, 0);
+			if (si.nPos >= (int)(si.nMax - si.nPage) - 25) SendMessage(chat, WM_VSCROLL, SB_BOTTOM, 0);
 			else {
 				if (ismsgup) {
 					SCROLLINFO si_new = {0};
@@ -866,7 +877,7 @@ void set_reply_tofront(int i, BYTE* message, int j) {
 	rf.j = j;
 	rf.message = message;
 	FINDTEXTEX ft;
-	GetPrivateProfileString(LANG, L"c_rep", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+	get_lang_string("c_rep", lang_str, NULL);
 	int replying_len = wcslen(lang_str);
 	ft.chrg.cpMin = messages[i].end_char + replying_len + 1;
 	ft.chrg.cpMax = messages[i].end_char + replying_len + 2;
@@ -889,21 +900,27 @@ void get_date(wchar_t* buf, int date_init, bool preposition) {
 	st.wMilliseconds = 0;
 	if (t.tm_year == t_now.tm_year && t.tm_yday == t_now.tm_yday) {
 		if (preposition) {
-			GetPrivateProfileString(LANG, L"s_ptime", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
-			swprintf(buf, L"%s ", lang_str);
+			get_lang_string("s_ptime", lang_str, NULL);
+			if (lang_str[0]) swprintf(buf, L"%s ", lang_str);
 		}
 	} else if (t.tm_year == t_now.tm_year && t.tm_yday == t_now.tm_yday-1) {
-		GetPrivateProfileString(LANG, L"s_pyest", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		preposition = true;
+		get_lang_string("s_pyest", lang_str, NULL);
 		swprintf(buf, L"%s ", lang_str);
 	} else {
 		if (preposition) {
-			GetPrivateProfileString(LANG, L"s_pdate", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
-			swprintf(buf, L"%s ", lang_str);
+			get_lang_string("s_pdate", lang_str, NULL);
+			if (lang_str[0]) swprintf(buf, L"%s ", lang_str);
 		}
 		GetDateFormat(LOCALE_USER_DEFAULT, DATE_SHORTDATE, &st, NULL, buf + (preposition ? wcslen(lang_str) + 1 : 0), 100);
 		wcscat(buf, L" ");
 	}
 	GetTimeFormat(LOCALE_USER_DEFAULT, 0, &st, NULL, buf + wcslen(buf), 100);
+	if (preposition) {
+		get_lang_string("s_ptime2", lang_str, NULL);
+		if (lang_str[0] == L'-') lang_str[0] = L' ';
+		wcscat(buf, lang_str);
+	}
 }
 
 int set_name(BYTE* unenc_response, wchar_t** name) {
@@ -1099,8 +1116,8 @@ int set_reply(int i, int start_footer, BYTE* quote_text, bool setformat) {
 		GetObject(hFonts[0], sizeof(lf), &lf);
 		wcscpy(cf.szFaceName, lf.lfFaceName);
 		cf.dwEffects = CFE_ITALIC;
-		cf.crTextColor = 0;
-		cf.crBackColor = RGB(255, 255, 255);
+		cf.crTextColor = colors[3];
+		cf.crBackColor = colors[1];
 		cf.yHeight = 160;
 		cf.wWeight = lf.lfWeight;
 		SendMessage(chat, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
@@ -1160,23 +1177,23 @@ void status_bar_status(Peer* peer) {
 			SendMessage(hStatus, SB_SETTEXTA, 0, (LPARAM)"");
 			return;
 		case 0:
-			GetPrivateProfileString(LANG, L"s_on", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("s_on", lang_str, NULL);
 			wcscat(status_str, lang_str);
 			break;
 		case 1:
-			GetPrivateProfileString(LANG, L"s_rec", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("s_rec", lang_str, NULL);
 			wcscat(status_str, lang_str);
 			break;
 		case 2:
-			GetPrivateProfileString(LANG, L"s_week", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("s_week", lang_str, NULL);
 			wcscat(status_str, lang_str);
 			break;
 		case 3:
-			GetPrivateProfileString(LANG, L"s_mon", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("s_mon", lang_str, NULL);
 			wcscat(status_str, lang_str);
 			break;
 		default:
-			GetPrivateProfileString(LANG, L"s_was", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("s_was", lang_str, NULL);
 			wcscat(status_str, lang_str);
 			wcscat(status_str, L" ");
 			get_date(&status_str[wcslen(status_str)], peer->online, true);
@@ -1184,15 +1201,15 @@ void status_bar_status(Peer* peer) {
 		}
 	} else if (peer->type == 1) {
 		int count = peer->chat_users->size();
-		GetPrivateProfileString(LANG, L"s_par", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("s_par", lang_str, NULL);
 		swprintf(status_str, lang_str, count);
 	} else {
 		int count = (int)peer->chat_users;
 		if (peer->perm.cansendmsg) {
-			GetPrivateProfileString(LANG, L"s_par", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("s_par", lang_str, NULL);
 			swprintf(status_str, lang_str, count);
 		} else {
-			GetPrivateProfileString(LANG, L"s_sub", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("s_sub", lang_str, NULL);
 			swprintf(status_str, lang_str, count);
 		}
 	}
@@ -1244,19 +1261,21 @@ void delete_message(int j, bool scroll) {
 }
 
 void apply_theme(int i) {
-	if (theme_brush) DeleteObject(theme_brush);
-	if (i == 0) {
-		theme_brush = NULL;
-		SetClassLongPtr(hMain, GCLP_HBRBACKGROUND, (LONG_PTR)GetStockObject(WHITE_BRUSH));
-	} else {
-		theme_brush = CreateSolidBrush(themes[i - 1].color);
-		SetClassLongPtr(hMain, GCLP_HBRBACKGROUND, (LONG_PTR)theme_brush);
-	}
-	InvalidateRect(hMain, NULL, TRUE);
-	InvalidateRect(tbSeparatorHider, NULL, TRUE);
 	HMENU hMenuTheme = GetSubMenu(GetSubMenu(hMenuBar, 1), 2);
 	for (int j = 0; j < themes.size() + 1; j++) CheckMenuItem(hMenuTheme, j, MF_BYPOSITION | MF_UNCHECKED);
 	CheckMenuItem(hMenuTheme, i, MF_BYPOSITION | MF_CHECKED);
+	if (theme_brush) DeleteObject(theme_brush);
+	if (CHATTHEMES || theme_brush) {
+		if (i == 0 || !CHATTHEMES) {
+			theme_brush = NULL;
+			SetClassLongPtr(hMain, GCLP_HBRBACKGROUND, (LONG_PTR)hBrushes[0]);
+		} else {
+			theme_brush = CreateSolidBrush(themes[i - 1].color);
+			SetClassLongPtr(hMain, GCLP_HBRBACKGROUND, (LONG_PTR)theme_brush);
+		}
+		update_toolbar();
+		InvalidateRect(hMain, NULL, TRUE);
+	}
 }
 
 void register_themes() {
@@ -1439,18 +1458,9 @@ void get_full_peer(Peer* peer) {
 }
 
 void update_name_in_list(int i) {
-	for (int j = 0; j < current_folder->count; j++) {
-		if (current_folder->peers[j] > i && j >= current_folder->pinned_count) break;
-		else if (current_folder->peers[j] == i) {
-			SendMessage(hComboBoxChats, CB_DELETESTRING, j, NULL);
-			SendMessage(hComboBoxChats, CB_INSERTSTRING, j, (LPARAM)peers[i].name);
-			SendMessage(hComboBoxChats, CB_SETITEMDATA, j, (LPARAM)&peers[i]);
-			if (current_peer == &peers[i]) {
-				SendMessage(hComboBoxChats, CB_SETCURSEL, j, 0);
-				if (peers[i].type == 0) status_bar_status(&peers[i]);
-			}
-			break;
-		}
+	if (current_peer == &peers[i]) {
+		InvalidateRect(hComboBoxChats, NULL, TRUE);
+		if (peers[i].type == 0) status_bar_status(&peers[i]);
 	}
 }
 
@@ -1749,7 +1759,7 @@ void exit_telegacy() {
 	if (dcInfoMain.authorized) {
 		ShowWindow(hMain, SW_HIDE);
 		closing = true;
-		update_own_status(false);
+		if (!update_own_status(false)) DestroyWindow(hMain);
 	}
 }
 
@@ -1849,7 +1859,8 @@ INT_PTR CALLBACK DlgProcNotification(HWND hDlg, UINT msg, WPARAM wParam, LPARAM 
 	case WM_INITDIALOG: {
 		NOTIFYICONDATAV2* nid = (NOTIFYICONDATAV2*)lParam;
 		HDC hdc = GetDC(hDlg);
-		SetBkColor(hdc, GetSysColor(COLOR_MENU));
+		SetBkColor(hdc, colors[2]);
+		SetTextColor(hdc, colors[3]);
 
 		LOGFONT lf;
 		GetObject(hFonts[2], sizeof(LOGFONT), &lf);
@@ -1888,7 +1899,7 @@ INT_PTR CALLBACK DlgProcNotification(HWND hDlg, UINT msg, WPARAM wParam, LPARAM 
 		break;
 	case WM_CTLCOLORDLG:
 	case WM_CTLCOLORSTATIC:
-		if (nt3) return (long)GetStockObject(WHITE_BRUSH);
+		return (LRESULT)hBrushes[2];
 		break;
 	case WM_LBUTTONDOWN:
 		click_on_notification();
@@ -1899,44 +1910,59 @@ INT_PTR CALLBACK DlgProcNotification(HWND hDlg, UINT msg, WPARAM wParam, LPARAM 
 
 void new_msg_notification(Peer* peer, BYTE* msg_bytes, bool groupmed) {
 	if (memcmp(peer->id, myself.id, 8) == 0) return;
-	peer->unread_msgs_count++;
 	if (!peer->mute_until && !muted_types[peer->type]) {
-		update_total_unread_msgs_count(1);
 		if (!groupmed && dcInfoMain.ready) {
 			if (peer->type == 2 && peer->channel_msg_id[7]) return;
 			memcpy(notification_peer_id, peer->id, 8);
-			NOTIFYICONDATAV2 nid = {0};
-			wcscpy(nid.szInfoTitle, peer->name ? peer->name : L"New message");
-			if (msg_bytes) {
-				int msg_len = tlstr_to_str_len(msg_bytes);
-				if (msg_len == 0) wcscpy(nid.szInfo, L"[Attachment]");
-				else if (msg_len < 256) read_string(msg_bytes, nid.szInfo);
-				else {
-					wchar_t* msg_temp = read_string(msg_bytes, NULL);
-					wcsncpy(nid.szInfo, msg_temp, 252);
-					wcscpy(nid.szInfo + 252, L"...");
-					free(msg_temp);
+			if (peer->name) {
+				NOTIFYICONDATAV2 nid = {0};
+				wcscpy(nid.szInfoTitle, peer->name);
+				if (msg_bytes) {
+					int msg_len = tlstr_to_str_len(msg_bytes);
+					if (msg_len == 0) {
+						get_lang_string("n_att", lang_str, NULL);
+						wcscpy(nid.szInfo, lang_str);
+					} else if (msg_len < 256) read_string(msg_bytes, nid.szInfo);
+					else {
+						wchar_t* msg_temp = read_string(msg_bytes, NULL);
+						wcsncpy(nid.szInfo, msg_temp, 252);
+						wcscpy(nid.szInfo + 252, L"...");
+						free(msg_temp);
+					}
+				} else {
+					get_lang_string("n_ser", lang_str, NULL);
+					wcscpy(nid.szInfo, lang_str);
 				}
-			} else wcscpy(nid.szInfo, L"[Service Message]");
-			if (balloon_notifications) {
-				nid.cbSize = sizeof(nid);
-				nid.hWnd = hMain;
-				nid.uID = 1;
-				nid.uFlags = 0x00000010;
-				nid.dwInfoFlags = 0x00000001 | 0x00000010;
-				nid.uTimeout = 10000;
-				nid.uVersion = 3;
-				Shell_NotifyIcon(NIM_MODIFY, (NOTIFYICONDATA*)&nid);
+				if (balloon_notifications) {
+					nid.cbSize = sizeof(nid);
+					nid.hWnd = hMain;
+					nid.uID = 1;
+					nid.uFlags = 0x00000010;
+					nid.dwInfoFlags = 0x00000001 | 0x00000010;
+					nid.uTimeout = 10000;
+					nid.uVersion = 3;
+					Shell_NotifyIcon(NIM_MODIFY, (NOTIFYICONDATA*)&nid);
+				} else {
+					BYTE buffer[24] = {0};
+					DLGTEMPLATE *dlg = (DLGTEMPLATE*)buffer;
+					dlg->style = WS_POPUP | DS_MODALFRAME;
+					if (current_notification) remove_notification();
+					current_notification = CreateDialogIndirectParam(GetModuleHandle(NULL), dlg, hMain, DlgProcNotification, (LONG)&nid);
+				}
+				if (sound_paths[0][0]) PlaySound(sound_paths[0], NULL, SND_FILENAME | SND_ASYNC);
 			} else {
-				BYTE buffer[24] = {0};
-				DLGTEMPLATE *dlg = (DLGTEMPLATE*)buffer;
-				dlg->style = WS_POPUP | DS_MODALFRAME;
-				if (current_notification) remove_notification();
-				current_notification = CreateDialogIndirectParam(GetModuleHandle(NULL), dlg, hMain, DlgProcNotification, (LONG)&nid);
+				if (notif_newpeer_msg && notif_newpeer_msg != (BYTE*)-1) free(notif_newpeer_msg);
+				if (msg_bytes) {
+					int len = tlstr_len(msg_bytes, true);
+					notif_newpeer_msg = (BYTE*)malloc(len);
+					memcpy(notif_newpeer_msg, msg_bytes, len);
+				} else msg_bytes = (BYTE*)-1; // service msg
+				return;
 			}
-			if (sound_paths[0][0]) PlaySound(sound_paths[0], NULL, SND_FILENAME | SND_ASYNC);
 		}
+		update_total_unread_msgs_count(1);
 	}
+	peer->unread_msgs_count++;
 }
 
 void update_total_unread_msgs_count(int new_total_unread_msgs_count) {
@@ -1992,7 +2018,7 @@ void set_tray_icon() {
 	nid.uCallbackMessage = WM_TRAYICON;
 	nid.hIcon = hIcon;
 	if (total_unread_msgs_count) {
-		GetPrivateProfileString(LANG, L"t_unr", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("t_unr", lang_str, NULL);
 		swprintf(nid.szTip, lang_str, total_unread_msgs_count);
 	} else wcscpy(nid.szTip, L"Telegacy");
 	Shell_NotifyIcon(NIM_ADD, &nid);
@@ -2015,11 +2041,11 @@ void change_mute_all(int type, bool unmuted) {
 	MENUITEMINFO mii = {0};
 	mii.cbSize = sizeof(MENUITEMINFO);
 	mii.fMask = MIIM_STRING;
-	wchar_t* lang_id = NULL;
-	if (type == 0) lang_id = unmuted ? L"m_m0" : L"m_u0";
-	else if (type == 1) lang_id = unmuted ? L"m_m1" : L"m_u1";
-	else lang_id = unmuted ? L"m_m2" : L"m_u2";
-	GetPrivateProfileString(LANG, lang_id, L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+	char* lang_id = NULL;
+	if (type == 0) lang_id = unmuted ? "m_m0" : "m_u0";
+	else if (type == 1) lang_id = unmuted ? "m_m1" : "m_u1";
+	else lang_id = unmuted ? "m_m2" : "m_u2";
+	get_lang_string(lang_id, lang_str, NULL);
 	mii.dwTypeData = lang_str;
 	SetMenuItemInfo(hMenuMute, type, TRUE, &mii);
 }
@@ -2137,7 +2163,7 @@ void files_show_dropdown() {
 
 		HMENU hMenu = CreatePopupMenu();
 		for (int i = 0; i < files.size(); i++) AppendMenu(hMenu, MF_STRING, 1000 + i,  files[i]);
-		GetPrivateProfileString(LANG, L"m_clr", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("m_clr", lang_str, NULL);
 		AppendMenu(hMenu, MF_STRING, 999, lang_str);
 
 		int screeny;
@@ -2280,9 +2306,9 @@ HBITMAP rgb_to_bmp(BYTE* rgb, bool alpha, int width, int height) {
 		BYTE* srcRow = rgb + y * width * channels;
 		for (int x = 0; x < width; x++) {
 			if (alpha && srcRow[x*channels + 3] < 96) {
-				dstRow[x*3 + 0] = 255;
-				dstRow[x*3 + 1] = 255;
-				dstRow[x*3 + 2] = 255;
+				dstRow[x*3 + 0] = GetBValue(colors[1]);
+				dstRow[x*3 + 1] = GetGValue(colors[1]);
+				dstRow[x*3 + 2] = GetRValue(colors[1]);
 			} else {
 				dstRow[x*3 + 0] = srcRow[x*channels + 2];
 				dstRow[x*3 + 1] = srcRow[x*channels + 1];
@@ -2344,8 +2370,8 @@ bool paint_emoji_bitmap(HDC hdc, wchar_t* path, RECT* rect) {
 
 		HDC hdcMem = CreateCompatibleDC(hdcRef);
 		HBITMAP hBmpOld = (HBITMAP)SelectObject(hdcMem, hAnd);
-		SetTextColor(hdc, 0x00000000L);
-		SetBkColor(hdc, 0x00FFFFFFL);
+		SetTextColor(hdc, 0);
+		SetBkMode(hdc, TRANSPARENT);
 		BitBlt(hdc, rect->left, rect->top, 15, 15, hdcMem, 0, 0, SRCAND);
 		SelectObject(hdcMem, hXor);
 		BitBlt(hdc, rect->left, rect->top, 15, 15, hdcMem, 0, 0, SRCINVERT);
@@ -2360,6 +2386,7 @@ bool paint_emoji_bitmap(HDC hdc, wchar_t* path, RECT* rect) {
 
 void paint_emoji_button(DRAWITEMSTRUCT* dis) {
 	if (dis->itemAction == ODA_DRAWENTIRE) {
+		FillRect(dis->hDC, &dis->rcItem, hBrushes[2]);
 		wchar_t* code = (wchar_t*)GetWindowLongPtr(dis->hwndItem, GWLP_USERDATA);
 		bool custom_emoji = code[0] == 1;
 		wchar_t path[MAX_PATH];
@@ -2376,6 +2403,7 @@ void paint_emoji_button(DRAWITEMSTRUCT* dis) {
 
 void paint_password_button(DRAWITEMSTRUCT* dis, bool options) {
 	if (dis->itemAction == ODA_DRAWENTIRE) {
+		FillRect(dis->hDC, &dis->rcItem, hBrushes[2]);
 		HBITMAP hIcons = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_ICONS));
 
 		HDC hdcRef = GetDC(NULL);
@@ -2390,18 +2418,13 @@ void paint_password_button(DRAWITEMSTRUCT* dis, bool options) {
 		BitBlt(hdc, 0, 0, 16, 16, hdcMask, 96, 0, SRCCOPY);
 		SelectBitmap(hdcMask, hBmpMask);
 
-		COLORREF clrSaveBk = SetBkColor(hdc, RGB(128, 0, 128));
+		SetBkColor(hdc, RGB(128, 0, 128));
 		BitBlt(hdcMask, 0, 0, 16, 16, hdc, 0, 0, SRCCOPY);
 
-		COLORREF clrSaveDstText = SetTextColor(hdc, RGB(255, 255, 255));
-		SetBkColor(hdc, RGB(0, 0, 0));
-		BitBlt(hdc, 0, 0, 16, 16, hdcMask, 0, 0, SRCAND);
-		SetTextColor(hdcMask, clrSaveDstText);
-		SetBkColor(hdc, clrSaveBk);
-
+		SetTextColor(dis->hDC, colors[3]);
+		SetBkColor(dis->hDC, colors[2]);
 		int offset = options ? 2 : 4;
-		BitBlt(dis->hDC, offset, offset, 16, 16, hdcMask, 0, 0, SRCAND);
-		BitBlt(dis->hDC, offset, offset, 16, 16, hdc, 0, 0, SRCPAINT);
+		BitBlt(dis->hDC, offset, offset, 16, 16, hdcMask, 0, 0, SRCCOPY);
 
 		SelectBitmap(hdc, hBmpOld);
 		SelectBitmap(hdcMask, hBmpMaskOld);
@@ -2476,46 +2499,46 @@ void set_menu(HWND hWnd) {
 	HMENU hMenuTheme = CreatePopupMenu();
 	HMENU hMenuTools = CreatePopupMenu();
 	HMENU hMenuHelp = CreatePopupMenu();
-	GetPrivateProfileString(LANG, L"m_pvw", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+	get_lang_string("m_pvw", lang_str, NULL);
 	AppendMenu(hMenuProfile, MF_STRING, 30, lang_str);
 	AppendMenu(hMenuChat, MF_STRING | (current_peer == &myself ? MF_GRAYED : 0), 31, lang_str);
-	GetPrivateProfileString(LANG, L"m_mu", L"", lang_str, 100, exe_path);
+	get_lang_string("m_mu", lang_str, NULL);
 	AppendMenu(hMenuProfile, MF_POPUP, (UINT_PTR)hMenuMute, lang_str);
-	GetPrivateProfileString(LANG, muted_types[0] > 0 ? L"m_u0" : L"m_m0", L"", lang_str, 100, exe_path);
+	get_lang_string(muted_types[0] > 0 ? "m_u0" : "m_m0", lang_str, NULL);
 	AppendMenu(hMenuMute, MF_STRING, 38, lang_str);
-	GetPrivateProfileString(LANG, muted_types[1] > 0 ? L"m_u1" : L"m_m1", L"", lang_str, 100, exe_path);
+	get_lang_string(muted_types[1] > 0 ? "m_u1" : "m_m1", lang_str, NULL);
 	AppendMenu(hMenuMute, MF_STRING, 39, lang_str);
-	GetPrivateProfileString(LANG, muted_types[2] > 0 ? L"m_u2" : L"m_m2", L"", lang_str, 100, exe_path);
+	get_lang_string(muted_types[2] > 0 ? "m_u2" : "m_m2", lang_str, NULL);
 	AppendMenu(hMenuMute, MF_STRING, 40, lang_str);
-	GetPrivateProfileString(LANG, L"m_ext", L"", lang_str, 100, exe_path);
+	get_lang_string("m_ext", lang_str, NULL);
 	AppendMenu(hMenuProfile, MF_STRING, 37, lang_str);
-	GetPrivateProfileString(LANG, L"m_lgo", L"", lang_str, 100, exe_path);
+	get_lang_string("m_lgo", lang_str, NULL);
 	AppendMenu(hMenuProfile, MF_STRING, 36, lang_str);
-	GetPrivateProfileString(LANG, current_peer && current_peer->mute_until ? L"m_uc" : L"m_mc", L"", lang_str, 100, exe_path);
+	get_lang_string(current_peer && current_peer->mute_until ? "m_uc" : "m_mc", lang_str, NULL);
 	AppendMenu(hMenuChat, MF_STRING, 41, lang_str);
-	GetPrivateProfileString(LANG, L"m_thn", L"", lang_str, 100, exe_path);
+	get_lang_string("m_thn", lang_str, NULL);
 	AppendMenu(hMenuTheme, MF_STRING | MF_CHECKED, 600, lang_str);
-	GetPrivateProfileString(LANG, L"m_ths", L"", lang_str, 100, exe_path);
+	get_lang_string("m_ths", lang_str, NULL);
 	AppendMenu(hMenuChat, MF_POPUP, (UINT_PTR)hMenuTheme, lang_str);
-	GetPrivateProfileString(LANG, L"m_rf", L"", lang_str, 100, exe_path);
+	get_lang_string("m_rf", lang_str, NULL);
 	AppendMenu(hMenuChat, MF_STRING, 43, lang_str);
-	GetPrivateProfileString(LANG, L"m_mf", L"", lang_str, 100, exe_path);
+	get_lang_string("m_mf", lang_str, NULL);
 	AppendMenu(hMenuTools, MF_STRING, 32, lang_str);
-	GetPrivateProfileString(LANG, L"m_sup", L"", lang_str, 100, exe_path);
+	get_lang_string("m_sup", lang_str, NULL);
 	if (!ie4) AppendMenu(hMenuTools, MF_STRING, 42,  lang_str);
-	GetPrivateProfileString(LANG, L"m_opt", L"", lang_str, 100, exe_path);
+	get_lang_string("m_opt", lang_str, NULL);
 	AppendMenu(hMenuTools, MF_STRING, 33, lang_str);
-	GetPrivateProfileString(LANG, L"m_ug", L"", lang_str, 100, exe_path);
+	get_lang_string("m_ug", lang_str, NULL);
 	AppendMenu(hMenuHelp, MF_STRING, 34, lang_str);
-	GetPrivateProfileString(LANG, L"a", L"", lang_str, 100, exe_path);
+	get_lang_string("m_abt", lang_str, NULL);
 	AppendMenu(hMenuHelp, MF_STRING, 35, lang_str);
-	GetPrivateProfileString(LANG, L"m_p", L"", lang_str, 100, exe_path);
+	get_lang_string("m_p", lang_str, NULL);
 	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hMenuProfile, lang_str);
-	GetPrivateProfileString(LANG, L"m_c", L"", lang_str, 100, exe_path);
+	get_lang_string("m_c", lang_str, NULL);
 	AppendMenu(hMenuBar, MF_POPUP | (current_peer ? 0 : MF_GRAYED), (UINT_PTR)hMenuChat, lang_str);
-	GetPrivateProfileString(LANG, L"m_t", L"", lang_str, 100, exe_path);
+	get_lang_string("m_t", lang_str, NULL);
 	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hMenuTools, lang_str);
-	GetPrivateProfileString(LANG, L"m_h", L"", lang_str, 100, exe_path);
+	get_lang_string("m_h", lang_str, NULL);
 	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hMenuHelp, lang_str);
 	SetMenu(hWnd, hMenuBar);
 	DrawMenuBar(hWnd);
@@ -2529,10 +2552,10 @@ void create_service_msg(BYTE* message, wchar_t* sender, wchar_t* service_msg, bo
 	case 0xb5a1ce5a: {
 		wchar_t* chat_name = read_string(message + offset_msg, NULL);
 		if (channel) {
-			GetPrivateProfileString(LANG, msgact_cons == 0xbd47cbad ? L"i_ccr" : L"i_cch", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string(msgact_cons == 0xbd47cbad ? "i_ccr" : "i_cch", lang_str, NULL);
 			swprintf(service_msg, lang_str, chat_name);
 		} else {
-			GetPrivateProfileString(LANG, msgact_cons == 0xbd47cbad ? L"i_gcr" : L"i_gch", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string(msgact_cons == 0xbd47cbad ? "i_gcr" : "i_gch", lang_str, NULL);
 			swprintf(service_msg, lang_str, sender, chat_name);
 		}
 		free(chat_name);
@@ -2540,22 +2563,22 @@ void create_service_msg(BYTE* message, wchar_t* sender, wchar_t* service_msg, bo
 	}
 	case 0x95d2ac92: {
 		wchar_t* chat_name = read_string(message + offset_msg, NULL);
-		GetPrivateProfileString(LANG, L"i_ccr", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("i_ccr", lang_str, NULL);
 		swprintf(service_msg, lang_str, chat_name);
 		free(chat_name);
 		break;
 	}
 	case 0x7fcb13a8:
-		GetPrivateProfileString(LANG, channel ? L"i_cphc" : L"i_phc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string(channel ? "i_cphc" : "i_phc", lang_str, NULL);
 		swprintf(service_msg, lang_str, sender);
 		break;
 	case 0x95e3fbef:
-		GetPrivateProfileString(LANG, channel ? L"i_cphd" : L"i_phd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string(channel ? "i_cphd" : "i_phd", lang_str, NULL);
 		swprintf(service_msg, lang_str, sender);
 		break;
 	case 0x15cefd00: {
 		if (memcmp(message + 16, message + offset_msg + 8, 8) == 0) {
-			GetPrivateProfileString(LANG, L"i_j", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("i_j", lang_str, NULL);
 			swprintf(service_msg, lang_str, sender);
 		} else {
 			wchar_t* name = NULL;
@@ -2572,37 +2595,37 @@ void create_service_msg(BYTE* message, wchar_t* sender, wchar_t* service_msg, bo
 				peer_set_name(peer_bytes, &name, type);
 				name_allocated = true;
 			}
-			GetPrivateProfileString(LANG, L"i_add", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("i_add", lang_str, NULL);
 			swprintf(service_msg, lang_str, name, sender);
 			if (name_allocated) free(name);
 		}
 		break;
 	}
 	case 0xa43f30cc:
-		GetPrivateProfileString(LANG, L"i_l", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("i_l", lang_str, NULL);
 		swprintf(service_msg, lang_str, sender);
 		break;
 	case 0x31224c3:
-		GetPrivateProfileString(LANG, L"i_jl", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("i_jl", lang_str, NULL);
 		swprintf(service_msg, lang_str, sender);
 		break;
 	case 0xfae69f56:
 		read_string(message + offset_msg, service_msg);
 		break;
 	case 0xe1037f92:
-		GetPrivateProfileString(LANG, L"i_m", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("i_m", lang_str, NULL);
 		swprintf(service_msg, lang_str, sender);
 		break;
 	case 0xea3948e9:
-		GetPrivateProfileString(LANG, L"i_m2", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("i_m2", lang_str, NULL);
 		swprintf(service_msg, lang_str, sender);
 		break;
 	case 0x94bd38ed:
-		GetPrivateProfileString(LANG, channel ? L"i_cp" : L"i_p", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string(channel ? "i_cp" : "i_p", lang_str, NULL);
 		swprintf(service_msg, lang_str, sender);
 		break;
 	case 0x9fbab604:
-		GetPrivateProfileString(LANG, channel ? L"i_cd" : L"i_d", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string(channel ? "i_cd" : "i_d", lang_str, NULL);
 		swprintf(service_msg, lang_str, sender);
 		break;
 	case 0x80e11a7f: {
@@ -2610,11 +2633,11 @@ void create_service_msg(BYTE* message, wchar_t* sender, wchar_t* service_msg, bo
 		offset_msg += 12;
 		if (flags & (1 << 0)) {
 			offset_msg += 4;
-			if (flags & (1 << 2)) GetPrivateProfileString(LANG, L"i_vc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
-			else GetPrivateProfileString(LANG, L"i_c", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			if (flags & (1 << 2)) get_lang_string("i_vc", lang_str, NULL);
+			else get_lang_string("i_c", lang_str, NULL);
 		} else {
-			if (flags & (1 << 2)) GetPrivateProfileString(LANG, L"i_ovc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
-			else GetPrivateProfileString(LANG, L"i_oc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			if (flags & (1 << 2)) get_lang_string("i_ovc", lang_str, NULL);
+			else get_lang_string("i_oc", lang_str, NULL);
 		}
 		if (flags & (1 << 1)) {
 			wchar_t duration_str[10];
@@ -2630,15 +2653,15 @@ void create_service_msg(BYTE* message, wchar_t* sender, wchar_t* service_msg, bo
 		break;
 	}
 	case 0x4792929b:
-		GetPrivateProfileString(LANG, L"i_s", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("i_s", lang_str, NULL);
 		swprintf(service_msg, lang_str, sender);
 		break;
 	case 0xaa786345:
 		if (tlstr_len(message + offset_msg, false) == 0) {
-			GetPrivateProfileString(LANG, channel ? L"i_ctho" : L"i_tho", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string(channel ? "i_ctho" : "i_tho", lang_str, NULL);
 			swprintf(service_msg, lang_str, sender);
 		} else {
-			GetPrivateProfileString(LANG, channel ? L"i_cth" : L"i_th", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string(channel ? "i_cth" : "i_th", lang_str, NULL);
 			wcscat(lang_str, L" ");
 			int emoji_start = wcslen(lang_str);
 			read_string(message + offset_msg, lang_str + emoji_start);
@@ -2671,20 +2694,78 @@ void create_service_msg(BYTE* message, wchar_t* sender, wchar_t* service_msg, bo
 		read_string(message + 8, service_msg);
 		break;
 	case 0xc0944820: {
-		GetPrivateProfileString(LANG, L"i_t", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("i_t", lang_str, NULL);
 		wchar_t* topic_name = read_string(message + 8, NULL);
 		swprintf(service_msg, lang_str, sender, topic_name);
 		free(topic_name);
 		break;
 	}
 	case 0x5060a3f4: {
-		GetPrivateProfileString(LANG, channel ? L"i_cw" : L"i_w", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string(channel ? "i_cw" : "i_w", lang_str, NULL);
 		swprintf(service_msg, lang_str, sender);
 		break;
 	}
 	default:
-		GetPrivateProfileString(LANG, L"i_no", L"", service_msg, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("i_no", lang_str, NULL);
 	} 
+}
+
+void show_main() {
+	DestroyWindow(current_info);
+	ShowWindow(hMain, maximized ? SW_SHOWMAXIMIZED : SW_SHOW);
+	SetForegroundWindow(hMain);
+	set_tray_icon();
+	if (CHECKUPDATES) {
+		hostBuf = (char*)malloc(MAXGETHOSTSTRUCT);
+		WSAAsyncGetHostByName(hMain, WM_HOSTRESOLVE, "webdav.nixxo.net", hostBuf, MAXGETHOSTSTRUCT);
+	}
+}
+
+LRESULT back_brush(HDC hDC) {
+	SetTextColor(hDC, colors[3]);
+	SetBkColor(hDC, colors[2]);
+	return (LRESULT)hBrushes[2];
+}
+
+void get_lang_string(char* id, wchar_t* wdest, char* dest) {
+	if (wdest) {
+		GetPrivateProfileStringA(LANG, id, id, lang_str_ansi, 100, lang_path);
+		MultiByteToWideChar(lang_codepage, 0, lang_str_ansi, -1, wdest, 100);
+	} else GetPrivateProfileStringA(LANG, id, id, dest, 100, lang_path);
+}
+
+void update_toolbar() {
+	if (ie3) {
+		COLORMAP cmaps[2];
+		cmaps[0].from = RGB(128, 0, 128);
+		if (theme_brush) {
+			LOGBRUSH lb;
+			GetObject(theme_brush, sizeof(lb), &lb);
+			cmaps[0].to = lb.lbColor;
+		} else cmaps[0].to = colors[0];
+		cmaps[1].from = RGB(0, 0, 0);
+		cmaps[1].to = colors[3];
+		HBITMAP tbBmpNew = CreateMappedBitmap(GetModuleHandle(NULL), IDB_ICONS, 0, cmaps, 2);
+		TBREPLACEBITMAP trb = {0};
+		trb.nIDOld = (UINT)tbBmp;
+		trb.nIDNew = (UINT)tbBmpNew;
+		trb.nButtons = 14;
+		SendMessage(hToolbar, TB_REPLACEBITMAP, NULL, (LPARAM)&trb);
+		DeleteObject(tbBmp);
+		tbBmp = tbBmpNew;
+	}
+}
+
+void nt3_combobox_fit(HWND comboBox) {
+	int count = SendMessage(comboBox, CB_GETCOUNT, NULL, NULL);
+	int height_main = SendMessage(comboBox, CB_GETITEMHEIGHT, -1, NULL);
+	int height_item = SendMessage(comboBox, CB_GETITEMHEIGHT, 0, NULL);
+	RECT rc;
+	GetWindowRect(comboBox, &rc);
+	int width = rc.right - rc.left;
+	int height = height_main + height_item * count + 4;
+	if (height > 300) height = 300;
+	SetWindowPos(comboBox, NULL, NULL, NULL, width, height, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 BYTE pubkey_der[] = {

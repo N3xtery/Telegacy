@@ -22,10 +22,11 @@ An unofficial Telegram client aimed to work on old versions of Windows (NT3.51/9
 - Text formatting
 - File downloading and uploading
 - Voice message recording
-- Themes (just the color)
+- Chat themes (just the color)
 - Profiles
 - Notifications
 - SOCKS5 proxies support
+- Support for different languages
 - Help system
 
 ## Minimum system requirements
@@ -35,14 +36,13 @@ An unofficial Telegram client aimed to work on old versions of Windows (NT3.51/9
 
 ## System support
 If you want the best experience, you need to have at least comctl32.dll version 4.71 (comes with IE 4.0 or standalone) and, optionally, Crypto API support (comes with IE 3.02) for a more secure random numbers generator. If you have comctl32.dll <=4.70, you won't have the dropdown arrow for the files button on your toolbar (its functionality will be transfered to the "Show the uploading list" option in the Tools menu). In case of a comctl32.dll <=4.00 you won't get the flat toolbar style, and no date and time picker control for changing your birthday (which becomes no longer possible).
+Even though Rich Edit 2.0 is bundled with the setup, Rich Edit 3.0 (riched20.dll 5.30.x.x) is recommended. Though, the only advantage to be noticed so far is that version 3.0 formats text in a language which the chosen chat font doesn't support in a font that does support it, so you can see the actual text instead of blank squares.
 
 ## Included DLLs
+The following DLLs will be installed in case they are not present at all:
+- riched20.dll 5.0.152.0
+- msvcrt.dll 6.0.8397.0
 - unicows.dll 1.1.3790.0 for Windows 9x
-- msvcrt.dll 6.0.8397.0 for systems without one at all
-
-The Rich Edit 3.0 update includes:
-- riched20.dll 5.30.23.1230
-- msls31.dll 3.10.349.0
 
 ## Libraries used
 - libtomcrypt + libtommath, for cryptography

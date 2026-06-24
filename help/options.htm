@@ -1,0 +1,61 @@
+<html>
+<style>body { font:10pt sans-serif;}</style>
+<body>
+<h2 id="options">Options</h2>
+<p>Telegacy has several options. The options you choose get applied no matter whether you press the "OK", "Cancel" or the close button.</p>
+
+<h3 id="options_general">General</h3>
+<ol>
+<li>Language. The client's language.</li>
+<li>Messages fetch count. How many messages get fetched when opening the chat and browsing chat history.</li>
+<li>Current download directory. The files you download go there.</li>
+<li>Minimize to tray when closing. This makes the program continue to run in the background after closing it. To actually close it, go to Profile -> Exit 
+on the main menu; the Profile menu is also shown when right clicking on the tray icon.</li>
+<li>Use Windows notifications instead of the custom ones. This way, the notifications are shown in the default way for Windows. When unchecked, the Telegacy's custom notifications
+will be used instead, which is the only possible way if the version of your shell32.dll file is lower than 5.0. If your version is 5.x, the custom notifications 
+bring the additional functionality of being able to click on them to go to the respective chat. With Windows notifications it's only possible if your
+version is 6.0 or above.</li>
+<li>Check for updates on launch. The program will check for updates on startup by connecting to the host server at <a href="http://webdav.nixxo.net/telegacy/">http://webdav.nixxo.net/telegacy/</a>. 
+Special thanks to NixxO for hosting.</li>
+</ol>
+
+<h3 id="options_content">Content</h3>
+<ol>
+<li>How to load images in chats?</li>
+<ul>
+<li>Don't load images at all. Shows images as rectangle symbols.</li>
+<li>Load just the minimal image thumbnails. Telegram sends image messages together with a very small preview, which this option shows.</li>
+<li>Autodownload and load the bigger sized image thumbnails. The said bigger size is up to 300x300 pixels. These thumbnails don't get downloaded to disk, 
+they stay in memory until the chat is closed. This option also shows stickers.</li>
+</ul>
+<li>Enable emojis. When unchecked, emojis are shown as rectangle symbols, and the emoji button on the toolbar gets grayed out.</li>
+<li>Apply appropriate formatting to spoilers in chats. Makes the text with the "spoiler" formatting have a black background. Since the text is black, it 
+makes it not visible, in order to see it you need to select it. Since it's a bit of an ugly workaround, you can disable it altogether.</li>
+</ol>
+
+<h3 id="options_general">Theme</h3>
+<ol>
+<li>Main color. The background color of the main window.</li>
+<li>Chat color. The background color of the chat, the message input, folder and chat comboboxes, fields in the Profile dialog window.</li>
+<li>Dialog color. The background color of dialog windows, as well as of the emoji and reaction choosers.</li>
+<li>Text color. The color of all the text.</li>
+<li>Individual chat themes. If a Telegram chat theme is set, this will change the main color to the theme's color when opening said chat.</li>
+<li>Chat font. Also the font of the message input control and the profiles' "About me" field.</li>
+<li>Chat list font. Also the font of the folder list and most of the fields of the Profile window.</li>
+<li>UI font.</li>
+</ol>
+
+<h3 id="options_sounds">Sounds</h3>
+<p>Here you can select the sounds you want for the new message notifications, as well as for the incoming and outgoing messages in the current chat. The 
+sounds have to be in the .wav format. By default, the Windows' notify.wav sound is used for new message notifications; incoming/outgoing messages don't have
+a sound.</p>
+
+<h3 id="options_voice">Voice</h3>
+<p>Here you can choose the sample rate, the amount of bits per sample and channels used when recording your voice messages.</p>
+
+<h3 id="options_proxy">Proxy</h3>
+<p>Here you can set up your connection to a SOCKS5 proxy. If the IP or port aren't set, the client won't be using a proxy. 
+Username and password are needed if the proxy of your choice requires authentication. They don't matter if the proxy 
+doesn't need any credentials.</p>
+</body>
+</html>

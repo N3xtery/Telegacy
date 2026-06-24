@@ -1,0 +1,337 @@
+{\rtf1\ansi
+{\fonttbl
+{\f0\fnil\fcharset0 MS Sans Serif;}
+{\f1\fnil\fcharset0 Arial;}
+}
+
+\f0\fs16\li115\ri125\sb115\sl-235
+{\up #}{\footnote\pard\plain{\up #} LOGGING_IN}
+{\up >}{\footnote\pard\plain{\up >} default}
+\b Logging in\b0\par
+\sb75
+
+When launching the program for the first time or after you logged out, the process of creating the authorization key 
+takes place. It might take a while depending on how fast your CPU is. Afterwards, the "Log In" dialog will be shown. 
+You have two options:\par
+
+1.Enter your phone number and press "Get code". A 5-digit code will be sent to your Telegram account. 
+Input it in the code field and press "Log in".\par
+2. Scan the QR code using the QR code scanner of a Telegram client where you're logged in to your account.\par
+
+If your account has the two-factor authentication turned out, you'll be asked for your password prior to getting 
+logged in. When you input your password and press "Log in", the SRP algorithm of checking your password will begin. 
+Unfortunately, there is a 30-second timer set by Telegram, and because the algorithm is quite heavy, it might not 
+get finished in time if your CPU is too slow. The timer also starts when you check your hint for the first time 
+each session, so if you try to log in before it finishes, you have a higher chance of timing out as well.\par
+
+Note: after pressing "Get code" or scanning the QR code, the process of creating the authorization key will happen 
+again if your account is located on the American or Asian Telegram datacenter. This is because by default Telegacy 
+connects and creates the authorization key on the European datacenter.\par
+
+Note 2: You can't register an account with Telegacy. This feature is reserved only for the official Telegram client.\par
+
+\page
+
+\sb115
+{\up #}{\footnote\pard\plain{\up #} PROGRAM_FILES}
+{\up >}{\footnote\pard\plain{\up >} default}
+\b Program files\b0\par
+\sb75
+
+Together with the executable you have:\par
+1. "help.hlp", "help.cnt" files. The WinHelp version of this user guide.\par
+2. "help.chm" file. The HTML Help version of this user guide. Is used if the 
+WinHelp version is missing or can't be opened.\par
+3. "emoji_categories.dat" file. This file contains the different emoji categories and the names of the emojis 
+that are a part of each category. If you want, you can edit this file and change the categories' contents. 
+You can find the structure of this file in the source code.\par
+4. "emojis" folder. This file contains emojis in the .ico format. Telegacy ships with the Forumoji emojis. 
+You can add missing emojis or replace the existing ones.\par
+5. "langs" folder. Contains INI localization files in ANSI encoding for different languages. 
+Feel free to make changes or add new languages.\par
+6. "emoji.ini" file. Has aliases for all the emojis, so you can, for example, type :heart: and the heart emoji 
+will be pasted. Once again, you can do any changes you want.\par\par
+
+Also, Telegacy creates new user files in %appdata%/Telegacy/ (in case your system doesn't have %appdata%, 
+"%windir%/Application Data/Telegacy/" will be used). Those include:\par
+1. "DCs.dat" file. Contains the IP addresses and ports of all the Telegam datacenters, It also tells which datacenter 
+the current logged in account is on.\par
+2. "session.dat" file. Has everything needed for an access to your account. Updates when you exit the program, 
+except for the sequence number, which is written to this file every 10th time it changes, this measure is needed for the 
+prevention of bad consequences in case of unexpected crashes.\par
+3. "database.dat" file. Includes data about your chats and folders, as well as the default reactions and themes. 
+Updates when you exit the program.\par
+4. "fav_emojis.dat" file. Is a list of the emojis you used. Can have a maximum of 40 emojis.\par
+5. "options.ini" file. Your options are here.\par
+6. "custom_emojis" folder. The custom emojis you encounter get downloaded to this folder.\par\par
+
+When you log out, the "DCs.dat", "session.dat" and "database.dat" files get deleted.\par
+
+\page
+
+\sb115
+{\up #}{\footnote\pard\plain{\up #} DOWNLOADING_FILES}
+{\up >}{\footnote\pard\plain{\up >} default}
+\b Downloading files\b0\par
+\sb75
+
+The files in chats are shown as links. Click on one to start downloading the file you need. The files are downloaded 
+in chunks of 1 MB each, and you can see the progress on the status bar. In case a file is located on a different 
+datacenter from yours and you haven't downloaded anything from it before, you'll have to wait through the process of 
+creating an authorization key for it. You can also download the full sizes of images by clicking on their right halves.\par
+
+\page
+
+\sb115
+{\up #}{\footnote\pard\plain{\up #} UPLOADING_FILES}
+{\up >}{\footnote\pard\plain{\up >} default}
+\b Uploading files\b0\par
+\sb75
+
+Click on the attachment button on the toolbar to select the files you want to upload. After selecting the files and 
+pressing "OK", they'll be added to the list, with the attachment button getting a red indicator. It's also possible 
+to drag and drop files into the application. You can add more or remove some by clicking on them in the list. 
+"Clear this list" option removes all of them. The files will start to be uploaded after sending the message, 
+with the progress shown in the status bar, and the list will be cleared.\par
+
+Note: if the version of your comctl32.dll is 4.70 or lower, you won't get the dropdown arrow next to the attachment button. 
+To open the list of files selected for uploading, choose the "Show the uploading list" option in the Tools menu instead.\par
+
+By default, multimedia gets sent as, well, multimedia. However, you can send it as simple files if you check 
+"Send media as files" in the Tools menu. This also allows you to send lots of different files at once, when not 
+possible otherwise.\par
+
+\page
+
+\sb115
+{\up #}{\footnote\pard\plain{\up #} OPERATIONS_WITH_MESSAGES}
+{\up >}{\footnote\pard\plain{\up >} default}
+\b Operations with messages\b0\par
+\sb75
+
+There are several things you can do with messages by right clicking on them:\par
+
+1. Editing. Lets you edit your messages. Choosing this option adds the editing button to the toolbar as an indicator. 
+Click on it to cancel editing, or send the message to finish editing.\par
+2. Replying. Sending a message in the replying state will result in a message which is a reply to the message you 
+picked. Just like when editing, you'll have the replying button on the toolbar.\par
+3. Forwarding. Allows you to forward messages. The forwarding state is accompained by the forwarding button 
+and stays when going into a different chat, which lets you forward messages to different chats.\par
+4. Deleting. Deletes messages. You can choose whether to delete the specified message for yourself only or for 
+everyone. Be careful, there's no warning!\par
+5. Reacting. Right click specifically on the message footer for the reaction selector to appear.\par
+
+\page
+
+\sb115
+{\up #}{\footnote\pard\plain{\up #} PROFILES}
+{\up >}{\footnote\pard\plain{\up >} default}
+\b Profiles\b0\par
+\sb75
+
+You can see your own profile by choosing the "View profile" option in the Profile menu, or the profile of a chat 
+by choosing the same option in the Chat menu. The following information is displayed there: profile picture, name, 
+handle, birthday and bio. You can change your data or data of a group or channel you own by editing the fields. To 
+change the profile picture, click on it and choose an image you want. If you want to not show the year of your 
+birthday, choose a date of the current year.\par
+
+\page
+
+\sb115
+{\up #}{\footnote\pard\plain{\up #} OPTIONS}
+{\up >}{\footnote\pard\plain{\up >} default}
+\b Options\b0\par
+\sb75
+
+Telegacy has several options. The options you choose get applied no matter whether you press the "OK", "Cancel" 
+or the close button.\par\par
+
+\b General\b0\par
+
+1. Language. The client's language.\par
+2. Messages fetch count. How many messages get fetched when opening the chat and browsing chat history.\par
+3. Current download directory. The files you download go there.\par
+4. Minimize to tray when closing. This makes the program continue to run in the background after closing it. 
+To actually close it, go to Profile -> Exit on the main menu; the Profile menu is also shown when right clicking 
+on the tray icon.\par
+5. Use Windows notifications instead of the custom ones. This way, the notifications are shown in the default way 
+for Windows. When unchecked, the Telegacy's custom notifications will be used instead, which is the only possible 
+way if the version of your shell32.dll file is lower than 5.0. If your version is 5.x, the custom notifications 
+bring the additional functionality of being able to click on them to go to the respective chat. With Windows 
+notifications it's only possible if your version is 6.0 or above.\par
+6. Check for updates on launch. The program will check for updates on startup by connecting to the host server at 
+http://webdav.nixxo.net/telegacy/. Special thanks to NixxO for hosting.\par\par
+
+\b Content\b0\par
+
+1. How to load images in chats?\par
+
+\li345
+\f1\bullet\f0  Don't load images at all. Shows images as rectangle symbols.\par
+\f1\bullet\f0  Load just the minimal image thumbnails. Telegram sends image messages together with a very small preview, 
+which this option shows.\par
+\f1\bullet\f0  Autodownload and load the bigger sized image thumbnails. The said bigger size is up to 300x300 pixels. 
+These thumbnails don't get downloaded to disk, they stay in memory until the chat is closed. 
+This option also shows stickers.\par
+\li115
+2. Enable emojis. When unchecked, emojis are shown as rectangle symbols, and the emoji button on the toolbar 
+gets grayed out.\par
+3. Apply appropriate formatting to spoilers in chats. Makes the text with the "spoiler" formatting have a black 
+background. Since the text is black, it makes it not visible, in order to see it you need to select it. Since 
+it's a bit of an ugly workaround, you can disable it altogether.\par\par
+
+\b Theme\b0\par
+
+1. Main color. The background color of the main window.\par
+2. Chat color. The background color of the chat, the message input, folder and chat comboboxes, 
+fields in the Profile dialog window.\par
+3. Dialog color. The background color of dialog windows, as well as of the emoji and reaction choosers.\par
+4. Text color. The color of all the text.\par
+5. Individual chat themes. If a Telegram chat theme is set, this will change the main color to 
+the theme's color when opening said chat.\par
+6. Chat font. Also the font of the message input control and the profiles' "About me" field.\par
+7. Chat list font. Also the font of the folder list and most of the fields of the Profile window.\par
+8. UI font.\par\par
+
+\b Sounds\b0\par
+
+Here you can select the sounds you want for the new message notifications, as well as for the incoming and 
+outgoing messages in the current chat. The sounds have to be in the .wav format. By default, the Windows' 
+notify.wav sound is used for new message notifications; incoming/outgoing messages don't have a sound.\par\par
+
+\b Voice\b0\par
+
+Here you can choose the sample rate, the amount of bits per sample and channels used 
+when recording your voice messages.\par\par
+
+\b Proxy\b0\par
+
+Here you can set up your connection to a SOCKS5 proxy. If the IP or port aren't set, the client won't be using a proxy. 
+Username and password are needed if the proxy of your choice requires authentication. They don't matter if the proxy 
+doesn't need any credentials.\par
+
+\page
+
+\li0\ri0
+
+{\up #}{\footnote\pard\plain{\up #} LANG}
+The client's language.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} MSG_COUNT}
+How many messages get fetched when opening the chat and browsing chat history.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} DOWNLOAD_PATH}
+The files you download go there.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} DOWNLOAD_PATH_BUTTON}
+Opens the folder browse dialog to help you set the downloads folder.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} CLOSE_TO_TRAY}
+Makes the program continue to run in the background after closing it. To actually close it, go to Profile -> Exit 
+on the main menu; the Profile menu is also shown when right clicking on the tray icon.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} BALLOON}
+This way, the notifications are shown in the default way for Windows. When unchecked, the Telegacy's custom notifications 
+will be used instead, which is the only possible way if the version of your shell32.dll file is lower than 5.0. 
+If your version is 5.x, the custom notifications bring the additional functionality of being able to click on 
+them to go to the respective chat. With Windows notifications it's only possible if your version is 6.0 or above.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} UPDATES}
+The program will check for updates on startup by connecting to the host server at 
+http://webdav.nixxo.net/telegacy/.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} NO_IMAGES}
+Shows images as rectangle symbols.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} SMALL_IMAGES}
+Telegram sends image messages together with a very small preview, which this option shows.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} BIG_IMAGES}
+The said bigger size is up to 300x300 pixels. These thumbnails don't get downloaded to disk, they stay in memory 
+until the chat is closed. This option also shows stickers.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} EMOJIS}
+When unchecked, emojis are shown as rectangle symbols, and the emoji button on the toolbar 
+gets grayed out.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} SPOILERS}
+Makes the text with the "spoiler" formatting have a black background. Since the text is black, it makes it not 
+visible, in order to see it you need to select it. Since it's a bit of an ugly workaround, 
+you can disable it altogether.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} COLOR_MAIN}
+The background color of the main window.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} COLOR_CHAT}
+The background color of the chat, the message input, folder and chat comboboxes, fields in the 
+Profile dialog window.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} COLOR_DLG}
+The background color of dialog windows, as well as of the emoji and reaction choosers.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} COLOR_TEXT}
+The color of all the text.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} COLOR_SELECT}
+Opens the color selection dialog.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} COLOR_DEFAULT}
+Sets the default color.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} CHAT_THEMES}
+If a Telegram chat theme is set, this will change the main color to the theme's color when opening said chat.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} FONT_CHAT}
+The chat font. Also the font of the message input control and the profiles' "About me" field.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} FONT_SYSTEM}
+The chat list font. Also the font of the folder list and most of the fields of the Profile window.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} FONT_UI}
+The UI font.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} FONT_SELECT}
+Opens the font selection dialog.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} FONT_DEFAULT}
+Sets the default font.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} SOUND1}
+The sound that plays when the new message notification is received.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} SOUND2}
+The sound that plays when a new message in the current chat is received.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} SOUND3}
+The sound that plays when you send a message.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} SOUND_BUTTON}
+Opens the file browser dialog to help you select the sound you want.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} SOUND_BUTTON_X}
+Makes no sound play for this event.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} SAMPLE_RATE}
+The sample rate used when recording a voice message.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} BITS_PER_SAMPLE}
+The amount of bits per sample used when recording a voice message.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} CHANNELS}
+The amount of channels used when recording a voice message.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} PROXY_IP}
+The IP of a SOCKS5 proxy.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} PROXY_PORT}
+The port of a SOCKS5 proxy.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} PROXY_USERNAME}
+The username for a SOCKS5 proxy which requires authentication.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} PROXY_PASSWORD}
+The password for a SOCKS5 proxy which requires authentication.\par\page
+
+{\up #}{\footnote\pard\plain{\up #} PROXY_PASSWORD_HIDE}
+Shows or hides the password.\par\page
+}

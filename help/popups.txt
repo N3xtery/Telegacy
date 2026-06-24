@@ -1,0 +1,110 @@
+.topic LANG
+The client's language.
+
+.topic MSG_COUNT
+How many messages get fetched when opening the chat and browsing chat history.
+
+.topic DOWNLOAD_PATH
+The files you download go there.
+
+.topic DOWNLOAD_PATH_BUTTON
+Opens the folder browse dialog to help you set the downloads folder.
+
+.topic CLOSE_TO_TRAY
+Makes the program continue to run in the background after closing it. To actually close it, go to Profile -> Exit on the main menu; the Profile menu is also shown when right clicking on the tray icon.
+
+.topic BALLOON
+This way, the notifications are shown in the default way for Windows. When unchecked, the Telegacy's custom notifications will be used instead, which is the only possible way if the version of your shell32.dll file is lower than 5.0. If your version is 5.x, the custom notifications bring the additional functionality of being able to click on them to go to the respective chat. With Windows notifications it's only possible if your version is 6.0 or above.
+
+.topic UPDATES
+The program will check for updates on startup by connecting to the host server at http://webdav.nixxo.net/telegacy/.
+
+.topic NO_IMAGES
+Shows images as rectangle symbols.
+
+.topic SMALL_IMAGES
+Telegram sends image messages together with a very small preview, which this option shows.
+
+.topic BIG_IMAGES
+The said bigger size is up to 300x300 pixels. These thumbnails don't get downloaded to disk, they stay in memory until the chat is closed. This option also shows stickers.
+
+.topic EMOJIS
+When unchecked, emojis are shown as rectangle symbols, and the emoji button on the toolbar gets grayed out.
+
+.topic SPOILERS
+Makes the text with the "spoiler" formatting have a black background. Since the text is black, it makes it not visible, in order to see it you need to select it. Since it's a bit of an ugly workaround, you can disable it altogether.
+
+.topic COLOR_MAIN
+The background color of the main window.
+
+.topic COLOR_CHAT
+The background color of the chat, the message input, folder and chat comboboxes, fields in the Profile dialog window.
+
+.topic COLOR_DLG
+The background color of dialog windows, as well as of the emoji and reaction choosers.
+
+.topic COLOR_TEXT
+The color of all the text.
+
+.topic COLOR_SELECT
+Opens the color selection dialog.
+
+.topic COLOR_DEFAULT
+Sets the default color.
+
+.topic CHAT_THEMES
+If a Telegram chat theme is set, this will change the main color to the theme's color when opening said chat.
+
+.topic FONT_CHAT
+The chat font. Also the font of the message input control and the profiles' "About me" field.
+
+.topic FONT_SYSTEM
+The chat list font. Also the font of the folder list and most of the fields of the Profile window.
+
+.topic FONT_UI
+The UI font.
+
+.topic FONT_SELECT
+Opens the font selection dialog.
+
+.topic FONT_DEFAULT
+Sets the default font.
+
+.topic SOUND1
+The sound that plays when the new message notification is received.
+
+.topic SOUND2
+The sound that plays when a new message in the current chat is received.
+
+.topic SOUND3
+The sound that plays when you send a message.
+
+.topic SOUND_BUTTON
+Opens the file browser dialog to help you select the sound you want.
+
+.topic SOUND_BUTTON_X
+Makes no sound play for this event.
+
+.topic SAMPLE_RATE
+The sample rate used when recording a voice message.
+
+.topic BITS_PER_SAMPLE
+The amount of bits per sample used when recording a voice message.
+
+.topic CHANNELS
+The amount of channels used when recording a voice message.
+
+.topic PROXY_IP
+The IP of a SOCKS5 proxy.
+
+.topic PROXY_PORT
+The port of a SOCKS5 proxy.
+
+.topic PROXY_USERNAME
+The username for a SOCKS5 proxy which requires authentication.
+
+.topic PROXY_PASSWORD
+The password for a SOCKS5 proxy which requires authentication.
+
+.topic PROXY_PASSWORD_HIDE
+Shows or hides the password.

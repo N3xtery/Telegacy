@@ -13,10 +13,27 @@ You should have received a copy of the GNU General Public License along with Tel
 #include <telegacy.h>
 
 WNDPROC oldMsgInputProc, oldChatProc, oldEmojiScrollProc, oldEmojiStaticProc, oldReactionStaticProc, oldEmojiScrollFallbackProc, oldSplitterProc, oldReactionButtonProc;
-WNDPROC oldNameProc, oldHandleProc, oldAboutProc, oldBirthdayProc, oldOptionsTabsProc;
+WNDPROC oldNameProc, oldHandleProc, oldAboutProc, oldBirthdayProc, oldColor0Proc, oldColor1Proc, oldColor2Proc, oldColor3Proc, oldOptionsTabsProc;
 HWND buttonOK, buttonCancel, langSelect, name, handle, about, birthday, hOptionsTabs, msgEdit, downloadEdit = NULL;
 HWND sound_edits[3] = {0};
 HWND font_edits[3] = {0};
+HWND color_edits[4] = {0};
+
+void manual_dtp_text_paint() {
+	HDC hDC = GetDC(birthday);
+	SetTextColor(hDC, colors[3]);
+	SetBkColor(hDC, colors[1]);
+	wchar_t buf[32];
+	GetWindowText(birthday, buf, 32);
+	RECT rc;
+	GetClientRect(birthday, &rc);
+	HFONT hOldFont = (HFONT)SelectObject(hDC, hFonts[1]);
+	rc.left += 20;
+	DrawText(hDC, buf, -1, &rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+	SelectObject(hDC, hOldFont);
+	ReleaseDC(birthday, hDC);
+}
+
 LRESULT CALLBACK WndProcDisabled(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
 	case WM_LBUTTONDOWN:
@@ -26,7 +43,13 @@ LRESULT CALLBACK WndProcDisabled(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	case WM_MBUTTONDOWN:
 	case WM_MBUTTONDBLCLK:
 	case WM_PAINT:
-		if (hWnd == birthday && ie3 && msg != WM_PAINT) return 0;
+		if (hWnd == birthday && ie3 && msg == WM_PAINT) {
+			LRESULT res = CallWindowProc(oldBirthdayProc, hWnd, msg, wParam, lParam);
+			manual_dtp_text_paint();
+			HideCaret(hWnd);
+			return res;
+		}
+		if (((hWnd == birthday && ie3) || hWnd == color_edits[0] || hWnd == color_edits[1] || hWnd == color_edits[2]) && msg != WM_PAINT) return 0;
 		else HideCaret(hWnd);
 		break;
 	case WM_KEYDOWN:
@@ -36,12 +59,24 @@ LRESULT CALLBACK WndProcDisabled(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			return 0;
 		}
 		break;
+	case WM_ERASEBKGND:
+		if (hWnd == birthday) {
+			RECT rc;
+			GetClientRect(hWnd, &rc);
+			FillRect((HDC)wParam, &rc, hBrushes[1]);
+			return TRUE;
+		}
+		break;
 	}
 	WNDPROC oldProc;
 	if (hWnd == name) oldProc = oldNameProc;
 	else if (hWnd == handle) oldProc = oldHandleProc;
 	else if (hWnd == about) oldProc = oldAboutProc;
 	else if (hWnd == birthday) oldProc = oldBirthdayProc;
+	else if (hWnd == color_edits[0]) oldProc = oldColor0Proc;
+	else if (hWnd == color_edits[1]) oldProc = oldColor1Proc;
+	else if (hWnd == color_edits[2]) oldProc = oldColor2Proc;
+	else if (hWnd == color_edits[3]) oldProc = oldColor3Proc;
 	return CallWindowProc(oldProc, hWnd, msg, wParam, lParam);
 }
 
@@ -71,8 +106,20 @@ void apply_fonts(HWND parent) {
 }
 
 void update_fonts(int index) {
-	if (index == 0) SendMessage(msgInput, WM_SETFONT, (WPARAM)hFonts[0], TRUE);
-	else if (index == 1) {
+	if (index == 0) {
+		CHARFORMAT2 cf;
+		cf.cbSize = sizeof(cf);
+		cf.dwMask = CFM_FACE | CFM_SIZE | CFM_ITALIC | CFM_WEIGHT;
+		LOGFONT lf = {0};
+		GetObject(hFonts[0], sizeof(lf), &lf);
+		wcscpy(cf.szFaceName, lf.lfFaceName);
+		cf.wWeight = lf.lfWeight;
+		cf.dwEffects = lf.lfItalic ? CFE_ITALIC : 0;
+		convert_negative_lfheight(&lf, 0);
+		cf.yHeight = MulDiv(-lf.lfHeight, 144, dpi) * 10;
+		SendMessage(chat, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
+		SendMessage(msgInput, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
+	} else if (index == 1) {
 		SendMessage(hComboBoxChats, WM_SETFONT, (WPARAM)hFonts[1], TRUE);
 		SendMessage(hComboBoxFolders, WM_SETFONT, (WPARAM)hFonts[1], TRUE);
 	} else {
@@ -88,53 +135,80 @@ void insert_options_tabs() {
 		TCITEM tie = {0};
 		tie.mask = TCIF_TEXT;
 		tie.pszText = lang_str;
-		GetPrivateProfileString(LANG, L"oc_g", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("oc_g", lang_str, NULL);
 		SendMessage(hOptionsTabs, TCM_INSERTITEM, 0, (LPARAM)&tie);
-		GetPrivateProfileString(LANG, L"oc_c", L"", lang_str, 100, exe_path);
+		get_lang_string("oc_c", lang_str, NULL);
 		SendMessage(hOptionsTabs, TCM_INSERTITEM, 1, (LPARAM)&tie);
-		GetPrivateProfileString(LANG, L"oc_f", L"", lang_str, 100, exe_path);
+		get_lang_string("oc_t", lang_str, NULL);
 		SendMessage(hOptionsTabs, TCM_INSERTITEM, 2, (LPARAM)&tie);
-		GetPrivateProfileString(LANG, L"oc_s", L"", lang_str, 100, exe_path);
+		get_lang_string("oc_s", lang_str, NULL);
 		SendMessage(hOptionsTabs, TCM_INSERTITEM, 3, (LPARAM)&tie);
-		GetPrivateProfileString(LANG, L"oc_v", L"", lang_str, 100, exe_path);
+		get_lang_string("oc_v", lang_str, NULL);
 		SendMessage(hOptionsTabs, TCM_INSERTITEM, 4, (LPARAM)&tie);
-		GetPrivateProfileString(LANG, L"oc_p", L"", lang_str, 100, exe_path);
+		get_lang_string("oc_p", lang_str, NULL);
 		SendMessage(hOptionsTabs, TCM_INSERTITEM, 5, (LPARAM)&tie);
 	} else {
 		TCITEMA tie = {0};
 		tie.mask = TCIF_TEXT;
-		char lang_str[100];
-		tie.pszText = lang_str;
-		get_path(exe_path, L"lang.ini");
-		char exe_path[MAX_PATH];
-		WideCharToMultiByte(CP_ACP, 0, ::exe_path, -1, exe_path, sizeof(exe_path), NULL, NULL);
-		char LANG[4];
-		WideCharToMultiByte(CP_ACP, 0, ::LANG, -1, LANG, sizeof(LANG), NULL, NULL);
-		GetPrivateProfileStringA(LANG, "oc_g", "", lang_str, 100, exe_path);
+		tie.pszText = lang_str_ansi;
+		get_lang_string("oc_g", NULL, lang_str_ansi);
 		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 0, (LPARAM)&tie);
-		GetPrivateProfileStringA(LANG, "oc_c", "", lang_str, 100, exe_path);
+		get_lang_string("oc_c", NULL, lang_str_ansi);
 		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 1, (LPARAM)&tie);
-		GetPrivateProfileStringA(LANG, "oc_f", "", lang_str, 100, exe_path);
+		get_lang_string("oc_t", NULL, lang_str_ansi);
 		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 2, (LPARAM)&tie);
-		GetPrivateProfileStringA(LANG, "oc_s", "", lang_str, 100, exe_path);
+		get_lang_string("oc_s", NULL, lang_str_ansi);
 		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 3, (LPARAM)&tie);
-		GetPrivateProfileStringA(LANG, "oc_v", "", lang_str, 100, exe_path);
+		get_lang_string("oc_v", NULL, lang_str_ansi);
 		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 4, (LPARAM)&tie);
-		GetPrivateProfileStringA(LANG, "oc_p", "", lang_str, 100, exe_path);
+		get_lang_string("oc_p", NULL, lang_str_ansi);
 		SendMessage(hOptionsTabs, TCM_INSERTITEMA, 5, (LPARAM)&tie);
+	}
+}
+
+void update_theme(int index) {
+	DeleteObject(hBrushes[index]);
+	hBrushes[index] = CreateSolidBrush(colors[index]);
+	if (index == 0 && !theme_brush) SetClassLongPtr(hMain, GCLP_HBRBACKGROUND, (LONG_PTR)hBrushes[index]);
+	if (index >= 2) InvalidateRect(current_dialog, NULL, TRUE);
+	else InvalidateRect(color_edits[index], NULL, TRUE);
+	if ((index == 0 && !theme_brush) || index == 3) update_toolbar();
+	if (index == 1) {
+		SendMessage(chat, EM_SETBKGNDCOLOR, 0, colors[index]);
+		SendMessage(msgInput, EM_SETBKGNDCOLOR, 0, colors[index]);
+	}
+	if (index == 1 || index == 3) {
+		CHARFORMAT2 cf;
+		cf.cbSize = sizeof(cf);
+		cf.dwMask = CFM_COLOR | CFM_BACKCOLOR;
+		cf.dwEffects = 0;
+		cf.crTextColor = colors[3];
+		cf.crBackColor = colors[1];
+		SendMessage(msgInput, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
+		SendMessage(chat, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
+	}
+	if (index != 2 && !(theme_brush && index == 0)) {
+		InvalidateRect(hMain, NULL, TRUE);
+		SCROLLINFO si = {0};
+		si.cbSize = sizeof(si);
+		si.fMask = SIF_POS;
+		GetScrollInfo(chat, SB_VERT, &si);
+		SendMessage(chat, WM_VSCROLL, MAKEWPARAM(SB_THUMBPOSITION, si.nPos), 0);
 	}
 }
 
 bool pass_pushed = false;
 LRESULT CALLBACK WndProcOptionsTabs(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
+	case WM_CTLCOLORBTN:
+		return back_brush((HDC)wParam);
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
 		case 10: {
 			wchar_t path[MAX_PATH];
 			BROWSEINFO bi = {0};
 			bi.hwndOwner = hWnd;
-			bi.lpszTitle = L"Select a folder";
+			bi.lpszTitle = L"";
 			bi.ulFlags = BIF_RETURNONLYFSDIRS;
 			LPITEMIDLIST pidl = SHBrowseForFolder(&bi);
 			if (pidl) {
@@ -213,26 +287,26 @@ LRESULT CALLBACK WndProcOptionsTabs(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				if (selIndex == 0) SAMPLERATE = 8000;
 				else if (selIndex == 1) SAMPLERATE = 16000;
 				else if (selIndex == 2) SAMPLERATE = 44100;
-				else SAMPLERATE = 48000;
+				else if (selIndex == 3) SAMPLERATE = 48000;
 				SetFocus(hOptionsTabs);
-			}
+			} else if (nt3 && HIWORD(wParam) == CBN_DROPDOWN) nt3_combobox_fit((HWND)lParam);
 			break;
 		case 25:
 			if (HIWORD(wParam) == CBN_SELCHANGE) {
 				int selIndex = SendMessage((HWND)lParam, CB_GETCURSEL, 0, 0);
 				if (selIndex == 0) BITSPERSAMPLE = 8;
 				else if (selIndex == 1) BITSPERSAMPLE = 16;
-				else BITSPERSAMPLE = 24;
+				else if (selIndex == 2) BITSPERSAMPLE = 24;
 				SetFocus(hOptionsTabs);
-			}
+			} else if (nt3 && HIWORD(wParam) == CBN_DROPDOWN) nt3_combobox_fit((HWND)lParam);
 			break;
 		case 26:
 			if (HIWORD(wParam) == CBN_SELCHANGE) {
 				int selIndex = SendMessage((HWND)lParam, CB_GETCURSEL, 0, 0);
 				if (selIndex == 0) CHANNELS = 1;
-				else CHANNELS = 2;
+				else if (selIndex == 1) CHANNELS = 2;
 				SetFocus(hOptionsTabs);
-			}
+			} else if (nt3 && HIWORD(wParam) == CBN_DROPDOWN) nt3_combobox_fit((HWND)lParam);
 			break;
 		case 31:
 			if (pass_pushed) SendMessage(hProxyPassword, EM_SETPASSWORDCHAR, (WPARAM)'*', NULL);
@@ -281,24 +355,33 @@ LRESULT CALLBACK WndProcOptionsTabs(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			break;
 		}
 		case 42: {
-			int selIndex = SendMessage(langSelect, CB_GETCURSEL, 0, 0);
-			if (selIndex == - 1 || HIWORD(wParam) != CBN_SELCHANGE) break;
-			int index = SendMessage(langSelect, CB_GETITEMDATA, selIndex, NULL);
-			GetPrivateProfileString(L"List", L"list", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
-			wchar_t* lang_id = wcstok(lang_str, L",");
-			for (int i = 0; i < index; i++) {
-				lang_id = wcstok(NULL, L",");
-				if (!lang_id) break;
+			if (nt3 && HIWORD(wParam) == CBN_DROPDOWN) nt3_combobox_fit((HWND)lParam);
+			int index = SendMessage(langSelect, CB_GETCURSEL, 0, 0);
+			if (index == -1 || HIWORD(wParam) != CBN_SELCHANGE) break;
+
+			WIN32_FIND_DATAA fd;
+			strcpy(strrchr(lang_path, '\\') + 1, "*");
+			HANDLE hFind = FindFirstFileA(lang_path, &fd);
+			int i = 0;
+			if (hFind != INVALID_HANDLE_VALUE) {
+				do {
+					if (fd.cFileName[0] == '.') continue;
+					if (i == index) break;
+					i++;
+				} while (FindNextFileA(hFind, &fd));
+				FindClose(hFind);
 			}
-			if (lang_id) {
-				if (wcscmp(LANG, lang_id) == 0) break;
-				else wcscpy(LANG, lang_id);
-			}
-			GetPrivateProfileString(LANG, L"o", L"", lang_str, 100, exe_path);
+			strcpy(strrchr(lang_path, '*'), fd.cFileName);
+			int len = fd.cFileName[2] == '.' ? 2 : 3;
+			strncpy(LANG, fd.cFileName, len);
+			LANG[len] = '\0';
+
+			lang_codepage = GetPrivateProfileIntA(LANG, "codepage", 0, lang_path);
+			get_lang_string("o", lang_str, NULL);
 			SetWindowText(current_dialog, lang_str);
-			GetPrivateProfileString(LANG, L"ok", L"", lang_str, 100, exe_path);
+			get_lang_string("ok", lang_str, NULL);
 			SetWindowText(buttonOK, lang_str);
-			GetPrivateProfileString(LANG, L"cancel", L"", lang_str, 100, exe_path);
+			get_lang_string("cancel", lang_str, NULL);
 			SetWindowText(buttonCancel, lang_str);
 			SendMessage(hOptionsTabs, TCM_DELETEALLITEMS, NULL, NULL);
 			insert_options_tabs();
@@ -307,28 +390,116 @@ LRESULT CALLBACK WndProcOptionsTabs(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			hdr.code = TCN_SELCHANGE;
 			SendMessage(current_dialog, WM_NOTIFY, NULL, (LPARAM)&hdr);
 			set_menu(hMain);
-			GetPrivateProfileString(LANG, L"all", L"", lang_str, 100, exe_path);
+			get_lang_string("all", lang_str, NULL);
 			free(folders[0].name);
 			folders[0].name = _wcsdup(lang_str);
 			InvalidateRect(hComboBoxFolders, NULL, FALSE);
+			
+			if (ie4) {
+				TBBUTTONINFO tbi = {0};
+				tbi.cbSize = sizeof(tbi);
+				tbi.dwMask = TBIF_TEXT;
+				tbi.pszText = lang_str;
+				get_lang_string("t_b", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 10, (LPARAM)&tbi);
+				get_lang_string("t_i", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 11, (LPARAM)&tbi);
+				get_lang_string("t_u", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 12, (LPARAM)&tbi);
+				get_lang_string("t_s", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 13, (LPARAM)&tbi);
+				get_lang_string("t_q", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 14, (LPARAM)&tbi);
+				get_lang_string("t_m", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 15, (LPARAM)&tbi);
+				get_lang_string("t_spl", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 16, (LPARAM)&tbi);
+				get_lang_string("t_rep", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 7, (LPARAM)&tbi);
+				get_lang_string("t_edt", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 8, (LPARAM)&tbi);
+				get_lang_string("t_fwd", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 19, (LPARAM)&tbi);
+				get_lang_string("t_att", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 4, (LPARAM)&tbi);
+				get_lang_string("t_rec", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 6, (LPARAM)&tbi);
+				get_lang_string("t_emj", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 5, (LPARAM)&tbi);
+				get_lang_string("t_snd", lang_str, NULL);
+				SendMessage(hToolbar, TB_SETBUTTONINFO, 1, (LPARAM)&tbi);
+			}
 			break;
 		}
+		case 44:
+			if (HIWORD(wParam) == BN_CLICKED) CHECKUPDATES = SendMessage((HWND)lParam, BM_GETCHECK, 0, 0) ? true : false;
+			break;
+		case 49:
+		case 50:
+		case 51:
+		case 52: {
+			int index = LOWORD(wParam) - 49;
+			CHOOSECOLOR cc = {0};
+			static COLORREF customColors[16] = {0};
+			cc.lStructSize = sizeof(cc);
+			cc.hwndOwner = current_dialog;
+			cc.lpCustColors = customColors;
+			cc.rgbResult = colors[index];
+			cc.Flags = CC_RGBINIT | CC_FULLOPEN;
+			if (ChooseColor(&cc)) {
+				colors[index] = cc.rgbResult;
+				update_theme(index);
+			}
+			break;
+		}
+		case 53:
+			colors[0] = GetSysColor(COLOR_WINDOW);
+			update_theme(0);
+			break;
+		case 54:
+			colors[1] = GetSysColor(COLOR_WINDOW);
+			update_theme(1);
+			break;
+		case 55:
+			colors[2] = GetSysColor(nt3 ? COLOR_WINDOW : COLOR_BTNFACE);
+			update_theme(2);
+			break;
+		case 56:
+			colors[3] = GetSysColor(COLOR_WINDOWTEXT);
+			update_theme(3);
+			break;
+		case 57:
+			if (HIWORD(wParam) == BN_CLICKED) CHATTHEMES = SendMessage((HWND)lParam, BM_GETCHECK, 0, 0) ? true : false;
+			break;
 		}
 		break;
 	case WM_ERASEBKGND:
-		if (nt3) {
-			RECT rc;
-			GetClientRect(hWnd, &rc);
-			FillRect((HDC)wParam, &rc, (HBRUSH)GetStockObject(WHITE_BRUSH));
-			return TRUE;
-		}
+		RECT rc;
+		GetClientRect(hWnd, &rc);
+		FillRect((HDC)wParam, &rc, hBrushes[2]);
+		return TRUE;
+	case WM_CTLCOLOREDIT:
+		if ((HWND)lParam == color_edits[0]) return (LRESULT)hBrushes[0];
+		else if ((HWND)lParam == color_edits[1]) return (LRESULT)hBrushes[1];
+		else if ((HWND)lParam == color_edits[2]) return (LRESULT)GetStockObject(NULL_BRUSH);
+		else if ((HWND)lParam == color_edits[3]) return (LRESULT)hBrushes[3];
 		break;
+	case WM_CTLCOLORSTATIC:
+		return back_brush((HDC)wParam);
 	case WM_DRAWITEM: {
 		DRAWITEMSTRUCT* lpdis = (DRAWITEMSTRUCT*)lParam;
 		if (lpdis->CtlType == ODT_COMBOBOX) {
+			FillRect(lpdis->hDC, &lpdis->rcItem, GetSysColorBrush(lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3 ? COLOR_HIGHLIGHT : COLOR_WINDOW));
+			if (lpdis->itemID == -1) break;
 			LRESULT res;
-			SendMessage(lpdis->hwndItem, CB_GETLBTEXT, lpdis->itemID, (LPARAM)lang_str);
-			riched_write(NULL, lang_str);
+			wchar_t* lang_name = NULL;
+			if (lpdis->hwndItem == langSelect) {
+				SendMessage(lpdis->hwndItem, CB_GETLBTEXT, lpdis->itemID, (LPARAM)&lang_name);
+				riched_write(NULL, lang_name);
+			} else {
+				SendMessage(lpdis->hwndItem, CB_GETLBTEXT, lpdis->itemID, (LPARAM)lang_str);
+				riched_write(NULL, lang_str);
+			}
 
 			LOGFONT lf = {0};
 			GetObject(hFonts[2], sizeof(lf), &lf);
@@ -346,21 +517,11 @@ LRESULT CALLBACK WndProcOptionsTabs(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			SelectObject(lpdis->hDC, hFonts[2]);
 			TEXTMETRIC tm = {0};
 			GetTextMetrics(lpdis->hDC, &tm);
-			RECTL myrect = {0, 0, lpdis->rcItem.right - lpdis->rcItem.left, 16};
-			HDC hRefDC = GetDC(NULL);
-			HDC memDC = CreateCompatibleDC(hRefDC);
-			HBITMAP hbm = CreateCompatibleBitmap(lpdis->hDC, myrect.right, myrect.bottom);
-			HBITMAP hbmOld = (HBITMAP)SelectObject(memDC, hbm);
 
-			FillRect(memDC, (RECT*)&myrect, GetSysColorBrush(lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3 ? COLOR_HIGHLIGHT : COLOR_WINDOW));
-			if (tm.tmDescent < 3) myrect.top += 3 - tm.tmDescent;
-			myrect.left += 1;
-			textHost->textServices->TxDraw(DVASPECT_CONTENT, -1, NULL, NULL, memDC, NULL, &myrect, NULL, NULL, NULL, NULL, TXTVIEW_INACTIVE);
-			BitBlt(lpdis->hDC, lpdis->rcItem.left, lpdis->rcItem.top == 3 ? 2 : lpdis->rcItem.top, myrect.right, myrect.bottom, memDC, 0, 0, SRCCOPY);
-			SelectObject(memDC, hbmOld);
-			DeleteObject(hbm);
-			DeleteDC(memDC);
-			ReleaseDC(NULL, hRefDC);
+			if (lpdis->rcItem.top == 3) lpdis->rcItem.top--;
+			if (tm.tmDescent < 3) lpdis->rcItem.top += 3 - tm.tmDescent;
+			lpdis->rcItem.left += 1;
+			textHost->textServices->TxDraw(DVASPECT_CONTENT, -1, NULL, NULL, lpdis->hDC, NULL, (RECTL*)&lpdis->rcItem, NULL, NULL, NULL, NULL, TXTVIEW_INACTIVE);
 
 			textHost->textServices->TxSendMessage(EM_SETSEL, 0, -1, &res);
 			textHost->textServices->TxSendMessage(EM_REPLACESEL, 0, (LPARAM)L"", &res);
@@ -381,6 +542,12 @@ void apply_edits() {
 		wchar_t buf[3];
 		GetWindowText(msgEdit, buf, 3);
 		MSGSFETCHCOUNT = _wtoi(buf);
+
+		for (int i = 0; i < SendMessage(langSelect, CB_GETCOUNT, NULL, NULL); i++) {
+			wchar_t* lang_name = NULL;
+			SendMessage(langSelect, CB_GETLBTEXT, i, (LPARAM)&lang_name);
+			free(lang_name);
+		}
 	}
 	for (int i = 0; i < 3; i++) {
 		if (sound_edits[i]) {
@@ -417,11 +584,24 @@ void apply_edits() {
 	}
 }
 
+WNDPROC oldUpdateProc;
+LRESULT CALLBACK WndProcCheckbox(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+	switch (msg) {
+	case WM_ERASEBKGND: {
+		RECT rc;
+		GetClientRect(hWnd, &rc);
+		FillRect((HDC)wParam, &rc, hBrushes[3]);
+		return TRUE;
+	}
+	}
+	return CallWindowProc(oldUpdateProc, hWnd, msg, wParam, lParam);
+}
+
 bool options_modal = false;
 INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
 	case WM_INITDIALOG: {
-		hOptionsTabs = CreateWindowEx(WS_EX_CONTROLPARENT, WC_TABCONTROL, NULL, WS_CHILD | WS_VISIBLE | (nt3 ? TCS_OWNERDRAWFIXED : 0), 5, 5, 390, 190, hDlg, (HMENU)5, NULL, NULL);
+		hOptionsTabs = CreateWindowEx(WS_EX_CONTROLPARENT, WC_TABCONTROL, NULL, WS_CHILD | WS_VISIBLE | TCS_OWNERDRAWFIXED, 5, 5, 390, 195, hDlg, (HMENU)5, NULL, NULL);
 		oldOptionsTabsProc = (WNDPROC)SetWindowLongPtr(hOptionsTabs, GWLP_WNDPROC, (LONG_PTR)WndProcOptionsTabs);
 		insert_options_tabs();
 
@@ -437,14 +617,14 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 		hdr.code = TCN_SELCHANGE;
 		SendMessage(hDlg, WM_NOTIFY, NULL, (LPARAM)&hdr);
 
-		GetPrivateProfileString(LANG, L"ok", L"", lang_str, 100, exe_path);
-		buttonOK = CreateWindowEx(0, L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 260, 200, 65, 21, hDlg, (HMENU)IDOK, 0, NULL);
-		GetPrivateProfileString(LANG, L"cancel", L"", lang_str, 100, exe_path);
-		buttonCancel = CreateWindowEx(0, L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 330, 200, 65, 21, hDlg, (HMENU)IDCANCEL, 0, NULL);
+		get_lang_string("ok", lang_str, NULL);
+		buttonOK = CreateWindowEx(0, L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 260, 205, 65, 21, hDlg, (HMENU)IDOK, 0, NULL);
+		get_lang_string("cancel", lang_str, NULL);
+		buttonCancel = CreateWindowEx(0, L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 330, 205, 65, 21, hDlg, (HMENU)IDCANCEL, 0, NULL);
 		
 		apply_fonts(hDlg);
 
-		GetPrivateProfileString(LANG, L"o", L"", lang_str, 100, exe_path);
+		get_lang_string("o", lang_str, NULL);
 		SetWindowText(hDlg, lang_str);
 		place_dialog_center(hDlg, true);
 		SetFocus(hOptionsTabs);
@@ -457,7 +637,7 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 		HELPINFO* hi = (HELPINFO*)lParam;
 		if (hi->iContextType == HELPINFO_WINDOW) {
 			int id = GetDlgCtrlID((HWND)hi->hItemHandle);
-			if (id >= 6 && id <= 40) {
+			if (id >= 6 && id <= 57) {
 				if (GetFileAttributes(get_path(exe_path, L"help.hlp")) == -1 || nt6 || !WinHelp(hDlg, exe_path, HELP_CONTEXTPOPUP, id)) {
 					HH_POPUP hhp;
 					hhp.cbStruct = sizeof(hhp);
@@ -466,6 +646,8 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 					else if (id == 22 || id == 23) hhp.idString = 21;
 					else if (id == 36 || id == 37) hhp.idString = 35;
 					else if (id == 39 || id == 40) hhp.idString = 38;
+					else if (id >= 50 && id <= 52) hhp.idString = 49;
+					else if (id >= 54 && id <= 56) hhp.idString = 53;
 					else hhp.idString = id;
 					wchar_t path[MAX_PATH];
 					swprintf(path, L"%s::/popups.txt", get_path(exe_path, L"help.chm"));
@@ -497,27 +679,37 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 			}
 			switch (TabCtrl_GetCurSel(hOptionsTabs)) {
 			case 0: {
-				GetPrivateProfileString(LANG, L"o_lang", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("o_lang", lang_str, NULL);
 				HWND langInfo = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 30, 180, 15, hOptionsTabs, (HMENU)42, NULL, NULL);
-				langSelect = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP, 10, 45, 180, 100, hOptionsTabs, (HMENU)42, NULL, NULL);
-				wchar_t lang_str[100];
-				GetPrivateProfileString(L"List", L"list", L"", lang_str, 100, exe_path);
-				wchar_t* lang_id = wcstok(lang_str, L",");
-				int i = 0, j = 0;
-				while (lang_id != NULL) {
-					wchar_t lang_name[25];
-					GetPrivateProfileString(lang_id, L"name", L"", lang_name, 25, exe_path);
-					if (lang_name[0]) {
-						SendMessage(langSelect, CB_ADDSTRING, NULL, (LPARAM)lang_name);
-						SendMessage(langSelect, CB_SETITEMDATA, j, i);
-						if (wcscmp(lang_id, LANG) == 0) SendMessage(langSelect, CB_SETCURSEL, j, NULL);
-						j++;
-					}
-					lang_id = wcstok(NULL, L",");
-					i++;
-				}
+				langSelect = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP, 10, 45, 180, 300, hOptionsTabs, (HMENU)42, NULL, NULL);
+				SendMessage(langSelect, CB_SETITEMHEIGHT, -1, nt3 ? 20 : 14);
 
-				GetPrivateProfileString(LANG, L"o_msgc", L"", lang_str, 100, exe_path);
+				WIN32_FIND_DATAA fd;
+				strcpy(strrchr(lang_path, '\\') + 1, "*");
+				HANDLE hFind = FindFirstFileA(lang_path, &fd);
+				int i = 0;
+				if (hFind != INVALID_HANDLE_VALUE) {
+					do {
+						if (fd.cFileName[0] == '.') continue;
+						strcpy(strrchr(lang_path, '\\') + 1, fd.cFileName);
+						char lang_id[4] = {0};
+						if (fd.cFileName[2] == '.') strncpy(lang_id, fd.cFileName, 2);
+						else strncpy(lang_id, fd.cFileName, 3);
+						char lang_name[25];
+						GetPrivateProfileStringA(lang_id, "name", "", lang_name, 25, lang_path);
+						int codepage = GetPrivateProfileIntA(lang_id, "codepage", 0, lang_path);
+						if (!MultiByteToWideChar(codepage, 0, lang_name, -1, lang_str, 100))
+							MultiByteToWideChar(CP_ACP, 0, lang_id, -1, lang_str, 100);
+						SendMessage(langSelect, CB_ADDSTRING, NULL, (LPARAM)_wcsdup(lang_str));
+						if (strcmp(lang_id, LANG) == 0) SendMessage(langSelect, CB_SETCURSEL, i, NULL);
+						i++;
+					} while (FindNextFileA(hFind, &fd));
+					FindClose(hFind);
+				}
+				strcpy(strrchr(lang_path, '\\') + 1, LANG);
+				strcat(lang_path, ".ini");
+
+				get_lang_string("o_msgc", lang_str, NULL);
 				HWND msgInfo = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 200, 30, 180, 15, hOptionsTabs, (HMENU)43, NULL, NULL);
 				msgEdit = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_NUMBER | ES_AUTOHSCROLL, 200, 45, 180, 20, hOptionsTabs, (HMENU)43, NULL, NULL);
 				SendMessage(msgEdit, EM_LIMITTEXT, 2, NULL);
@@ -525,17 +717,18 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 				SendMessage(msgUpDown, UDM_SETBUDDY, (WPARAM)msgEdit, NULL);
 				SendMessage(msgUpDown, UDM_SETRANGE, 0, MAKELPARAM(99, 0));
 
-				GetPrivateProfileString(LANG, L"o_down", L"", lang_str, 100, exe_path);
+				get_lang_string("o_down", lang_str, NULL);
 				HWND downloadInfo = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 70, 370, 15, hOptionsTabs, (HMENU)6, NULL, NULL);
 				downloadEdit = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 85, 345, 20, hOptionsTabs, (HMENU)6, NULL, NULL);
 				HWND browse = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 360, 85, 20, 20, hOptionsTabs, (HMENU)10, 0, NULL);
 
-				GetPrivateProfileString(LANG, L"o_min", L"", lang_str, 100, exe_path);
-				HWND trayCheckbox = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 115, 370, 20, hOptionsTabs, (HMENU)11, NULL, NULL);
-				GetPrivateProfileString(LANG, L"o_ball", L"", lang_str, 100, exe_path);
-				HWND balloonCheckbox = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 140, 370, 20, hOptionsTabs, (HMENU)12, NULL, NULL);
+				get_lang_string("o_min", lang_str, NULL);
+				HWND trayCheckbox = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 114, 370, 20, hOptionsTabs, (HMENU)11, NULL, NULL);
+				get_lang_string("o_ball", lang_str, NULL);
+				HWND balloonCheckbox = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 139, 370, 20, hOptionsTabs, (HMENU)12, NULL, NULL);
+				get_lang_string("o_upd", lang_str, NULL);
+				HWND updCheckbox = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 164, 370, 20, hOptionsTabs, (HMENU)44, NULL, NULL);
 				apply_fonts(hOptionsTabs);
-				SendMessage(langSelect, CB_SETITEMHEIGHT, -1, 14);
 				SendMessage(downloadEdit, EM_SETMARGINS, EC_LEFTMARGIN, 1);
 				SendMessage(msgEdit, EM_SETMARGINS, EC_LEFTMARGIN, 1);
 
@@ -550,26 +743,28 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 				if (CLOSETOTRAY) SendMessage(trayCheckbox, BM_SETCHECK, BST_CHECKED, 0);
 				if (balloon_notifications) SendMessage(balloonCheckbox, BM_SETCHECK, BST_CHECKED, 0);
 				if (!balloon_notifications_available) EnableWindow(balloonCheckbox, FALSE);
+				if (CHECKUPDATES) SendMessage(updCheckbox, BM_SETCHECK, BST_CHECKED, 0);
 				if (nt3) {
 					EnableWindow(trayCheckbox, FALSE);
 					EnableWindow(browse, FALSE);
 				}
+				oldUpdateProc = (WNDPROC)SetWindowLongPtr(updCheckbox, GWLP_WNDPROC, (LONG_PTR)WndProcCheckbox);
 				break;
 			}
 			case 1: {
-				GetPrivateProfileString(LANG, L"o_img", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("o_img", lang_str, NULL);
 				HWND grp = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_GROUPBOX, 10, 30, 370, 100, hOptionsTabs, NULL, NULL, NULL);
 				HWND imagehwnds[3];
-				GetPrivateProfileString(LANG, L"o_img0", L"", lang_str, 100, exe_path);
+				get_lang_string("o_img0", lang_str, NULL);
 				imagehwnds[0] = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP, 15, 50, 360, 20, hOptionsTabs, (HMENU)13, NULL, NULL);
-				GetPrivateProfileString(LANG, L"o_img1", L"", lang_str, 100, exe_path);
+				get_lang_string("o_img1", lang_str, NULL);
 				imagehwnds[1] = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_TABSTOP, 15, 75, 360, 20, hOptionsTabs, (HMENU)14, NULL, NULL);
-				GetPrivateProfileString(LANG, L"o_img2", L"", lang_str, 100, exe_path);
+				get_lang_string("o_img2", lang_str, NULL);
 				imagehwnds[2] = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_TABSTOP, 15, 100, 360, 20, hOptionsTabs, (HMENU)15, NULL, NULL);
-				GetPrivateProfileString(LANG, L"o_emj", L"", lang_str, 100, exe_path);
-				HWND emojiCheckbox = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 135, 370, 20, hOptionsTabs, (HMENU)16, NULL, NULL);
-				GetPrivateProfileString(LANG, L"o_spl", L"", lang_str, 100, exe_path);
-				HWND spoilerCheckbox = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 160, 370, 20, hOptionsTabs, (HMENU)17, NULL, NULL);
+				get_lang_string("o_emj", lang_str, NULL);
+				HWND emojiCheckbox = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 139, 370, 20, hOptionsTabs, (HMENU)16, NULL, NULL);
+				get_lang_string("o_spl", lang_str, NULL);
+				HWND spoilerCheckbox = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 10, 164, 370, 20, hOptionsTabs, (HMENU)17, NULL, NULL);
 				apply_fonts(hOptionsTabs);
 				SendMessage(imagehwnds[IMAGELOADPOLICY], BM_SETCHECK, BST_CHECKED, 0);
 				if (EMOJIS) SendMessage(emojiCheckbox, BM_SETCHECK, BST_CHECKED, 0);
@@ -577,47 +772,78 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 				break;
 			}
 			case 2: {
-				GetPrivateProfileString(LANG, L"o_fon0", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
-				HWND chatFontInfo = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 30, 370, 15, hOptionsTabs, (HMENU)32, NULL, NULL);
-				font_edits[0] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 45, 320, 20, hOptionsTabs, (HMENU)32, NULL, NULL);
+				get_lang_string("o_col0", lang_str, NULL);
+				HWND mainColorInfo = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 30, 150, 15, hOptionsTabs, (HMENU)45, NULL, NULL);
+				color_edits[0] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | ES_AUTOHSCROLL, 10, 45, 100, 20, hOptionsTabs, (HMENU)45, NULL, NULL);
+				oldColor0Proc = (WNDPROC)SetWindowLongPtr(color_edits[0], GWLP_WNDPROC, (LONG_PTR)WndProcDisabled);
+				HWND browseMainColor = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 115, 45, 20, 20, hOptionsTabs, (HMENU)49, 0, NULL);
+				HWND resetMainColor = CreateWindowEx(0, L"BUTTON", L"X", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 140, 45, 20, 20, hOptionsTabs, (HMENU)53, 0, NULL);
+
+				get_lang_string("o_col1", lang_str, NULL);
+				HWND textColorInfo = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 70, 150, 15, hOptionsTabs, (HMENU)46, NULL, NULL);
+				color_edits[1] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | ES_AUTOHSCROLL, 10, 85, 100, 20, hOptionsTabs, (HMENU)46, NULL, NULL);
+				oldColor1Proc = (WNDPROC)SetWindowLongPtr(color_edits[1], GWLP_WNDPROC, (LONG_PTR)WndProcDisabled);
+				HWND browseTextColor = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 115, 85, 20, 20, hOptionsTabs, (HMENU)50, 0, NULL);
+				HWND resetTextColor = CreateWindowEx(0, L"BUTTON", L"X", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 140, 85, 20, 20, hOptionsTabs, (HMENU)54, 0, NULL);
+
+				get_lang_string("o_col2", lang_str, NULL);
+				HWND uiColorInfo = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 110, 150, 15, hOptionsTabs, (HMENU)47, NULL, NULL);
+				color_edits[2] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | ES_AUTOHSCROLL, 10, 125, 100, 20, hOptionsTabs, (HMENU)47, NULL, NULL);
+				oldColor2Proc = (WNDPROC)SetWindowLongPtr(color_edits[2], GWLP_WNDPROC, (LONG_PTR)WndProcDisabled);
+				HWND browseUIColor = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 115, 125, 20, 20, hOptionsTabs, (HMENU)51, 0, NULL);
+				HWND resetUIColor = CreateWindowEx(0, L"BUTTON", L"X", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 140, 125, 20, 20, hOptionsTabs, (HMENU)55, 0, NULL);
+
+				get_lang_string("o_col3", lang_str, NULL);
+				HWND chatColorInfo = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 150, 150, 15, hOptionsTabs, (HMENU)48, NULL, NULL);
+				color_edits[3] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | ES_AUTOHSCROLL, 10, 165, 100, 20, hOptionsTabs, (HMENU)48, NULL, NULL);
+				oldColor3Proc = (WNDPROC)SetWindowLongPtr(color_edits[3], GWLP_WNDPROC, (LONG_PTR)WndProcDisabled);
+				HWND browseChatColor = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 115, 165, 20, 20, hOptionsTabs, (HMENU)52, 0, NULL);
+				HWND resetChatColor = CreateWindowEx(0, L"BUTTON", L"X", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 140, 165, 20, 20, hOptionsTabs, (HMENU)56, 0, NULL);
+
+				get_lang_string("o_fon0", lang_str, NULL);
+				HWND chatFontInfo = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 170, 30, 210, 15, hOptionsTabs, (HMENU)32, NULL, NULL);
+				font_edits[0] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 170, 45, 160, 20, hOptionsTabs, (HMENU)32, NULL, NULL);
 				HWND browseChatFont = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 335, 45, 20, 20, hOptionsTabs, (HMENU)35, 0, NULL);
 				HWND resetChatFont = CreateWindowEx(0, L"BUTTON", L"X", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 360, 45, 20, 20, hOptionsTabs, (HMENU)38, 0, NULL);
 
-				GetPrivateProfileString(LANG, L"o_fon1", L"", lang_str, 100, exe_path);
-				HWND systemFontInfo = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 70, 370, 15, hOptionsTabs, (HMENU)33, NULL, NULL);
-				font_edits[1] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 85, 320, 20, hOptionsTabs, (HMENU)33, NULL, NULL);
+				get_lang_string("o_fon1", lang_str, NULL);
+				HWND systemFontInfo = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 170, 70, 210, 15, hOptionsTabs, (HMENU)33, NULL, NULL);
+				font_edits[1] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 170, 85, 160, 20, hOptionsTabs, (HMENU)33, NULL, NULL);
 				HWND browseSystemFont = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 335, 85, 20, 20, hOptionsTabs, (HMENU)36, 0, NULL);
 				HWND resetSystemFont = CreateWindowEx(0, L"BUTTON", L"X", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 360, 85, 20, 20, hOptionsTabs, (HMENU)39, 0, NULL);
 
-				GetPrivateProfileString(LANG, L"o_fon2", L"", lang_str, 100, exe_path);
-				HWND uiFontInfo = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 110, 370, 15, hOptionsTabs, (HMENU)34, NULL, NULL);
-				font_edits[2] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 125, 320, 20, hOptionsTabs, (HMENU)34, NULL, NULL);
+				get_lang_string("o_fon2", lang_str, NULL);
+				HWND uiFontInfo = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 170, 110, 210, 15, hOptionsTabs, (HMENU)34, NULL, NULL);
+				font_edits[2] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 170, 125, 160, 20, hOptionsTabs, (HMENU)34, NULL, NULL);
 				HWND browseUIFont = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 335, 125, 20, 20, hOptionsTabs, (HMENU)37, 0, NULL);
 				HWND resetUIFont = CreateWindowEx(0, L"BUTTON", L"X", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 360, 125, 20, 20, hOptionsTabs, (HMENU)40, 0, NULL);
 
+				get_lang_string("o_thm", lang_str, NULL);
+				HWND themeCheckbox = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP, 170, 162, 210, 20, hOptionsTabs, (HMENU)57, NULL, NULL);
+
 				apply_fonts(hOptionsTabs);
-				write_font_name(0);
-				write_font_name(1);
-				write_font_name(2);
-				SendMessage(font_edits[0], EM_SETMARGINS, EC_LEFTMARGIN, 1);
-				SendMessage(font_edits[1], EM_SETMARGINS, EC_LEFTMARGIN, 1);
-				SendMessage(font_edits[2], EM_SETMARGINS, EC_LEFTMARGIN, 1);
+				for (int i = 0; i < 3; i++) {
+					write_font_name(i);
+					SendMessage(font_edits[i], EM_SETMARGINS, EC_LEFTMARGIN, 1);
+					SendMessage(font_edits[i], EM_SETSEL, 0, 0);
+				}
+				if (CHATTHEMES) SendMessage(themeCheckbox, BM_SETCHECK, BST_CHECKED, 0);
 				break;
 			}
 			case 3: {
-				GetPrivateProfileString(LANG, L"o_snew", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("o_snew", lang_str, NULL);
 				HWND sound1_label = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 30, 370, 15, hOptionsTabs, (HMENU)7, NULL, NULL);
 				sound_edits[0] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 45, 320, 20, hOptionsTabs, (HMENU)7, NULL, NULL);
 				HWND sound1_button = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 335, 45, 20, 20, hOptionsTabs, (HMENU)18, 0, NULL);
 				HWND sound1_buttonX = CreateWindowEx(0, L"BUTTON", L"X", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 360, 45, 20, 20, hOptionsTabs, (HMENU)21, 0, NULL);
 
-				GetPrivateProfileString(LANG, L"o_sinc", L"", lang_str, 100, exe_path);
+				get_lang_string("o_sinc", lang_str, NULL);
 				HWND sound2_label = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 70, 370, 15, hOptionsTabs, (HMENU)8, NULL, NULL);
 				sound_edits[1] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 85, 320, 20, hOptionsTabs, (HMENU)8, NULL, NULL);
 				HWND sound2_button = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 335, 85, 20, 20, hOptionsTabs, (HMENU)19, 0, NULL);
 				HWND sound2_buttonX = CreateWindowEx(0, L"BUTTON", L"X", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 360, 85, 20, 20, hOptionsTabs, (HMENU)22, 0, NULL);
 
-				GetPrivateProfileString(LANG, L"o_sout", L"", lang_str, 100, exe_path);
+				get_lang_string("o_sout", lang_str, NULL);
 				HWND sound3_label = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 110, 370, 15, hOptionsTabs, (HMENU)9, NULL, NULL);
 				sound_edits[2] = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? WS_BORDER : 0) | WS_TABSTOP | ES_AUTOHSCROLL, 10, 125, 320, 20, hOptionsTabs, (HMENU)9, NULL, NULL);
 				HWND sound3_button = CreateWindowEx(0, L"BUTTON", L"...", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 335, 125, 20, 20, hOptionsTabs, (HMENU)20, 0, NULL);
@@ -625,86 +851,82 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 
 				apply_fonts(hOptionsTabs);
 
-				GetPrivateProfileString(LANG, L"o_sno", L"", lang_str, 100, exe_path);
+				get_lang_string("o_sno", lang_str, NULL);
 				for (int i = 0; i < 3; i++) {
 					if (sound_paths[i][0] == 0) SendMessage(sound_edits[i], EM_REPLACESEL, FALSE, (LPARAM)lang_str);
 					else SendMessage(sound_edits[i], EM_REPLACESEL, FALSE, (LPARAM)sound_paths[i]);
-					SendMessage(sound_edits[i], EM_SETSEL, 0, 0);
 					SendMessage(sound_edits[i], EM_SETMARGINS, EC_LEFTMARGIN, 1);
+					SendMessage(sound_edits[i], EM_SETSEL, 0, 0);
 				}
 				break;
 			}
 			case 4: {
-				GetPrivateProfileString(LANG, L"o_samp", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("o_samp", lang_str, NULL);
 				HWND voice1_label = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 30, 370, 15, hOptionsTabs, (HMENU)24, NULL, NULL);
 				HWND comboSample = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP, 10, 45, 370, 100, hOptionsTabs, (HMENU)24, NULL, NULL);
+				SendMessage(comboSample, CB_SETITEMHEIGHT, -1, nt3 ? 20 : 14);
 				wchar_t str[15];
-				GetPrivateProfileString(LANG, L"o_hz", L"", lang_str, 100, exe_path);
-				swprintf(str, L"%d %s", 8000, lang_str);
+				get_lang_string("o_hz", lang_str, NULL);
+				swprintf(str, lang_str, 8000);
 				SendMessage(comboSample, CB_ADDSTRING, 0, (LPARAM)str);
-				swprintf(str, L"%d %s", 16000, lang_str);
+				swprintf(str, lang_str, 16000);
 				SendMessage(comboSample, CB_ADDSTRING, 0, (LPARAM)str);
-				swprintf(str, L"%d %s", 44100, lang_str);
+				swprintf(str, lang_str, 44100);
 				SendMessage(comboSample, CB_ADDSTRING, 0, (LPARAM)str);
-				swprintf(str, L"%d %s", 48000, lang_str);
+				swprintf(str, lang_str, 48000);
 				SendMessage(comboSample, CB_ADDSTRING, 0, (LPARAM)str);
 				if (SAMPLERATE <= 8000) SendMessage(comboSample, CB_SETCURSEL, 0, 0);
 				else if (SAMPLERATE <= 16000) SendMessage(comboSample, CB_SETCURSEL, 1, 0);
 				else if (SAMPLERATE <= 44100) SendMessage(comboSample, CB_SETCURSEL, 2, 0);
 				else SendMessage(comboSample, CB_SETCURSEL, 3, 0);
 
-				GetPrivateProfileString(LANG, L"o_bps", L"", lang_str, 100, exe_path);
+				get_lang_string("o_bps", lang_str, NULL);
 				HWND voice2_label = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 70, 370, 15, hOptionsTabs, (HMENU)25, NULL, NULL);
 				HWND comboBits = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP, 10, 85, 370, 100, hOptionsTabs, (HMENU)25, NULL, NULL);
-				GetPrivateProfileString(LANG, L"o_bit", L"", lang_str, 100, exe_path);
-				if (lang_str[0] != L'-') {
-					wmemmove(lang_str + 1, lang_str, wcslen(lang_str) + 1);
-					lang_str[0] = L' ';
-				}
-				swprintf(str, L"%d%s", 8, lang_str);
+				SendMessage(comboBits, CB_SETITEMHEIGHT, -1, nt3 ? 20 : 14);
+				get_lang_string("o_bit", lang_str, NULL);
+				swprintf(str, lang_str, 8);
 				SendMessage(comboBits, CB_ADDSTRING, 0, (LPARAM)str);
-				swprintf(str, L"%d%s", 16, lang_str);
+				swprintf(str, lang_str, 16);
 				SendMessage(comboBits, CB_ADDSTRING, 0, (LPARAM)str);
-				swprintf(str, L"%d%s", 24, lang_str);
+				swprintf(str, lang_str, 24);
 				SendMessage(comboBits, CB_ADDSTRING, 0, (LPARAM)str);
 				if (BITSPERSAMPLE <= 8) SendMessage(comboBits, CB_SETCURSEL, 0, 0);
 				else if (BITSPERSAMPLE <= 16) SendMessage(comboBits, CB_SETCURSEL, 1, 0);
 				else SendMessage(comboBits, CB_SETCURSEL, 2, 0);
 
-				GetPrivateProfileString(LANG, L"o_chan", L"", lang_str, 100, exe_path);
+				get_lang_string("o_chan", lang_str, NULL);
 				HWND voice3_label = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 110, 370, 15, hOptionsTabs, (HMENU)26, NULL, NULL);
 				HWND comboChannels = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP, 10, 125, 370, 100, hOptionsTabs, (HMENU)26, NULL, NULL);
-				GetPrivateProfileString(LANG, L"o_mono", L"", lang_str, 100, exe_path);
+				SendMessage(comboChannels, CB_SETITEMHEIGHT, -1, nt3 ? 20 : 14);
+				get_lang_string("o_mono", lang_str, NULL);
 				SendMessage(comboChannels, CB_ADDSTRING, 0, (LPARAM)lang_str);
-				GetPrivateProfileString(LANG, L"o_ster", L"", lang_str, 100, exe_path);
+				get_lang_string("o_ster", lang_str, NULL);
 				SendMessage(comboChannels, CB_ADDSTRING, 0, (LPARAM)lang_str);
 				if (CHANNELS <= 1) SendMessage(comboChannels, CB_SETCURSEL, 0, 0);
 				else SendMessage(comboChannels, CB_SETCURSEL, 1, 0);
 
 				apply_fonts(hOptionsTabs);
-				SendMessage(comboSample, CB_SETITEMHEIGHT, -1, 14);
-				SendMessage(comboBits, CB_SETITEMHEIGHT, -1, 14);
-				SendMessage(comboChannels, CB_SETITEMHEIGHT, -1, 14);
 				SetFocus(hOptionsTabs);
 				break;
 			}
 			case 5:
-				GetPrivateProfileString(LANG, L"o_ip", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("o_ip", lang_str, NULL);
 				HWND ip_label = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 30, 150, 15, hOptionsTabs, (HMENU)27, NULL, NULL);
 				if (ie4) hProxyIP = CreateWindow(WC_IPADDRESS, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 10, 45, 150, 20, hOptionsTabs, (HMENU)27, NULL, NULL);
 				else {
 					hProxyIP = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? WS_BORDER : 0) | ES_CENTER, 10, 45, 150, 20, hOptionsTabs, (HMENU)27, NULL, NULL);
 					SendMessage(hProxyIP, EM_LIMITTEXT, 15, 0);
 				}
-				GetPrivateProfileString(LANG, L"o_port", L"", lang_str, 100, exe_path);
+				get_lang_string("o_port", lang_str, NULL);
 				HWND port_label = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 170, 30, 50, 15, hOptionsTabs, (HMENU)28, NULL, NULL);
 				hProxyPort = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? WS_BORDER : 0) | ES_CENTER | ES_NUMBER, 170, 45, 50, 20, hOptionsTabs, (HMENU)28, NULL, NULL);
 				SendMessage(hProxyPort, EM_LIMITTEXT, 5, 0);
-				GetPrivateProfileString(LANG, L"o_user", L"", lang_str, 100, exe_path);
+				get_lang_string("o_user", lang_str, NULL);
 				HWND username_label = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 70, 167, 15, hOptionsTabs, (HMENU)29, NULL, NULL);
 				hProxyUsername = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL | (nt3 ? WS_BORDER : 0), 10, 85, 167, 20, hOptionsTabs, (HMENU)29, NULL, NULL);
 				SendMessage(hProxyUsername, EM_LIMITTEXT, 255, 0);
-				GetPrivateProfileString(LANG, L"o_pass", L"", lang_str, 100, exe_path);
+				get_lang_string("o_pass", lang_str, NULL);
 				HWND password_label = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 188, 70, 167, 15, hOptionsTabs, (HMENU)30, NULL, NULL);
 				hProxyPassword = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL | (nt3 ? WS_BORDER : 0) | ES_PASSWORD, 188, 85, 167, 20, hOptionsTabs, (HMENU)30, NULL, NULL);
 				SendMessage(hProxyPassword, EM_LIMITTEXT, 255, 0);
@@ -716,8 +938,8 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 					ImageList_Destroy(hImg);
 					SendMessage(hProxyHidePassword, BM_SETIMAGE, IMAGE_ICON, (LPARAM)hIcon);
 				}
-				GetPrivateProfileString(LANG, L"o_note", L"", lang_str, 100, exe_path);
-				HWND note_label = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 165, 300, 15, hOptionsTabs, NULL, NULL, NULL);
+				get_lang_string("o_note", lang_str, NULL);
+				HWND note_label = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 170, 370, 15, hOptionsTabs, NULL, NULL, NULL);
 				apply_fonts(hOptionsTabs);
 				SendMessage(hProxyUsername, EM_SETMARGINS, EC_LEFTMARGIN, 1);
 				SendMessage(hProxyPassword, EM_SETMARGINS, EC_LEFTMARGIN, 1);
@@ -743,62 +965,65 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 	}
 	case WM_DRAWITEM: {
 		DRAWITEMSTRUCT* dis = (DRAWITEMSTRUCT*)lParam;
-		TCITEM tci = {0};
-		tci.mask = TCIF_TEXT;
-		wchar_t text[8];
-		tci.pszText = text;
-		tci.cchTextMax = 8;
-		SendMessage(hOptionsTabs, TCM_GETITEM, dis->itemID, (LPARAM)&tci);
-		FillRect(dis->hDC, &dis->rcItem, (HBRUSH)GetStockObject(WHITE_BRUSH));
-		SetBkColor(dis->hDC, RGB(255, 255, 255));
-		TextOut(dis->hDC, dis->rcItem.left + ((dis->itemState & ODS_SELECTED) ? 8 : 4), dis->rcItem.top + ((dis->itemState & ODS_SELECTED) ? 3 : 1), text, wcslen(text));
+		SetTextColor(dis->hDC, colors[3]);
+		SetBkColor(dis->hDC, colors[2]);
+		FillRect(dis->hDC, &dis->rcItem, hBrushes[2]);
+		if (ie4) {
+			TCITEM tci = {0};
+			tci.mask = TCIF_TEXT;
+			wchar_t text[15];
+			tci.pszText = text;
+			tci.cchTextMax = 15;
+			SendMessage(hOptionsTabs, TCM_GETITEM, dis->itemID, (LPARAM)&tci);
+			TextOut(dis->hDC, dis->rcItem.left + ((dis->itemState & ODS_SELECTED) ? 8 : 4), dis->rcItem.top + ((dis->itemState & ODS_SELECTED) ? 3 : (!ie3 ? 1 : 3)), text, wcslen(text));
+		} else {
+			TCITEMA tci = {0};
+			tci.mask = TCIF_TEXT;
+			char text[15];
+			tci.pszText = text;
+			tci.cchTextMax = 15;
+			SendMessage(hOptionsTabs, TCM_GETITEMA, dis->itemID, (LPARAM)&tci);
+			TextOutA(dis->hDC, dis->rcItem.left + ((dis->itemState & ODS_SELECTED) ? 8 : 4), dis->rcItem.top + ((dis->itemState & ODS_SELECTED) ? 3 : (!ie3 ? 1 : 3)), text, strlen(text));
+		}
 		break;
 	}
 	case WM_CTLCOLORDLG:
-		if (nt3) return (long)GetStockObject(WHITE_BRUSH);
-		break;
+	case WM_CTLCOLORSTATIC:
+		return back_brush((HDC)wParam);
 	case WM_DESTROY:
 		apply_edits();
 	}
 	return FALSE;
 }
 
+HBITMAP infoBmp = NULL;
 INT_PTR CALLBACK DlgProcInfo(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
 	case WM_INITDIALOG: {
 		bool about = IsWindowVisible(hMain) ? true : false;
-		infoLabel = CreateWindow(L"STATIC", L"v1.0.4  |  Copyright © 2026 N3xtery  |  GNU GPL v3 License",
-			WS_CHILD | WS_VISIBLE | SS_CENTER, 0, 117, 384, 75, hDlg, NULL, NULL, NULL);
+		infoLabel = CreateWindow(L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_CENTER, 0, 117, 384, 75, hDlg, NULL, NULL, NULL);
 		if (!about) {
-			GetPrivateProfileString(LANG, L"a_conn", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("a_conn", lang_str, NULL);
 			SetWindowText(infoLabel, lang_str);
+		} else {
+			wchar_t str[75];
+			swprintf(str, L"v%s  |  Copyright © 2026 N3xtery  |  GNU GPL v3 License", version);
+			SetWindowText(infoLabel, str);
 		}
 		apply_fonts(hDlg);
 
-		infoBmp = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_LOGO));
-		BITMAP bm;
-		GetObject(infoBmp, sizeof(bm), &bm);
-		infoBmpMask = CreateBitmap(bm.bmWidth, bm.bmHeight, 1, 1, NULL);
-		HDC hdcSrc = CreateCompatibleDC(NULL);
-		HDC hdcDst = CreateCompatibleDC(NULL);
-		HBITMAP hbmSrcT = SelectBitmap(hdcSrc, infoBmp);
-		HBITMAP hbmDstT = SelectBitmap(hdcDst, infoBmpMask);
-		COLORREF clrTopLeft = GetPixel(hdcSrc, 0, 0);
-		COLORREF clrSaveBk = SetBkColor(hdcSrc, clrTopLeft);
-		BitBlt(hdcDst, 0, 0, bm.bmWidth, bm.bmHeight, hdcSrc, 0, 0, SRCCOPY);
-		COLORREF clrSaveDstText = SetTextColor(hdcSrc, RGB(255, 255, 255));
-		SetBkColor(hdcSrc, RGB(0, 0, 0));
-		BitBlt(hdcSrc, 0, 0, bm.bmWidth, bm.bmHeight, hdcDst, 0, 0, SRCAND);
-		SetTextColor(hdcDst, clrSaveDstText);
-		SetBkColor(hdcSrc, clrSaveBk);
-		SelectBitmap(hdcSrc, hbmSrcT);
-		SelectBitmap(hdcDst, hbmDstT);
-		DeleteDC(hdcSrc);
-		DeleteDC(hdcDst);
+		HWND hLogo = CreateWindow(L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP, 0, 0, 384, 107, hDlg, NULL, NULL, NULL);
+		COLORMAP cmaps[2];
+		cmaps[0].from = RGB(128, 0, 128);
+		cmaps[0].to = colors[2];
+		cmaps[1].from = RGB(0, 0, 0);
+		cmaps[1].to = colors[3];
+		infoBmp = CreateMappedBitmap(GetModuleHandle(NULL), IDB_LOGO, 0, cmaps, 2);
+		SendMessage(hLogo, STM_SETIMAGE, IMAGE_BITMAP, (LPARAM)infoBmp);
 
 		place_dialog_center(hDlg, about);
 		if (about) {
-			GetPrivateProfileString(LANG, L"a", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("a", lang_str, NULL);
 			SetWindowText(hDlg, lang_str);
 		}
 		else UpdateWindow(hDlg);
@@ -808,34 +1033,79 @@ INT_PTR CALLBACK DlgProcInfo(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) 
 	case WM_COMMAND:
 		if (LOWORD(wParam) == IDCANCEL) DestroyWindow(hDlg);
 		break;
-	case WM_PAINT: {
-		PAINTSTRUCT ps;
-		HDC hdc = BeginPaint(hDlg,&ps);
-		HDC hdcMem = CreateCompatibleDC(NULL);
-		HBITMAP hbmOld = SelectBitmap(hdcMem, infoBmpMask);
-		BITMAP bm;
-		GetObject(infoBmpMask, sizeof(bm), &bm);
-		BitBlt(hdc, 0, 0, bm.bmWidth, bm.bmHeight, hdcMem, 0, 0, SRCAND);
-		SelectBitmap(hdcMem, infoBmp);
-		BitBlt(hdc, 0, 0, bm.bmWidth, bm.bmHeight, hdcMem, 0, 0, SRCPAINT);
-		SelectBitmap(hdcMem, hbmOld);
-		DeleteDC(hdcMem);
-		EndPaint(hDlg, &ps);
-		break;
-	}
 	case WM_CTLCOLORDLG:
 	case WM_CTLCOLORSTATIC:
-		if (nt3) return (long)GetStockObject(WHITE_BRUSH);
-		break;
-	case WM_DESTROY: {
-		if (infoBmpMask) DeleteObject(infoBmpMask);
-		infoBmp = NULL;
-		infoBmpMask = NULL;
+		return back_brush((HDC)wParam);
+	case WM_DESTROY:
+		DeleteObject(infoBmp);
 		if (current_info) current_info = NULL;
 		else current_about = NULL;
-	}
+		break;
+	case WM_RBUTTONUP:
+		SetWindowText(infoLabel, L"June 25th, 2009 - June 25th, 2026 | RIP MJ o7");
+		break;
 	}
 	return FALSE;
+}
+
+bool shortcode_check(HWND riched) {
+	FINDTEXT ft;
+	ft.chrg.cpMin = INT_MAX;
+	ft.chrg.cpMax = 0;
+	ft.lpstrText = L":";
+	int pos = SendMessage(riched, EM_FINDTEXT, 0, (LPARAM)&ft);
+	if (pos != -1) {
+		int cursel;
+		SendMessage(riched, EM_GETSEL, NULL, (LPARAM)&cursel);
+		if (cursel - pos < 25) {
+			wchar_t emoji_str[25];
+			TEXTRANGE tr = {0};
+			tr.chrg.cpMin = pos + 1;
+			tr.chrg.cpMax = cursel;
+			tr.lpstrText = emoji_str;
+			SendMessage(riched, EM_GETTEXTRANGE, 0, (LPARAM)&tr);
+			wchar_t emoji[100];
+			wcscpy(emoji, L"emojis\\");
+			GetPrivateProfileString(L"Emojis", emoji_str, L"", emoji + 7, 88, get_path(exe_path, L"emoji_shortcodes.ini"));
+			wcscat(emoji, L".ico");
+			SendMessage(riched, EM_HIDESELECTION, TRUE, NULL);
+			SendMessage(riched, EM_SETSEL, pos, cursel);
+			if (!insert_emoji(emoji, 15, riched)) {
+				SendMessage(riched, EM_HIDESELECTION, FALSE, NULL);
+				SendMessage(riched, EM_SETSEL, cursel, cursel);
+			} else {
+				SendMessage(riched, EM_HIDESELECTION, FALSE, NULL);
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+LRESULT CALLBACK WndProcProfileRiched(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+	switch (msg) {
+	case WM_CHAR:
+		if (wParam == L':' && shortcode_check(hWnd)) return 0;
+		break;
+	}
+	if (hWnd == name) return CallWindowProc(oldNameProc, hWnd, msg, wParam, lParam);
+	else return CallWindowProc(oldAboutProc, hWnd, msg, wParam, lParam);
+}
+
+LRESULT CALLBACK WndProcBirthday(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+	switch (msg) {
+	case WM_ERASEBKGND: {
+		RECT rc;
+		GetClientRect(hWnd, &rc);
+		FillRect((HDC)wParam, &rc, hBrushes[1]);
+		return TRUE;
+	}
+	case WM_PAINT:
+		LRESULT res = CallWindowProc(oldBirthdayProc, hWnd, msg, wParam, lParam);
+		manual_dtp_text_paint();
+		return res;
+	}
+	return CallWindowProc(oldBirthdayProc, hWnd, msg, wParam, lParam);
 }
 
 INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -843,7 +1113,7 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_INITDIALOG: {
 		Peer* peer = (Peer*)lParam;
 		dlg_peer = *peer;
-		GetPrivateProfileString(LANG, peer == &myself ? L"p_my" : L"p", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string(peer == &myself ? "p_my" : "p", lang_str, NULL);
 		SetWindowText(hDlg, lang_str);
 		name = CreateWindow(L"RichEdit20W", NULL, WS_CHILD | WS_BORDER | WS_VISIBLE | ES_LEFT | ES_AUTOHSCROLL | WS_TABSTOP, 180, 10, 300, 25, hDlg, NULL, NULL, NULL);
 		SendMessage(name, EM_LIMITTEXT, 64, 0);
@@ -857,17 +1127,20 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 		COleCallback* coc_about = new COleCallback(about);
 		SendMessage(about, EM_SETOLECALLBACK, 0, (LPARAM)coc_about);
 		coc_about->Release();
+		SendMessage(name, EM_SETBKGNDCOLOR, 0, colors[1]);
+		SendMessage(handle, EM_SETBKGNDCOLOR, 0, colors[1]);
+		SendMessage(about, EM_SETBKGNDCOLOR, 0, colors[1]);
 		PARAFORMAT2 pf;
 		pf.cbSize = sizeof(pf);
 		pf.dwMask = PFM_ALIGNMENT;
 		pf.wAlignment = PFA_CENTER;
 		SendMessage(name, EM_SETPARAFORMAT, 0, (LPARAM)&pf);
 		SendMessage(handle, EM_SETPARAFORMAT, 0, (LPARAM)&pf);
-		GetPrivateProfileString(LANG, L"p_at", L"", lang_str, 100, exe_path);
+		get_lang_string("p_at", lang_str, NULL);
 		HWND hLabelHandle = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE | SS_CENTER, 180, 40, 120, 15, hDlg, NULL, NULL, NULL);
-		GetPrivateProfileString(LANG, peer->type == 0 ? L"p_abt" : L"p_desc", L"", lang_str, 100, exe_path);
+		get_lang_string(peer->type == 0 ? "p_abt" : "p_desc", lang_str, NULL);
 		HWND hLabelAbout = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE | SS_CENTER, 310, 40, 170, 15, hDlg, NULL, NULL, NULL);
-		GetPrivateProfileString(LANG, L"p_bday", L"", lang_str, 100, exe_path);
+		get_lang_string("p_bday", lang_str, NULL);
 		HWND hLabelBirthday = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE | SS_CENTER, 180, 85, 120, 15, hDlg, NULL, NULL, NULL);
 		if (peer->type == 0 && (peer == &myself || read_le(peer->birthday, 4) != 0)) {
 			SYSTEMTIME stRange[2] = {0};
@@ -900,9 +1173,9 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 			}
 		} else birthday = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE, 180, 100, 120, 25, hDlg, NULL, NULL, NULL);
 
-		GetPrivateProfileString(LANG, L"ok", L"", lang_str, 100, exe_path);
+		get_lang_string("ok", lang_str, NULL);
 		HWND hButtonOk = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 180, 145, 55, 25, hDlg, peer->perm.canchangedesc ? (HMENU)IDOK : (HMENU)IDCANCEL, NULL, NULL);
-		GetPrivateProfileString(LANG, L"cancel", L"", lang_str, 100, exe_path);
+		get_lang_string("cancel", lang_str, NULL);
 		HWND hButtonCancel = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 245, 145, 55, 25, hDlg, (HMENU)IDCANCEL, NULL, NULL);
 		dlgPic = CreateWindowEx(WS_EX_CLIENTEDGE, L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY, 10, 10, 160, 160, hDlg, NULL, NULL, NULL);
 		riched_write(name, peer->name);
@@ -924,11 +1197,15 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 			HBITMAP oldBmp = (HBITMAP)SelectObject(memDC, hBmp);
 
 			RECT rc = { 0, 0, 160, 160 };
-			FillRect(memDC, &rc, (HBRUSH)GetStockObject(WHITE_BRUSH));
+			FillRect(memDC, &rc, hBrushes[1]);
 			
-			GetPrivateProfileString(LANG, L"p_nopfp", L"", lang_str, 100, exe_path);
+			SetTextColor(memDC, colors[3]);
+			SetBkColor(memDC, colors[1]);
+			HFONT hFontOld = (HFONT)SelectObject(memDC, hFonts[1]);
+			get_lang_string("p_nopfp", lang_str, NULL);
 			DrawText(memDC, lang_str, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
+			SelectObject(memDC, hFontOld);
 			SelectObject(memDC, oldBmp);
 			DeleteDC(memDC);
 			ReleaseDC(NULL, hRefDC);
@@ -945,22 +1222,51 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 			oldAboutProc = (WNDPROC)SetWindowLongPtr(about, GWLP_WNDPROC, (LONG_PTR)WndProcDisabled);
 			oldBirthdayProc = (WNDPROC)SetWindowLongPtr(birthday, GWLP_WNDPROC, (LONG_PTR)WndProcDisabled);
 			EnableWindow(dlgPic, FALSE);
-		} else if (peer != &myself) {
-			oldBirthdayProc = (WNDPROC)SetWindowLongPtr(birthday, GWLP_WNDPROC, (LONG_PTR)WndProcDisabled);
-			if (peer->type == 1) {
-				SendMessage(handle, EM_SETREADONLY, TRUE, 0);
-				oldHandleProc = (WNDPROC)SetWindowLongPtr(handle, GWLP_WNDPROC, (LONG_PTR)WndProcDisabled);
-			}
-		} else if (!ie3) oldBirthdayProc = (WNDPROC)SetWindowLongPtr(birthday, GWLP_WNDPROC, (LONG_PTR)WndProcDisabled);
+		} else {
+			oldNameProc = (WNDPROC)SetWindowLongPtr(name, GWLP_WNDPROC, (LONG_PTR)WndProcProfileRiched);
+			oldAboutProc = (WNDPROC)SetWindowLongPtr(about, GWLP_WNDPROC, (LONG_PTR)WndProcProfileRiched);
+			if (peer != &myself) {
+				oldBirthdayProc = (WNDPROC)SetWindowLongPtr(birthday, GWLP_WNDPROC, (LONG_PTR)WndProcDisabled);
+				if (peer->type == 1) {
+					SendMessage(handle, EM_SETREADONLY, TRUE, 0);
+					oldHandleProc = (WNDPROC)SetWindowLongPtr(handle, GWLP_WNDPROC, (LONG_PTR)WndProcDisabled);
+				}
+			} else if (!ie3) oldBirthdayProc = (WNDPROC)SetWindowLongPtr(birthday, GWLP_WNDPROC, (LONG_PTR)WndProcDisabled);
+			else oldBirthdayProc = (WNDPROC)SetWindowLongPtr(birthday, GWLP_WNDPROC, (LONG_PTR)WndProcBirthday);
+		}
 
 		apply_fonts(hDlg);
-		SendMessage(name, WM_SETFONT, (WPARAM)hFonts[1], FALSE);
-		SendMessage(handle, WM_SETFONT, (WPARAM)hFonts[1], FALSE);
-		SendMessage(birthday, WM_SETFONT, (WPARAM)hFonts[1], FALSE);
+		CHARFORMAT2 cf;
+		cf.cbSize = sizeof(cf);
+		cf.dwMask = CFM_COLOR;
+		cf.dwEffects = 0;
+		cf.crTextColor = colors[3];
+		for (i = 0; i < 3; i++) {
+			HWND edit = name;
+			if (i == 1) edit = handle;
+			else if (i == 2) edit = birthday;
+			SendMessage(edit, WM_SETFONT, (WPARAM)hFonts[1], FALSE);
+			if (i != 2) SendMessage(edit, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
+			if (nt3) {
+				RECT rc;
+				GetClientRect(edit, &rc);
+				HDC hDC = GetDC(edit);
+				TEXTMETRIC tm;
+				GetTextMetrics(hDC, &tm);
+				ReleaseDC(edit, hDC);
+				rc.top = (rc.bottom - rc.top - tm.tmHeight) / 2;
+				SendMessage(edit, EM_SETRECT, NULL, (LPARAM)&rc);
+			}
+		}
 		SendMessage(about, WM_SETFONT, (WPARAM)hFonts[0], FALSE);
+		SendMessage(about, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
 		place_dialog_center(hDlg, true);
 		break;
 	}
+	case WM_CTLCOLOREDIT:
+		SetTextColor((HDC)wParam, colors[3]);
+		SetBkColor((HDC)wParam, colors[1]);
+		return (LRESULT)hBrushes[1];
 	case WM_NOTIFY: {
 		NMHDR *hdr = (NMHDR*)lParam;
 		if (hdr->code == DTN_DATETIMECHANGE) {
@@ -1218,8 +1524,7 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 	}
 	case WM_CTLCOLORDLG:
 	case WM_CTLCOLORSTATIC:
-		if (nt3) return (long)GetStockObject(WHITE_BRUSH);
-		break;
+		return back_brush((HDC)wParam);
 	case WM_DESTROY:
 		if (dlgPic) {
 			HBITMAP hBmp = (HBITMAP)SendMessage(dlgPic, STM_GETIMAGE, IMAGE_BITMAP, 0);
@@ -1263,7 +1568,8 @@ LRESULT CALLBACK WndProcMsgInput(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	static bool typing = false;
 	switch (msg) {
 	case WM_CHAR:
-	case EM_STREAMIN: 
+	case EM_STREAMIN:
+		if (msg == WM_CHAR && wParam == L':' && shortcode_check(hWnd)) return 0;
 		if (!current_peer || editing_msg_id || wParam == 13 || (current_peer->type == 0 && current_peer->online == -1)) break;
 		if (!typing) SetTimer(hWnd, 0, 0, NULL);
 		SetTimer(hWnd, 1, 2000, NULL);
@@ -1564,10 +1870,9 @@ LRESULT CALLBACK WndProcChat(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) 
 
 LRESULT CALLBACK WndProcEmojiScrollFallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
-	case WM_VSCROLL: {
+	case WM_VSCROLL:
 		SendMessage(hTabs, WM_VSCROLL, wParam, lParam);
 		break;
-	}
 	}
 	return CallWindowProc(oldEmojiScrollFallbackProc, hWnd, msg, wParam, lParam);
 }
@@ -1599,6 +1904,8 @@ LRESULT CALLBACK WndProcEmojiScroll(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 		if (si.nPos != oldPos) ScrollWindowEx(emojiStatic, 0, oldPos - si.nPos, NULL, NULL, NULL, NULL, SW_INVALIDATE | SW_SCROLLCHILDREN);
 		break;
 	}
+	case WM_CTLCOLORSTATIC:
+		return (LRESULT)hBrushes[2];
 	}
 	return CallWindowProc(oldEmojiScrollProc, hWnd, msg, wParam, lParam);
 }
@@ -1640,7 +1947,6 @@ LRESULT CALLBACK WndProcEmojiStatic(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 	case WM_DRAWITEM:
 		paint_emoji_button((DRAWITEMSTRUCT*)lParam);
 		return TRUE;
-		break;
 	}
 	return CallWindowProc(oldEmojiStaticProc, hWnd, msg, wParam, lParam);
 }
@@ -1778,7 +2084,7 @@ LRESULT CALLBACK WndProcSplitter(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 INT_PTR CALLBACK DlgProc2FA(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
 	case WM_INITDIALOG: {
-		GetPrivateProfileString(LANG, L"2_ps", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("2_ps", lang_str, NULL);
 		HWND h2FALbl = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 10, 155, 15, hDlg, NULL, NULL, NULL);
 		h2FA = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | ES_PASSWORD | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 25, 130, 25, hDlg, NULL, NULL, NULL);
 		SendMessage(h2FA, EM_LIMITTEXT, 63, 0);
@@ -1790,12 +2096,12 @@ INT_PTR CALLBACK DlgProc2FA(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 			SendMessage(hPass, BM_SETIMAGE, IMAGE_ICON, (LPARAM)hIcon);
 		}
 
-		GetPrivateProfileString(LANG, L"2_hnq", L"", lang_str, 100, exe_path);
+		get_lang_string("2_hnq", lang_str, NULL);
 		h2FAHint = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 28, 60, 55, 25, hDlg, (HMENU)3, NULL, NULL);
-		GetPrivateProfileString(LANG, L"l", L"", lang_str, 100, exe_path);
+		get_lang_string("l", lang_str, NULL);
 		HWND h2FABtn = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 93, 60, 55, 25, hDlg, (HMENU)4, NULL, NULL);
 		apply_fonts(hDlg);
-		GetPrivateProfileString(LANG, L"2", L"", lang_str, 100, exe_path);
+		get_lang_string("2", lang_str, NULL);
 		SetWindowText(hDlg, lang_str);
 		place_dialog_center(hDlg, false);
 		break;
@@ -1804,7 +2110,7 @@ INT_PTR CALLBACK DlgProc2FA(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 		if (LOWORD(wParam) == IDCANCEL) DestroyWindow(hDlg);
 		else if (LOWORD(wParam) == 3 || LOWORD(wParam) == 4) {
 			if (LOWORD(wParam) == 3 && hint) {
-				GetPrivateProfileString(LANG, L"2_hn", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("2_hn", lang_str, NULL);
 				MessageBox(hDlg, hint, lang_str, MB_OK | MB_ICONINFORMATION);
 			} else {
 				if (LOWORD(wParam) == 3) hint_needed = true;
@@ -1829,8 +2135,7 @@ INT_PTR CALLBACK DlgProc2FA(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 		break;
 	case WM_CTLCOLORDLG:
 	case WM_CTLCOLORSTATIC:
-		if (nt3) return (long)GetStockObject(WHITE_BRUSH);
-		break;
+		return back_brush((HDC)wParam);
 	case WM_CLOSE:
 		DestroyWindow(hDlg);
 		DestroyWindow(hMain);
@@ -1850,17 +2155,17 @@ INT_PTR CALLBACK DlgProcLogin(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 	switch (msg) {
 	case WM_INITDIALOG: {
 		if (!hNumber) {
-			GetPrivateProfileString(LANG, L"l_ph", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("l_ph", lang_str, NULL);
 			HWND hLabelPhone = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 10, 125, 15, hDlg, NULL, NULL, NULL);
-			GetPrivateProfileString(LANG, L"l_c", L"", lang_str, 100, exe_path);
+			get_lang_string("l_c", lang_str, NULL);
 			HWND hLabelCode = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 55, 125, 15, hDlg, NULL, NULL, NULL);
-			GetPrivateProfileString(LANG, L"l_qr", L"", lang_str, 100, exe_path);
+			get_lang_string("l_qr", lang_str, NULL);
 			HWND hLabelQr = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 100, 190, 15, hDlg, NULL, NULL, NULL);
 			hNumber = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 25, 125, 25, hDlg, NULL, NULL, NULL);
-			GetPrivateProfileString(LANG, L"l_get", L"", lang_str, 100, exe_path);
+			get_lang_string("l_get", lang_str, NULL);
 			hNumberBtn = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 140, 25, 59, 25, hDlg, (HMENU)3, NULL, NULL);
 			hCode = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | WS_DISABLED | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 70, 125, 25, hDlg, NULL, NULL, NULL);
-			GetPrivateProfileString(LANG, L"l", L"", lang_str, 100, exe_path);
+			get_lang_string("l", lang_str, NULL);
 			SetWindowText(hDlg, lang_str);
 			hCodeBtn = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_DISABLED | WS_TABSTOP, 140, 70, 59, 25, hDlg, (HMENU)4, NULL, NULL);
 			hQRCode = CreateWindowEx(WS_EX_CLIENTEDGE, L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY, 10, 115, 185, 185, hDlg, NULL, NULL, NULL);
@@ -1880,9 +2185,9 @@ INT_PTR CALLBACK DlgProcLogin(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		if (LOWORD(wParam) == 3) {
 			int num_len = GetWindowTextLength(hNumber);
 			if (num_len == 0) {
-				GetPrivateProfileString(LANG, L"e_ph", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("e_ph", lang_str, NULL);
 				wchar_t error_title[10];
-				GetPrivateProfileString(LANG, L"e", L"", error_title, 10, exe_path);
+				get_lang_string("e", error_title, NULL);
 				MessageBox(hDlg, lang_str, error_title, MB_OK | MB_ICONERROR);
 				return TRUE;
 			}
@@ -1959,8 +2264,7 @@ INT_PTR CALLBACK DlgProcLogin(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_CTLCOLORDLG:
 	case WM_CTLCOLORSTATIC:
-		if (nt3) return (long)GetStockObject(WHITE_BRUSH);
-		break;
+		return back_brush((HDC)wParam);
 	case WM_CLOSE:
 		DestroyWindow(hDlg);
 		DestroyWindow(hMain);

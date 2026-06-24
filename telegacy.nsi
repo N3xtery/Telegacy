@@ -1,5 +1,4 @@
 !include "MUI2.nsh"
-!include "UpgradeDLL.nsh"
 !include "FileFunc.nsh"
 !include "WordFunc.nsh"
 
@@ -11,7 +10,7 @@ OutFile "${APPNAME}-${APPVER}-Setup.exe"
 InstallDir "$PROGRAMFILES\${APPNAME}"
 
 RequestExecutionLevel admin
-SetCompressor /SOLID lzma
+SetCompressor zlib
 ShowInstDetails show
 ShowUninstDetails show
 
@@ -58,19 +57,26 @@ Section "Telegacy" SecMain
   File "Debug\help.cnt"
   File "Debug\help.chm"
   File "Debug\emoji_categories.dat"
+  File "Debug\emoji_shortcodes.ini"
+
+  Rename "$INSTDIR\emojis\1f43b-200d-2744.ico" "$INSTDIR\emojis\1f43b-200d-2744-fe0f.ico"
+  Rename "$INSTDIR\emojis\1f426-200d-2b1b.ico" "$INSTDIR\emojis\1f426-200d-2b1b-fe0f.ico"
 
   SetOutPath "$INSTDIR\emojis"
   File /r /x "Thumbs.db" "Debug\emojis\*.*"
+
+  SetOutPath "$INSTDIR\langs"
+  File /r "Debug\langs\*.*"
   
   SetOutPath "$SYSDIR"
   Call IsWin9x
   Pop $0
+  SetOverwrite off
   StrCmp $0 1 0 skipunicows
-    SetOverwrite ifnewer
-    !insertmacro UpgradeDLL "dlls\unicows.dll" "$SYSDIR\unicows.dll" "$SYSDIR"
+    File "dlls\unicows.dll"
 
   skipunicows:
-  SetOverwrite off
+  File "dlls\riched20.dll"
   File "dlls\msvcrt.dll"
 
 
@@ -82,11 +88,6 @@ WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Telegacy" 
 WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Telegacy" "QuietUninstallString" "$INSTDIR\uninstall.exe /S"
 WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Telegacy" "NoModify" 1
 WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Telegacy" "NoRepair" 1
-SectionEnd
-
-Section /o "" SecRichedUpdate
-  !insertmacro UpgradeDLL "dlls\riched20.dll" "$SYSDIR\riched20.dll" "$SYSDIR"
-  !insertmacro UpgradeDLL "dlls\msls31.dll" "$SYSDIR\msls31.dll" "$SYSDIR"
 SectionEnd
 
 Section "Create a Start Menu folder" SecStartMenu
@@ -130,7 +131,9 @@ Section "Uninstall"
   Delete "$INSTDIR\help.cnt"
   Delete "$INSTDIR\help.chm"
   Delete "$INSTDIR\emoji_categories.dat"
+  Delete "$INSTDIR\emoji_shortcodes.ini"
   RMDIR /r "$INSTDIR\emojis"
+  RMDIR /r "$INSTDIR\langs"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
   DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Telegacy"
@@ -144,14 +147,6 @@ Function .onInit
     SectionSetText ${SecDesktop} ""
     SectionSetText ${SecQuickLaunch} ""
   skipinit:
-  IfFileExists "$SYSDIR\riched20.dll" 0 richedneedupdate
-  ${GetFileVersion} "$SYSDIR\riched20.dll" $0
-  ${VersionCompare} $0 "5.30.23.1230" $1
-  IntCmp $1 2 0 initdone initdone
-  richedneedupdate:
-  SectionSetText ${SecRichedUpdate} "Rich Edit 3.0 Update"
-  SectionSetFlags ${SecRichedUpdate} ${SF_SELECTED}
-  initdone:
 FunctionEnd
 
 Function IsWin9x

@@ -20,7 +20,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 	case 0x347773c5: // pong
 		acknowledgement = false;
 		if (needtosetuplogin) {
-			wchar_t* version = NULL;
+			wchar_t* winver = NULL;
 			OSVERSIONINFO osvi;
 			osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
 			GetVersionEx(&osvi);
@@ -32,39 +32,39 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				if (osviex.wProductType == VER_NT_SERVER) server = true;
 			}
 			if (osvi.dwMajorVersion == 3) {
-				if (osvi.dwMinorVersion == 10) version = L"Windows NT 3.1";
-				else if (osvi.dwMinorVersion == 50) version = L"Windows NT 3.5";
-				else if (osvi.dwMinorVersion == 51) version = L"Windows NT 3.51";
+				if (osvi.dwMinorVersion == 10) winver = L"Windows NT 3.1";
+				else if (osvi.dwMinorVersion == 50) winver = L"Windows NT 3.5";
+				else if (osvi.dwMinorVersion == 51) winver = L"Windows NT 3.51";
 			} else if (osvi.dwMajorVersion == 4) {
 				if (osvi.dwPlatformId == VER_PLATFORM_WIN32_NT) {
-					if (server) version = L"Windows NT 4.0 Server";
-					else version = L"Windows NT 4.0";
-				} else if (osvi.dwMinorVersion == 0) version = L"Windows 95";
+					if (server) winver = L"Windows NT 4.0 Server";
+					else winver = L"Windows NT 4.0";
+				} else if (osvi.dwMinorVersion == 0) winver = L"Windows 95";
 				else if (osvi.dwMinorVersion == 10) {
-					if (wcscmp(osvi.szCSDVersion, L" A ") != 0) version = L"Windows 98 FE";
-					else version = L"Windows 98 SE";
-				} else if (osvi.dwMinorVersion == 90) version = L"Windows ME";
+					if (wcscmp(osvi.szCSDVersion, L" A ") != 0) winver = L"Windows 98 FE";
+					else winver = L"Windows 98 SE";
+				} else if (osvi.dwMinorVersion == 90) winver = L"Windows ME";
 			} else if (osvi.dwMajorVersion == 5) {
 				if (osvi.dwMinorVersion == 0) {
-					if (server) version = L"Windows 2000 Server";
-					else version = L"Windows 2000";
-				} else if (osvi.dwMinorVersion == 1) version = L"Windows XP";
-				else if (osvi.dwMinorVersion == 2) version = L"Windows Server 2003";
+					if (server) winver = L"Windows 2000 Server";
+					else winver = L"Windows 2000";
+				} else if (osvi.dwMinorVersion == 1) winver = L"Windows XP";
+				else if (osvi.dwMinorVersion == 2) winver = L"Windows Server 2003";
 			} else if (osvi.dwMajorVersion == 6) {
 				if (osvi.dwMinorVersion == 0) {
-					if (server) version = L"Windows Server 2008";
-					else version = L"Windows Vista";
+					if (server) winver = L"Windows Server 2008";
+					else winver = L"Windows Vista";
 				} else if (osvi.dwMinorVersion == 1) {
-					if (server) version = L"Windows Server 2008 R2";
-					else version = L"Windows 7";
+					if (server) winver = L"Windows Server 2008 R2";
+					else winver = L"Windows 7";
 				} else if (osvi.dwMinorVersion == 2) {
-					if (server) version = L"Windows Server 2012 or above";
-					else version = L"Windows 8 or above";
+					if (server) winver = L"Windows Server 2012 or above";
+					else winver = L"Windows 8 or above";
 				}
 			}
 			if (version == NULL) {
-				if (server) version = L"Windows Server";
-				else version = L"Windows";
+				if (server) winver = L"Windows Server";
+				else winver = L"Windows";
 			}
 
 			BYTE unenc_query[208];
@@ -80,9 +80,9 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			GetComputerName(pc_name, &size);
 			write_string(unenc_query + 52, pc_name);
 			int offset = 52 + tlstr_len(unenc_query + 52, true);
-			write_string(unenc_query + offset, version);
+			write_string(unenc_query + offset, winver);
 			offset += tlstr_len(unenc_query + offset, true);
-			write_string(unenc_query + offset, L"1.0.4");
+			write_string(unenc_query + offset, version);
 			write_string(unenc_query + offset + 8, L"en");
 			write_string(unenc_query + offset + 12, L"tdesktop");
 			write_string(unenc_query + offset + 24, L"en");
@@ -131,7 +131,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		if (flags & (1 << 2)) {
 			if (hint_needed) {
 				hint_needed = false;
-				GetPrivateProfileString(LANG, L"2fa_hint_title", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("2_hn", lang_str, NULL);
 				if (flags & (1 << 3)) {
 					int offset = tlstr_len(unenc_response + 12, true);
 					offset += tlstr_len(unenc_response + 12 + offset, true) + 4;
@@ -141,7 +141,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					MessageBox(current_dialog, hint, lang_str, MB_OK | MB_ICONINFORMATION);
 				} else {
 					wchar_t nohint_str[25];
-					GetPrivateProfileString(LANG, L"e_hn", L"", nohint_str, 25, exe_path);
+					get_lang_string("e_hn", nohint_str, NULL);
 					MessageBox(current_dialog, nohint_str, lang_str, MB_OK | MB_ICONERROR);
 					EnableWindow(h2FAHint, FALSE);
 				}
@@ -156,7 +156,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				int password_len = tlstr_len(u8password, false);
 
 				ShowWindow(current_dialog, SW_HIDE);
-				GetPrivateProfileString(LANG, L"a_srp", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("a_srp", lang_str, NULL);
 				SetWindowText(infoLabel, lang_str);
 				ShowWindow(current_info, SW_SHOW);
 				UpdateWindow(current_info);
@@ -319,7 +319,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				fclose(f);
 				DestroyWindow(current_dialog);
 				current_dialog = NULL;
-				GetPrivateProfileString(LANG, L"a_log", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("a_log", lang_str, NULL);
 				SetWindowText(infoLabel, lang_str);
 				ShowWindow(current_info, SW_SHOW);
 
@@ -373,7 +373,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				write_le(unenc_query + 48, 27752131, 4);
 				write_string(unenc_query + 52, L"com");
 				write_string(unenc_query + 56, L"win");
-				write_string(unenc_query + 60, L"1.0.4");
+				write_string(unenc_query + 60, version);
 				write_string(unenc_query + 68, L"en");
 				write_string(unenc_query + 72, L"tdesktop");
 				write_string(unenc_query + 84, L"en");
@@ -386,7 +386,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				offset += padding_len;
 				convert_message(active_dc, unenc_query, enc_query, offset, 0);
 				send_query(active_dc, enc_query, offset + 24);
-				GetPrivateProfileString(LANG, L"s_dclgd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("s_dclgd", lang_str, NULL);
 				SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)lang_str);
 				if (uploadEvents.size() == 0 && downloading_docs.size() == 0) SetTimer(hMain, 2, 3000, NULL);
 				break;
@@ -407,8 +407,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 	}
 	case 0xa7eff811: { // bad_msg_notification
 		int error_code = read_le(unenc_response + 16, 4);
-		wchar_t error_message[14];
-		GetPrivateProfileString(LANG, L"e_c", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		wchar_t error_message[30];
+		get_lang_string("e_c", lang_str, NULL);
 		wsprintf(error_message, lang_str, error_code);
 		MessageBox(NULL, error_message, L"bad_msg_notification", MB_OK | MB_ICONERROR);
 		if (error_code == 16 || error_code == 17) {
@@ -435,12 +435,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		if (memcmp(last_rpcresult_msgid, unenc_response + 4, 8) == 0) break;
 		memcpy(last_rpcresult_msgid, unenc_response + 4, 8);
 		response_handler(dcInfo, unenc_response + 12, false, length - 12);
-		if (memcmp(last_rpcresult_msgid, difference_msg_id, 8) == 0 && !closed_logged_out) {
-			DestroyWindow(current_info);
-			ShowWindow(hMain, maximized ? SW_SHOWMAXIMIZED : SW_SHOW);
-			SetForegroundWindow(hMain);
-			set_tray_icon();
-		}
+		if (memcmp(last_rpcresult_msgid, difference_msg_id, 8) == 0 && !closed_logged_out) show_main();
 		if (!dcInfo->dc) acknowledgement = false;
 		break;
 	}
@@ -451,7 +446,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		if (error_code == 303) {
 			if (error_message[0] == L'P') {
 				ShowWindow(current_dialog, SW_HIDE);
-				GetPrivateProfileString(LANG, L"a_ddc", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("a_ddc", lang_str, NULL);
 				SetWindowText(infoLabel, lang_str);
 				ShowWindow(current_info, SW_SHOW);
 				UpdateWindow(current_info);
@@ -550,9 +545,9 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			current_dialog = CreateDialogIndirect(GetModuleHandle(NULL), dlg, NULL, DlgProc2FA);
 		} else if (error_code == 400) {
 			wchar_t error_title[10];
-			GetPrivateProfileString(LANG, L"e", L"", error_title, 10, get_path(exe_path, L"lang.ini"));
+			get_lang_string("e", error_title, NULL);
 			if (wcscmp(error_message, L"AUTH_TOKEN_EXPIRED") == 0) {
-				GetPrivateProfileString(LANG, L"e_2xp", L"", lang_str, 100, exe_path);
+				get_lang_string("e_2xp", lang_str, NULL);
 				MessageBox(NULL, lang_str, error_title, MB_OK | MB_ICONERROR);
 				if (qrCodeToken) {
 					free(qrCodeToken);
@@ -560,12 +555,12 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				}
 				SendMessage(current_dialog, WM_INITDIALOG, 0, 10);
 			} else if (wcscmp(error_message, L"PASSWORD_HASH_INVALID") == 0) {
-				GetPrivateProfileString(LANG, L"e_2ps", L"", lang_str, 100, exe_path);
+				get_lang_string("e_2ps", lang_str, NULL);
 				MessageBox(NULL, lang_str, error_title, MB_OK | MB_ICONERROR);
 				ShowWindow(current_info, SW_HIDE);
 				ShowWindow(current_dialog, SW_SHOW);
 			} else if (wcscmp(error_message, L"SRP_ID_INVALID") == 0) {
-				GetPrivateProfileString(LANG, L"e_2lt", L"", lang_str, 100, exe_path);
+				get_lang_string("e_2lt", lang_str, NULL);
 				MessageBox(NULL, lang_str, error_title, MB_OK | MB_ICONERROR);
 				ShowWindow(current_info, SW_HIDE);
 				ShowWindow(current_dialog, SW_SHOW);
@@ -573,9 +568,9 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		} else if (error_code == 401 && wcscmp(error_message, L"AUTH_KEY_UNREGISTERED") == 0) {
 			if (!closed_logged_out) {
 				closed_logged_out = true;
-				GetPrivateProfileString(LANG, L"a_nlog", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("a_nlog", lang_str, NULL);
 				wchar_t error_title[10];
-				GetPrivateProfileString(LANG, L"e", L"", error_title, 10, exe_path);
+				get_lang_string("e", error_title, NULL);
 				MessageBox(hMain, lang_str, error_title, MB_OK | MB_ICONERROR);
 				logout_cleanup();
 			}
@@ -587,7 +582,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			SetTimer(hMain, 4, wait_time * 1000, NULL);
 		} else {
 			wchar_t error_message2[50];
-			GetPrivateProfileString(LANG, L"e_c", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("e_c", lang_str, NULL);
 			wcscat(lang_str, L": %s");
 			swprintf(error_message2, lang_str, error_code, error_message);
 			MessageBox(NULL, error_message2, L"rpc_error", MB_OK | MB_ICONERROR);
@@ -596,7 +591,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 	}
 	case 0x68e9916: { // auth.loginTokenMigrateTo
 		ShowWindow(current_dialog, SW_HIDE);
-		SetWindowText(infoLabel, L"Account is on a different DC! Reconnecting...");
+		get_lang_string("a_ddc", lang_str, NULL);
+		SetWindowText(infoLabel, lang_str);
 		ShowWindow(current_info, SW_SHOW);
 		UpdateWindow(current_info);
 		dcInfoMain.dc = read_le(unenc_response + 4, 4);
@@ -649,15 +645,15 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				fread(&muted_types, 4, 3, f);
 				HMENU hMenuMute = GetSubMenu(GetSubMenu(hMenuBar, 0), 1);
 				if (muted_types[0]) {
-					GetPrivateProfileString(LANG, L"menu_unmute_users", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+					get_lang_string("m_u0", lang_str, NULL);
 					ModifyMenu(hMenuMute, 0, MF_BYPOSITION | MF_STRING, 38, lang_str);
 				}
 				if (muted_types[1]) {
-					GetPrivateProfileString(LANG, L"menu_unmute_groups", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+					get_lang_string("m_u1", lang_str, NULL);
 					ModifyMenu(hMenuMute, 1, MF_BYPOSITION | MF_STRING, 39, lang_str);
 				}
 				if (muted_types[2]) {
-					GetPrivateProfileString(LANG, L"menu_unmute_channels", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+					get_lang_string("m_u2", lang_str, NULL);
 					ModifyMenu(hMenuMute, 2, MF_BYPOSITION | MF_STRING, 40, lang_str);
 				}
 				fread(&peers_count, 4, 1, f);
@@ -680,7 +676,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					fread(&peer->online, 4, 1, f);
 					fread(peer->photo, 1, 8, f);
 					fread(&peer->photo_dc, 4, 1, f);
-					fread(&peer->last_read, 4, 1, f);
+					fread(&peer->last_read_out, 4, 1, f);
 					fread(&peer->unread_msgs_count, 4, 1, f);
 					fread(&peer->mute_until, 4, 1, f);
 					fread(&peer->perm, sizeof(Permissions), 1, f);
@@ -754,6 +750,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					if (peer->unread_msgs_count && !peer->mute_until && !muted_types[peer->type])
 						new_unread_msgs_count += peer->unread_msgs_count;
 					peer->last_recv = 0;
+					peer->last_read_in = 0;
 				}
 				if (new_unread_msgs_count) update_total_unread_msgs_count(new_unread_msgs_count);
 				fread(&folders_count, 4, 1, f);
@@ -766,8 +763,14 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					fread(folders[i].peers, 4, folders[i].count, f);
 					int name_len = 0;
 					fread(&name_len, 4, 1, f);
-					folders[i].name = (wchar_t*)malloc(name_len*2);
-					fread(folders[i].name, 2, name_len, f);
+					if (i == 0) {
+						get_lang_string("all", lang_str, NULL);
+						folders[i].name = _wcsdup(lang_str);
+						fseek(f, name_len * 2, SEEK_CUR);
+					} else {
+						folders[i].name = (wchar_t*)malloc(name_len*2);
+						fread(folders[i].name, 2, name_len, f);
+					}
 					SendMessage(hComboBoxFolders, CB_ADDSTRING, 0, (LPARAM)folders[i].name);
 					SendMessage(hComboBoxFolders, CB_SETITEMDATA, i, (LPARAM)&folders[i]);
 				}
@@ -997,7 +1000,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				if (flags1 & (1 << 1)) offset += 4; 
 				int flags = read_le(unenc_response + offset + 4, 4);
 				offset += 28;
-				peers[i].last_read = read_le(unenc_response + offset, 4);
+				peers[i].last_read_out = read_le(unenc_response + offset, 4);
 				offset += 4;
 				int unread_count_old = peers[i].unread_msgs_count;
 				peers[i].unread_msgs_count = read_le(unenc_response + offset, 4);
@@ -1069,7 +1072,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			message_adder(false, false, flags, unenc_response + 8, msg_bytes, NULL, unenc_response + 12, &format_vecs[0], NULL, msgrpl, msgfwd, NULL, false, true, false, date);
 		} else if (!(flags & (1 << 1))) {
 			for (int i = 0; i < peers_count; i++) if (memcmp(peers[i].id, msg_bytes - 8, 8) == 0) {
-				new_msg_notification(&peers[i], msg_bytes, false);
+				int msg_id_int = read_le(unenc_response + 8, 4);
+				if (msg_id_int > peers[i].last_read_in) new_msg_notification(&peers[i], msg_bytes, false);
 				break;
 			}
 		}
@@ -1084,10 +1088,10 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				FINDTEXTEX ft;
 				ft.chrg.cpMin = messages[i].end_char;
 				ft.chrg.cpMax = messages[i].end_footer;
-				GetPrivateProfileString(LANG, L"c_snd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("c_snd", lang_str, NULL);
 				ft.lpstrText = lang_str;
 				wchar_t deliv[25];
-				GetPrivateProfileString(LANG, L"c_dlv", L"", deliv, 25, exe_path);
+				get_lang_string("c_dlv", deliv, NULL);
 				int diff = replace_in_chat(&ft, NULL, deliv, NULL, NULL, NULL, NULL);
 				messages[i].end_footer += diff;
 				break;
@@ -1130,7 +1134,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		if (!peers) {
 			if (!total_peers_count) total_peers_count = peers_count;
 			folders = (ChatsFolder*)malloc(sizeof(ChatsFolder));
-			GetPrivateProfileString(LANG, L"all", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("all", lang_str, NULL);
 			folders[0].name = _wcsdup(lang_str);
 			folders[0].pinned_count = 0;
 			memset(folders[0].id, 0, 4);
@@ -1178,7 +1182,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				else pinned_peers_ids = (BYTE*)realloc(pinned_peers_ids, pinned_peers_count * 8);
 				memcpy(pinned_peers_ids + (pinned_peers_count-1)*8, unenc_response + offset_dlg + 8, 8);
 			}
-			peers[i].last_read = read_le(unenc_response + offset_dlg + 24, 4);
+			peers[i].last_read_in = read_le(unenc_response + offset_dlg + 20, 4);
+			peers[i].last_read_out = read_le(unenc_response + offset_dlg + 24, 4);
 			peers[i].unread_msgs_count = read_le(unenc_response + offset_dlg + 28, 4);
 			apply_notifysettings(unenc_response + offset_dlg + 40, &peers[i].mute_until, read_le(peers[i].id, 8));
 			
@@ -1256,11 +1261,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				if (i != folders_count-1) offset += array_find(unenc_response + offset, folder_cons, 4, 1) + 4;
 			}
 		}
-
-		DestroyWindow(current_info);
-		ShowWindow(hMain, maximized ? SW_SHOWMAXIMIZED : SW_SHOW);
-		SetForegroundWindow(hMain);
-		set_tray_icon();
+		show_main();
 		break;
 	}
 	case 0x1cb5c415: { // vector
@@ -1329,6 +1330,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					offset += photo_offset(unenc_response + offset);
 				} else memset(peer->photo, 0, 8);
 				if (flags & (1 << 22)) offset += photo_offset(unenc_response + offset);
+				apply_notifysettings(unenc_response + offset, &peer->mute_until, read_le(peer->id, 8));
 				offset += peernotifyset_offset(unenc_response + offset);
 				if (flags & (1 << 3)) offset += botinfo_offset(unenc_response + offset);
 				if (flags & (1 << 6)) offset += 4;
@@ -1456,6 +1458,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					}
 					offset += 4;
 					if (flags & (1 << 2)) offset += photo_offset(unenc_response + offset);
+					apply_notifysettings(unenc_response + offset, &peers[i].mute_until, read_le(peers[i].id, 8));
 					offset += peernotifyset_offset(unenc_response + offset);
 					if (flags & (1 << 13)) offset += exchatinv_offset(unenc_response + offset);
 					if (flags & (1 << 3)) {
@@ -1510,6 +1513,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					if (flags & (1 << 13)) offset += 4;
 					offset += 12;
 					offset += photo_offset(unenc_response + offset);
+					apply_notifysettings(unenc_response + offset, &peers[i].mute_until, read_le(peers[i].id, 8));
 					offset += peernotifyset_offset(unenc_response + offset);
 					if (flags & (1 << 23)) offset += exchatinv_offset(unenc_response + offset);
 					int botinfo_count = read_le(unenc_response + offset + 4, 4);
@@ -1728,7 +1732,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					int percentage = (int)((double)file_size / (double)downloading_docs[i].size * 100.0);
 					if (size < 1048576) {
 						wchar_t status_str[100];
-						GetPrivateProfileString(LANG, L"s_dowd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+						get_lang_string("s_dowd", lang_str, NULL);
 						swprintf(status_str, lang_str, downloading_docs[i].filename);
 						SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)status_str);
 						free(downloading_docs[i].filename);
@@ -2083,43 +2087,43 @@ int update_handler(BYTE* update) {
 				status_bar_status(current_peer);
 				break;
 			case 0x16bf744e:
-				GetPrivateProfileString(LANG, L"s_typ", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("s_typ", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
 			case 0xa187d66f:
-				GetPrivateProfileString(LANG, L"s_vrec", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("s_vrec", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
 			case 0xe9763aec:
-				GetPrivateProfileString(LANG, L"s_vup", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("s_vup", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
 			case 0xd52f73f7:
-				GetPrivateProfileString(LANG, L"s_vorec", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("s_vorec", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
 			case 0xf351d7ab:
-				GetPrivateProfileString(LANG, L"s_voup", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("s_voup", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
 			case 0xd1d34a26:
-				GetPrivateProfileString(LANG, L"s_ph", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("s_ph", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
 			case 0xaa0cd9e4:
-				GetPrivateProfileString(LANG, L"s_f", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("s_f", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
 			case 0x88f27fbc:
-				GetPrivateProfileString(LANG, L"s_rrec", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("s_rrec", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
 			case 0x243e1c66:
-				GetPrivateProfileString(LANG, L"s_rup", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("s_rup", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
 			case 0xb05ac6b1:
-				GetPrivateProfileString(LANG, L"s_stk", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+				get_lang_string("s_stk", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
 			}
@@ -2148,7 +2152,7 @@ int update_handler(BYTE* update) {
 		int offset = update_constructor == 0xb75f99a9 ? 4 : 8;
 		for (int i = 0; i < peers_count; i++) {
 			if (memcmp(peers[i].id, update + offset, 8) == 0) {
-				peers[i].last_read = read_le(update + offset + 8, 4);
+				peers[i].last_read_out = read_le(update + offset + 8, 4);
 				if (current_peer == &peers[i]) for (int j = messages.size() - 1; j >= 0; j--) {
 					if (messages[j].outgoing) {
 						if (messages[j].seen) break;
@@ -2157,10 +2161,10 @@ int update_handler(BYTE* update) {
 							FINDTEXTEX ft;
 							ft.chrg.cpMin = messages[j].end_char;
 							ft.chrg.cpMax = messages[j].end_footer;
-							GetPrivateProfileString(LANG, L"c_dlv", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+							get_lang_string("c_dlv", lang_str, NULL);
 							ft.lpstrText = lang_str;
 							wchar_t seen[25];
-							GetPrivateProfileString(LANG, L"c_sn", L"", seen, 25, exe_path);
+							get_lang_string("c_sn", seen, NULL);
 							int diff = replace_in_chat(&ft, NULL, seen, NULL, NULL, NULL, NULL);
 							messages[j].end_footer += diff;
 						}
@@ -2184,6 +2188,7 @@ int update_handler(BYTE* update) {
 		int index = -1;
 		for (int i = 0; i < peers_count; i++) {
 			if (memcmp(peers[i].id, update + bytes_count, 8) == 0) {
+				peers[i].last_recv = read_le(update + bytes_count + 8, 4);
 				int unread_count_old = peers[i].unread_msgs_count;
 				peers[i].unread_msgs_count = read_le(update + bytes_count + 12, 4);
 				if (unread_count_old != peers[i].unread_msgs_count && !peers[i].mute_until && !muted_types[peers[i].type]) update_total_unread_msgs_count(peers[i].unread_msgs_count - unread_count_old);
@@ -2479,7 +2484,7 @@ int update_handler(BYTE* update) {
 							update_total_unread_msgs_count(mute_until_old ? peers[i].unread_msgs_count : (0 - peers[i].unread_msgs_count));
 						if (&peers[i] == current_peer) {
 							HMENU hMenuChat = GetSubMenu(hMenuBar, 1);
-							GetPrivateProfileString(LANG, mute_until_old ? L"menu_mute_chat" : L"menu_unmute_chat", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+							get_lang_string(mute_until_old ? "m_mc" : "m_uc", lang_str, NULL);
 							ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, lang_str);
 						}
 					}

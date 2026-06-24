@@ -1,0 +1,34 @@
+[OPTIONS]
+Binary Index=No
+Compatibility=1.0
+Compiled file=help.chm
+Contents file=Table of Contents.hhc
+Default Font=MS Sans Serif,8,0
+Default Window=main
+Default topic=start.htm
+Display compile progress=No
+Flat=Yes
+Full-text search=Yes
+Language=0x409 Английский (США)
+Title=Telegacy User Guide
+
+[WINDOWS]
+main="Telegacy User Guide","Table of Contents.hhc",,"start.htm","start.htm",,,,,0x2520,,0x304e,,0x80000,,,,,,0
+
+
+[FILES]
+download.htm
+files.htm
+login.htm
+messages.htm
+options.htm
+profiles.htm
+start.htm
+upload.htm
+
+[TEXT POPUPS]
+popups.h
+popups.txt
+
+[INFOTYPES]
+

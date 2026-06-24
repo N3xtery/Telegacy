@@ -13,6 +13,7 @@ You should have received a copy of the GNU General Public License along with Tel
 #define _WIN32_WINNT 0x0400
 #define WINVER 0x0500
 #define WM_TRAYICON (WM_USER + 1)
+#define WM_HOSTRESOLVE (WM_USER + 2)
 #include <vector>
 #include <deque>
 #include <list>
@@ -75,7 +76,8 @@ struct Peer {
 	wchar_t* about;
 	BYTE birthday[4];
 	int online;
-	int last_read;
+	int last_read_in;
+	int last_read_out;
 	int last_recv;
 	int unread_msgs_count;
 	int mute_until;
@@ -222,6 +224,8 @@ struct NOTIFYICONDATAV2 {
     DWORD dwInfoFlags;
 };
 
+extern wchar_t* version;
+
 extern BYTE pubkey_der[];
 extern BYTE pubkey_der_test[];
 extern unsigned int pubkey_der_len;
@@ -242,7 +246,6 @@ extern bool drawchat;
 extern bool closing;
 extern HWND current_dialog, current_notification, current_info, current_about;
 extern HWND dlgPic, infoLabel;
-extern HBITMAP infoBmp, infoBmpMask;
 extern int width;
 extern int height;
 extern bool maximized;
@@ -257,7 +260,10 @@ extern HWND hComboBoxChats, hComboBoxFolders, msgInput, chat, hMain, hStatus, hT
 extern HWND hNumber, hNumberBtn, hCode, hCodeBtn, hQRCode, h2FA, hPass, h2FAHint, hProxyIP, hProxyPort, hProxyUsername, hProxyPassword, hProxyHidePassword;
 extern IActiveIMMApp* g_pAIMM;
 extern HMENU hMenuBar;
+extern HBITMAP tbBmp;
 extern HFONT hFonts[3];
+extern HBRUSH hBrushes[4];
+extern COLORREF colors[4];
 
 extern wchar_t* last_tofront_sender;
 extern BYTE group_id_tofront[8];
@@ -320,6 +326,8 @@ extern bool no_more_msgs;
 extern int get_dialogs_lowest_date;
 extern bool closed_logged_out;
 extern int dpi;
+extern char* hostBuf;
+extern BYTE* notif_newpeer_msg;
 
 extern HWAVEIN hWaveIn;
 extern WAVEHDR hdr_buf[4];
@@ -329,16 +337,21 @@ extern bool balloon_notifications_available;
 extern bool balloon_notifications;
 extern bool SENDMEDIAASFILES;
 extern bool CLOSETOTRAY;
+extern bool CHECKUPDATES;
 extern int MSGSFETCHCOUNT;
 extern int IMAGELOADPOLICY;
 extern bool EMOJIS;
 extern bool SPOILERS;
+extern bool CHATTHEMES;
 extern wchar_t sound_paths[3][MAX_PATH];
 extern int SAMPLERATE;
 extern int BITSPERSAMPLE;
 extern int CHANNELS;
-extern wchar_t LANG[4];
+extern char LANG[4];
+extern char lang_path[100];
 extern wchar_t lang_str[100];
+extern char lang_str_ansi[100];
+extern int lang_codepage;
 
 class CTextHost : public ITextHost {
 public:
@@ -437,8 +450,8 @@ void wemoji_to_path(wchar_t* emoji_str, wchar_t* file_name, bool dir);
 // helpers.cpp
 int current_time();
 char get_padding(int len);
-void send_query(BYTE* enc_query, int length);
-void send_query(DCInfo* dcInfo, BYTE* enc_query, int length);
+int send_query(BYTE* enc_query, int length);
+int send_query(DCInfo* dcInfo, BYTE* enc_query, int length);
 void create_msg_id(BYTE* buf);
 void create_msg_id(DCInfo* dcInfo, BYTE* buf);
 void create_msg_key(BYTE* unenc_query, int length, int x, BYTE* msg_key);
@@ -459,7 +472,7 @@ int insert_format(BYTE* unenc_query, int format_count, std::vector<int>* format_
 wchar_t* files_i(wchar_t* file_name);
 int place_inputmedia(BYTE* unenc_query, Document* docstemp, int index);
 void get_future_salt(DCInfo* dcInfo);
-void update_own_status(bool status);
+int update_own_status(bool status);
 void get_history();
 void set_typing(int cons, int add);
 void make_seen(Message* message);
@@ -530,6 +543,11 @@ int riched_write(HWND riched, wchar_t* str);
 void convert_negative_lfheight(LOGFONT* lf, int index);
 void set_menu(HWND hWnd);
 void create_service_msg(BYTE* message, wchar_t* sender, wchar_t* service_msg, bool channel);
+void show_main();
+LRESULT back_brush(HDC hDC);
+void get_lang_string(char* id, wchar_t* wdest, char* dest);
+void update_toolbar();
+void nt3_combobox_fit(HWND comboBox);
 
 // message.cpp
 int message_handler(bool to_front, BYTE* message, bool update_order, bool editing, bool rplhelper);

@@ -1,0 +1,30 @@
+<html>
+<style>body { font:10pt sans-serif;}</style>
+<body>
+<h2 id="files">Program files</h2>
+<p>Together with the executable you have:</p>
+<ol>
+<li>"help.hlp", "help.cnt" files. The WinHelp version of this user guide.</li>
+<li>"help.chm" file. The HTML Help version of this user guide. Is used if the WinHelp version is missing or can't be opened.</li>
+<li>"emoji_categories.dat" file. This file contains the different emoji categories and the names of the emojis that are a part of each category.
+If you want, you can edit this file and change the categories' contents. You can find the structure of this file in the source code.</li>
+<li>"emojis" folder. This file contains emojis in the .ico format. Telegacy ships with the Forumoji emojis. You can add missing emojis 
+or replace the existing ones.</li>
+<li>"langs" folder. Contains INI localization files in ANSI encoding for different languages. Feel free to make changes or add new languages.</li>
+<li>"emoji.ini" file. Has aliases for all the emojis, so you can, for example, type :heart: and the heart emoji will be pasted. 
+Once again, you can do any changes you want.</li>
+</ol>
+<p>Also, Telegacy creates new user files in %appdata%/Telegacy/ (in case your system doesn't have %appdata%, "%windir%/Application Data/Telegacy/" will be used). Those include:</p>
+<ol>
+<li>"DCs.dat" file. Contains the IP addresses and ports of all the Telegam datacenters, It also tells which datacenter the current logged in 
+account is on.</li>
+<li>"session.dat" file. Has everything needed for an access to your account. Updates when you exit the program, except for the sequence number, 
+which is written to this file every 10th time it changes, this measure is needed for the prevention of bad consequences in case of unexpected crashes.</li>
+<li>"database.dat" file. Includes data about your chats and folders, as well as the default reactions and themes. Updates when you exit the program.</li>
+<li>"fav_emojis.dat" file. Is a list of the emojis you used. Can have a maximum of 40 emojis.</li>
+<li>"options.ini" file. Your options are here.</li>
+<li>"custom_emojis" folder. The custom emojis you encounter get downloaded to this folder.</li>
+</ol>
+<p>When you log out, the "DCs.dat", "session.dat" and "database.dat" files get deleted.</p>
+</body>
+</html>

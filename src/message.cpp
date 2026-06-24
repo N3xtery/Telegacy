@@ -45,8 +45,9 @@ int message_handler(bool to_front, BYTE* message, bool update_order, bool editin
 		index = i;
 		break;
 	}
-	bool duplicate = (peer && read_le(msg_id, 4) <= peer->last_recv && !to_front);
-	if (!duplicate && !to_front && peer) peer->last_recv = read_le(msg_id, 4);
+	int msg_id_int = read_le(msg_id, 4);
+	bool duplicate = (peer && msg_id_int <= peer->last_recv && !to_front);
+	if (!duplicate && !to_front && peer) peer->last_recv = msg_id_int;
 
 	if (!duplicate && update_order) {
 		char type = 0;
@@ -181,7 +182,7 @@ int message_handler(bool to_front, BYTE* message, bool update_order, bool editin
 	if (flags_msg2 & (1 << 5)) offset_msg += 4;
 	if (message_adding)
 		message_adder(service, to_front, flags_msg, msg_id, msg_bytes, NULL, chat_member_id, &format_vecs[0], reactions, msgrpl, msgfwd, views, groupmed_end, footer, editing, date);
-	else if (!duplicate && peer && !(flags_msg & (1 << 1)) && !editing && !to_front && !rplhelper) new_msg_notification(peer, msg_bytes, groupmed_end);
+	else if (!to_front && !duplicate && peer && !(flags_msg & (1 << 1)) && msg_id_int > peer->last_read_in && !editing && !rplhelper) new_msg_notification(peer, msg_bytes, groupmed_end);
 	return offset_msg;
 }
 
@@ -190,7 +191,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 	message.id = NULL;
 	if (msg_id) message.id = read_le(msg_id, 4);
 	message.outgoing = (flags & (1 << 1)) != 0 || memcmp(current_peer->id, myself.id, 8) == 0;
-	message.seen = ((to_front && !message.outgoing) || (message.outgoing && message.id != NULL && message.id <= current_peer->last_read)) ? true : false;
+	message.seen = ((to_front && !message.outgoing) || (message.outgoing && message.id != NULL && message.id <= current_peer->last_read_out)) ? true : false;
 	if ((flags & (1 << 4)) && message.outgoing && !to_front && !editing) read_react_ment(false);
 	
 	SCROLLINFO si = {0};
@@ -624,7 +625,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 				quote_text = &msgrpl[offset];
 			}
 		}
-		GetPrivateProfileString(LANG, L"c_rep", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+		get_lang_string("c_rep", lang_str, NULL);
 		wcscat(lang_str, L" ");
 		if (msgrpl_another_chat && quote_text) {
 			written_info += riched_write(chat, lang_str);
@@ -673,7 +674,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 		}
 
 		if (msgfwd) {
-			GetPrivateProfileString(LANG, L"c_fwd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("c_fwd", lang_str, NULL);
 			wcscat(lang_str, L" ");
 			written_info += riched_write(chat, lang_str);
 			written_info += msgfwd_addname(msg_bytes, msgfwd, cr_startmsg.cpMin + written + written_info, msg_bytes - msg_id == 12);
@@ -681,17 +682,21 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 		}
 
 		get_date(info + wcslen(info), date, false);
-		if ((flags & (1 << 15)) && !(flags & (1 << 21))) wcscat(info, L" | edited");
+		if ((flags & (1 << 15)) && !(flags & (1 << 21))) {
+			wcscat(info, L" | ");
+			get_lang_string("c_edt", lang_str, NULL);
+			wcscat(info, lang_str);
+		}
 		if (message.outgoing && memcmp(current_peer->id, myself.id, 8) != 0) {
 			wcscat(info, L" | ");
-			if (message.seen) GetPrivateProfileString(LANG, L"c_sn", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
-			else if (msg_id == NULL) GetPrivateProfileString(LANG, L"c_snd", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
-			else GetPrivateProfileString(LANG, L"c_dlv", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			if (message.seen) get_lang_string("c_sn", lang_str, NULL);
+			else if (msg_id == NULL) get_lang_string("c_snd", lang_str, NULL);
+			else get_lang_string("c_dlv", lang_str, NULL);
 			wcscat(info, lang_str);
 		}
 		if (views != NULL) {
 			int views_int = read_le(views, 4);
-			GetPrivateProfileString(LANG, L"c_vw", L"", lang_str, 100, get_path(exe_path, L"lang.ini"));
+			get_lang_string("c_vw", lang_str, NULL);
 			swprintf(info, L"%s | %s %d", info, lang_str, views_int);
 		}
 		written_info += riched_write(chat, info);
@@ -743,8 +748,8 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 	wcscpy(cf.szFaceName, lf.lfFaceName);
 	cf.wWeight = lf.lfWeight;
 	cf.dwEffects = lf.lfItalic ? CFE_ITALIC : 0;
-	cf.crTextColor = 0;
-	cf.crBackColor = RGB(255, 255, 255);
+	cf.crTextColor = colors[3];
+	cf.crBackColor = colors[1];
 	cf.yHeight = MulDiv(-lf.lfHeight, 144, dpi) * 10;
 	if (es) SendMessage(chat, EM_SETSEL, cr_startmsg.cpMin + written - written_info, cr_startmsg.cpMin + written);
 	SendMessage(chat, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
@@ -784,7 +789,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 		}
 		SendMessage(chat, EM_SETSEL, document.min, document.max);
 		SendMessage(chat, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
-		cf.crTextColor = 0;
+		cf.crTextColor = colors[3];
 	}
 
 	int format_values[9] = {CFM_BOLD, CFM_ITALIC, CFM_UNDERLINE, CFM_STRIKEOUT, CFM_COLOR, CFM_FACE, CFM_BACKCOLOR, CFM_LINK, CFM_LINK};
@@ -800,8 +805,8 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			else if (i == 5) wcscpy(cf.szFaceName, L"Courier New");
 			else if (i == 6) {
 				cf.dwMask |= CFM_COLOR;
-				cf.crTextColor = 0;
-				cf.crBackColor = 0;
+				cf.crTextColor = colors[3];
+				cf.crBackColor = colors[3];
 			} else if (i == 8) {
 				new_links++;
 				for (int k = 0; k < links.size(); k++) if (links[k].chrg.cpMin == -1) break;

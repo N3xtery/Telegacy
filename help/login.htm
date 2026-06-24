@@ -1,0 +1,20 @@
+<html>
+<style>body { font:10pt sans-serif;}</style>
+<body>
+<h2 id="login">Logging in</h2>
+<p>When launching the program for the first time or after you logged out, the process of creating the authorization key takes place. 
+It might take a while depending on how fast your CPU is. Afterwards, the "Log In" dialog will be shown. You have two options:</p>
+<ol>
+<li>Enter your phone number and press "Get code". A 5-digit code will be sent to your Telegram account. Input it in the code field and press "Log in".</li>
+<li>Scan the QR code using the QR code scanner of a Telegram client where you're logged in to your account.</li>
+</ol>
+<p>If your account has the two-factor authentication turned out, you'll be asked for your password prior to getting logged in. When you input your password 
+and press "Log in", the SRP algorithm of checking your password will begin. Unfortunately, there is a 30-second timer set by Telegram, and because the algorithm 
+is quite heavy, it might not get finished in time if your CPU is too slow. The timer also starts when you check your hint for the first time each session, so if you try 
+to log in before it finishes, you have a higher chance of timing out as well.</p>
+<p>Note: after pressing "Get code" or scanning the QR code, the process of creating the authorization key will happen again 
+if your account is located on the American or Asian Telegram datacenter. This is because by default Telegacy connects and creates the authorization key on 
+the European datacenter.</p>
+<p>Note 2: You can't register an account with Telegacy. This feature is reserved only for the official Telegram client.</p>
+</body>
+</html>
