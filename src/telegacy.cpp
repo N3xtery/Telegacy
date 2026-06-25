@@ -100,6 +100,7 @@ bool dontlosefocus = false;
 bool needtosetuplogin = false;
 bool minimized = false;
 bool ischatscrolling = false;
+bool ie5 = true;
 bool ie4 = true;
 bool ie3 = true;
 bool nt3 = false;
@@ -111,7 +112,6 @@ int get_dialogs_lowest_date = 0;
 bool closed_logged_out = false;
 int dpi = 0;
 CTextHost* textHost = NULL;
-char* hostBuf = NULL;
 BYTE* notif_newpeer_msg = NULL;
 
 HWAVEIN hWaveIn = NULL;
@@ -465,6 +465,44 @@ unsigned __stdcall FileSenderWorker(void* param) {
 	return 0;
 }
 
+unsigned __stdcall UpdateWorker(void* param) {
+	hostent* he = gethostbyname("webdav.nixxo.net");
+	if (!he) return 0;
+
+	sockaddr_in addr;
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(80);
+	addr.sin_addr = *(in_addr*)he->h_addr;
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (connect(sock, (sockaddr*)&addr, sizeof(addr)) != 0) closesocket(sock);
+	else {
+		const char* req = "GET /telegacy/latest.txt HTTP/1.0\r\nHost: webdav.nixxo.net\r\nConnection: close\r\n\r\n";
+		send(sock, req, strlen(req), 0);
+
+		char response[512] = {0};
+		int total = 0, bytes;
+		while ((bytes = recv(sock, response + total, sizeof(response) - 1 - total, 0)) > 0) total += bytes;
+
+		char* ver = strstr(response, "\r\n\r\n");
+		ver += 4;
+		int len = strlen(ver);
+		if (len <= 10) {
+			ver[len-1] = '\0';
+			wchar_t ver_wstr[10];
+			MultiByteToWideChar(CP_ACP, 0, ver, -1, ver_wstr, 10);
+			if (wcscmp(ver_wstr, version) != 0) {
+				wchar_t str[100];
+				get_lang_string("upd_v", lang_str, NULL);
+				swprintf(str, lang_str, ver_wstr);
+				get_lang_string("upd", lang_str, NULL);
+				if (MessageBox(NULL, str, lang_str, MB_YESNO | MB_ICONINFORMATION) == IDYES)
+					ShellExecute(NULL, L"open", L"http://webdav.nixxo.net/telegacy/", NULL, NULL, SW_SHOW);
+			}
+		}
+	}
+	return 0;
+}
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
 	case WM_CREATE: {
@@ -475,6 +513,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		DWORD minor, major;
 		get_dll_version(L"comctl32.dll", &minor, &major);
 		if (major <= 3 || (major == 4 && minor <= 70)) ie4 = false;
+		if (major <= 4) ie5 = false;
 		if (major >= 5 || (major == 4 && minor >= 70)) {
 			HINSTANCE hComctlLib = LoadLibraryA("comctl32.dll");
 			if (hComctlLib) {
@@ -593,7 +632,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		tbb[14].iBitmap = 13;
 		tbb[14].idCommand = 1;
 		tbb[14].fsState = TBSTATE_ENABLED;
-		if (ie4) {
+		if (ie5) {
 			wchar_t bold_str[20];
 			get_lang_string("t_b", bold_str, NULL);
 			tbb[0].iString = (INT_PTR)bold_str;
@@ -1795,42 +1834,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			PostMessage(hWnd, WM_NULL, 0, 0);
 			break;
 		} else if (lParam == WM_USER + 5) click_on_notification();
-		break;
-	case WM_HOSTRESOLVE:
-		if (!WSAGETASYNCERROR(lParam)) {
-			hostent* he = (hostent*)hostBuf;
-			sockaddr_in addr;
-			addr.sin_family = AF_INET;
-			addr.sin_port = htons(80);
-			addr.sin_addr = *(in_addr*)he->h_addr;
-			SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-			if (connect(sock, (sockaddr*)&addr, sizeof(addr)) != 0) closesocket(sock);
-			else {
-				const char* req = "GET /telegacy/latest.txt HTTP/1.0\r\nHost: webdav.nixxo.net\r\nConnection: close\r\n\r\n";
-				send(sock, req, strlen(req), 0);
-
-				char response[512] = {0};
-				int total = 0, bytes;
-				while ((bytes = recv(sock, response + total, sizeof(response) - 1 - total, 0)) > 0) total += bytes;
-
-				char* ver = strstr(response, "\r\n\r\n");
-				ver += 4;
-				int len = strlen(ver);
-				if (len <= 10) {
-					ver[len-1] = '\0';
-					wchar_t ver_wstr[10];
-					MultiByteToWideChar(CP_ACP, 0, ver, -1, ver_wstr, 10);
-					wchar_t str[100];
-					get_lang_string("upd_v", lang_str, NULL);
-					swprintf(str, lang_str, ver_wstr);
-					get_lang_string("upd", lang_str, NULL);
-					if (wcscmp(ver_wstr, version) != 0 && MessageBox(NULL, str, lang_str, MB_YESNO | MB_ICONINFORMATION) == IDYES)
-						ShellExecute(NULL, L"open", L"http://webdav.nixxo.net/telegacy/", NULL, NULL, SW_SHOW);
-				}
-			}
-			free(hostBuf);
-			hostBuf = 0;
-		}
 		break;
 	case WM_TIMER:
 		if (wParam == 0) {

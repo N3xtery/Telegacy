@@ -823,41 +823,43 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 	}
 	if (es && format_vecs) delete[] format_vecs;
 
-	if (!es) {
+	{
 		int deleted_wchars = 0;
 		for (int i = 0; i < header_len; i++) i = emoji_adder(i, msg, cr_startmsg.cpMin, 15, chat, &deleted_wchars);
 		header_len -= deleted_wchars;
-		int deleted_wchars_cpy = deleted_wchars;
-		int header_len_old = header_len + deleted_wchars;
-		int links_count = links.size();
-		int newlinks_to_check = new_links;
-		for (i = header_len_old; i < msg_len; i++) {
-			deleted_wchars_cpy = deleted_wchars;
-			__int64 custom_emoji_id = 0;
-			for (int j = 0; j < format_vecs[9].size(); j += 4) {
-				if (i == format_vecs[9][j] + header_len_old) {
-					wchar_t file_name[MAX_PATH];
-					custom_emoji_id = ((__int64)format_vecs[9][j + 3] << 32) | format_vecs[9][j + 2];
-					swprintf(file_name, L"%s\\%016I64X.ico", get_path(appdata_path, L"custom_emojis"), custom_emoji_id);
-					SendMessage(chat, EM_SETSEL, cr_startmsg.cpMin + i - deleted_wchars, cr_startmsg.cpMin + i - deleted_wchars + format_vecs[9][j + 1]);
-					if (!insert_emoji(file_name, 15, chat)) {
-						wchar_t placeholder[] = {0xFE0F, 0};
-						riched_write(chat, placeholder);
-						unknown_custom_emoji_solver(message.id, i - deleted_wchars - header_len, 15, custom_emoji_id, false);
+		if (!es) {
+			int deleted_wchars_cpy = deleted_wchars;
+			int header_len_old = header_len + deleted_wchars;
+			int links_count = links.size();
+			int newlinks_to_check = new_links;
+			for (i = header_len_old; i < msg_len; i++) {
+				deleted_wchars_cpy = deleted_wchars;
+				__int64 custom_emoji_id = 0;
+				for (int j = 0; j < format_vecs[9].size(); j += 4) {
+					if (i == format_vecs[9][j] + header_len_old) {
+						wchar_t file_name[MAX_PATH];
+						custom_emoji_id = ((__int64)format_vecs[9][j + 3] << 32) | format_vecs[9][j + 2];
+						swprintf(file_name, L"%s\\%016I64X.ico", get_path(appdata_path, L"custom_emojis"), custom_emoji_id);
+						SendMessage(chat, EM_SETSEL, cr_startmsg.cpMin + i - deleted_wchars, cr_startmsg.cpMin + i - deleted_wchars + format_vecs[9][j + 1]);
+						if (!insert_emoji(file_name, 15, chat)) {
+							wchar_t placeholder[] = {0xFE0F, 0};
+							riched_write(chat, placeholder);
+							unknown_custom_emoji_solver(message.id, i - deleted_wchars - header_len, 15, custom_emoji_id, false);
+						}
+						deleted_wchars += format_vecs[9][j + 1] - 1;
+						i += format_vecs[9][j + 1] - 1;
+						break;
 					}
-					deleted_wchars += format_vecs[9][j + 1] - 1;
-					i += format_vecs[9][j + 1] - 1;
-					break;
 				}
-			}
-			if (!custom_emoji_id) i = emoji_adder(i, msg, cr_startmsg.cpMin, 15, chat, &deleted_wchars);
-			else custom_emoji_id = 0;
-			if (newlinks_to_check > 0 && deleted_wchars_cpy != deleted_wchars) {
-				int diff = deleted_wchars - deleted_wchars_cpy;
-				for (int j = links_count - newlinks_to_check; j < links_count; j++) {
-					if (links[j].chrg.cpMin > cr_startmsg.cpMin + i - deleted_wchars) links[j].chrg.cpMin -= diff;
-					if (links[j].chrg.cpMax > cr_startmsg.cpMin + i - deleted_wchars) links[j].chrg.cpMax -= diff;
-					else newlinks_to_check--;
+				if (!custom_emoji_id) i = emoji_adder(i, msg, cr_startmsg.cpMin, 15, chat, &deleted_wchars);
+				else custom_emoji_id = 0;
+				if (newlinks_to_check > 0 && deleted_wchars_cpy != deleted_wchars) {
+					int diff = deleted_wchars - deleted_wchars_cpy;
+					for (int j = links_count - newlinks_to_check; j < links_count; j++) {
+						if (links[j].chrg.cpMin > cr_startmsg.cpMin + i - deleted_wchars) links[j].chrg.cpMin -= diff;
+						if (links[j].chrg.cpMax > cr_startmsg.cpMin + i - deleted_wchars) links[j].chrg.cpMax -= diff;
+						else newlinks_to_check--;
+					}
 				}
 			}
 		}

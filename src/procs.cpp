@@ -29,6 +29,8 @@ void manual_dtp_text_paint() {
 	GetClientRect(birthday, &rc);
 	HFONT hOldFont = (HFONT)SelectObject(hDC, hFonts[1]);
 	rc.left += 20;
+	rc.right -= 20;
+	FillRect(hDC, &rc, hBrushes[1]);
 	DrawText(hDC, buf, -1, &rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 	SelectObject(hDC, hOldFont);
 	ReleaseDC(birthday, hDC);
@@ -131,7 +133,7 @@ void update_fonts(int index) {
 }
 
 void insert_options_tabs() {
-	if (ie4) {
+	if (ie5) {
 		TCITEM tie = {0};
 		tie.mask = TCIF_TEXT;
 		tie.pszText = lang_str;
@@ -399,35 +401,37 @@ LRESULT CALLBACK WndProcOptionsTabs(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				TBBUTTONINFO tbi = {0};
 				tbi.cbSize = sizeof(tbi);
 				tbi.dwMask = TBIF_TEXT;
-				tbi.pszText = lang_str;
-				get_lang_string("t_b", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 10, (LPARAM)&tbi);
-				get_lang_string("t_i", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 11, (LPARAM)&tbi);
-				get_lang_string("t_u", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 12, (LPARAM)&tbi);
-				get_lang_string("t_s", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 13, (LPARAM)&tbi);
-				get_lang_string("t_q", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 14, (LPARAM)&tbi);
-				get_lang_string("t_m", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 15, (LPARAM)&tbi);
-				get_lang_string("t_spl", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 16, (LPARAM)&tbi);
-				get_lang_string("t_rep", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 7, (LPARAM)&tbi);
-				get_lang_string("t_edt", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 8, (LPARAM)&tbi);
-				get_lang_string("t_fwd", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 19, (LPARAM)&tbi);
-				get_lang_string("t_att", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 4, (LPARAM)&tbi);
-				get_lang_string("t_rec", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 6, (LPARAM)&tbi);
-				get_lang_string("t_emj", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 5, (LPARAM)&tbi);
-				get_lang_string("t_snd", lang_str, NULL);
-				SendMessage(hToolbar, TB_SETBUTTONINFO, 1, (LPARAM)&tbi);
+				tbi.pszText = ie5 ? lang_str : (wchar_t*)lang_str_ansi;
+				wchar_t* str = ie5 ? lang_str : NULL;
+				int msg = ie5 ? TB_SETBUTTONINFO : TB_SETBUTTONINFOA;
+				get_lang_string("t_b", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 10, (LPARAM)&tbi);
+				get_lang_string("t_i", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 11, (LPARAM)&tbi);
+				get_lang_string("t_u", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 12, (LPARAM)&tbi);
+				get_lang_string("t_s", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 13, (LPARAM)&tbi);
+				get_lang_string("t_q", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 14, (LPARAM)&tbi);
+				get_lang_string("t_m", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 15, (LPARAM)&tbi);
+				get_lang_string("t_spl", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 16, (LPARAM)&tbi);
+				get_lang_string("t_rep", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 7, (LPARAM)&tbi);
+				get_lang_string("t_edt", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 8, (LPARAM)&tbi);
+				get_lang_string("t_fwd", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 19, (LPARAM)&tbi);
+				get_lang_string("t_att", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 4, (LPARAM)&tbi);
+				get_lang_string("t_rec", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 6, (LPARAM)&tbi);
+				get_lang_string("t_emj", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 5, (LPARAM)&tbi);
+				get_lang_string("t_snd", str, lang_str_ansi);
+				SendMessage(hToolbar, msg, 1, (LPARAM)&tbi);
 			}
 			break;
 		}
@@ -968,7 +972,7 @@ INT_PTR CALLBACK DlgProcOptions(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPara
 		SetTextColor(dis->hDC, colors[3]);
 		SetBkColor(dis->hDC, colors[2]);
 		FillRect(dis->hDC, &dis->rcItem, hBrushes[2]);
-		if (ie4) {
+		if (ie5) {
 			TCITEM tci = {0};
 			tci.mask = TCIF_TEXT;
 			wchar_t text[15];
@@ -1042,7 +1046,7 @@ INT_PTR CALLBACK DlgProcInfo(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) 
 		else current_about = NULL;
 		break;
 	case WM_RBUTTONUP:
-		SetWindowText(infoLabel, L"June 25th, 2009 - June 25th, 2026 | RIP MJ o7");
+		if (IsWindowVisible(hMain)) SetWindowText(infoLabel, L"June 25th, 2009 - June 25th, 2026 | RIP MJ o7");
 		break;
 	}
 	return FALSE;
@@ -2086,9 +2090,9 @@ INT_PTR CALLBACK DlgProc2FA(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_INITDIALOG: {
 		get_lang_string("2_ps", lang_str, NULL);
 		HWND h2FALbl = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 10, 155, 15, hDlg, NULL, NULL, NULL);
-		h2FA = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | ES_PASSWORD | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 25, 130, 25, hDlg, NULL, NULL, NULL);
+		h2FA = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | ES_PASSWORD | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 25, 125, 25, hDlg, NULL, NULL, NULL);
 		SendMessage(h2FA, EM_LIMITTEXT, 63, 0);
-		hPass = CreateWindow(L"BUTTON", NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? BS_OWNERDRAW : BS_ICON), 145, 25, 25, 25, hDlg, (HMENU)5, NULL, NULL);
+		hPass = CreateWindow(L"BUTTON", NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? BS_OWNERDRAW : BS_ICON), 140, 25, 25, 25, hDlg, (HMENU)5, NULL, NULL);
 		if (!nt3) {
 			HIMAGELIST hImg = ImageList_LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_ICONS), 16, 0, RGB(128, 0, 128));
 			HICON hIcon = ImageList_GetIcon(hImg, 6, ILD_NORMAL);
@@ -2097,9 +2101,9 @@ INT_PTR CALLBACK DlgProc2FA(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 		}
 
 		get_lang_string("2_hnq", lang_str, NULL);
-		h2FAHint = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 28, 60, 55, 25, hDlg, (HMENU)3, NULL, NULL);
+		h2FAHint = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 10, 60, 73, 25, hDlg, (HMENU)3, NULL, NULL);
 		get_lang_string("l", lang_str, NULL);
-		HWND h2FABtn = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 93, 60, 55, 25, hDlg, (HMENU)4, NULL, NULL);
+		HWND h2FABtn = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 92, 60, 73, 25, hDlg, (HMENU)4, NULL, NULL);
 		apply_fonts(hDlg);
 		get_lang_string("2", lang_str, NULL);
 		SetWindowText(hDlg, lang_str);
@@ -2156,9 +2160,9 @@ INT_PTR CALLBACK DlgProcLogin(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 	case WM_INITDIALOG: {
 		if (!hNumber) {
 			get_lang_string("l_ph", lang_str, NULL);
-			HWND hLabelPhone = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 10, 125, 15, hDlg, NULL, NULL, NULL);
+			HWND hLabelPhone = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 10, 190, 15, hDlg, NULL, NULL, NULL);
 			get_lang_string("l_c", lang_str, NULL);
-			HWND hLabelCode = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 55, 125, 15, hDlg, NULL, NULL, NULL);
+			HWND hLabelCode = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 55, 190, 15, hDlg, NULL, NULL, NULL);
 			get_lang_string("l_qr", lang_str, NULL);
 			HWND hLabelQr = CreateWindow(L"STATIC", lang_str, WS_CHILD | WS_VISIBLE, 10, 100, 190, 15, hDlg, NULL, NULL, NULL);
 			hNumber = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | (nt3 ? WS_BORDER : 0), 10, 25, 125, 25, hDlg, NULL, NULL, NULL);

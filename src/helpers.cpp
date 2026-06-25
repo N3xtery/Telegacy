@@ -2716,8 +2716,8 @@ void show_main() {
 	SetForegroundWindow(hMain);
 	set_tray_icon();
 	if (CHECKUPDATES) {
-		hostBuf = (char*)malloc(MAXGETHOSTSTRUCT);
-		WSAAsyncGetHostByName(hMain, WM_HOSTRESOLVE, "webdav.nixxo.net", hostBuf, MAXGETHOSTSTRUCT);
+		unsigned threadID;
+		_beginthreadex(NULL, 0, UpdateWorker, NULL, 0, &threadID);
 	}
 }
 

@@ -13,7 +13,6 @@ You should have received a copy of the GNU General Public License along with Tel
 #define _WIN32_WINNT 0x0400
 #define WINVER 0x0500
 #define WM_TRAYICON (WM_USER + 1)
-#define WM_HOSTRESOLVE (WM_USER + 2)
 #include <vector>
 #include <deque>
 #include <list>
@@ -316,6 +315,7 @@ extern bool dontlosefocus;
 extern bool needtosetuplogin;
 extern bool minimized;
 extern bool ischatscrolling;
+extern bool ie5;
 extern bool ie4;
 extern bool ie3;
 extern bool nt3;
@@ -326,7 +326,6 @@ extern bool no_more_msgs;
 extern int get_dialogs_lowest_date;
 extern bool closed_logged_out;
 extern int dpi;
-extern char* hostBuf;
 extern BYTE* notif_newpeer_msg;
 
 extern HWAVEIN hWaveIn;
@@ -579,6 +578,7 @@ void reconnect(DCInfo* dcInfo);
 void create_auth_key(DCInfo* dcInfo);
 unsigned __stdcall SocketWorker(void* param);
 unsigned __stdcall FileSenderWorker(void* param);
+unsigned __stdcall UpdateWorker(void* param);
 
 // offsets.cpp
 int msgfwd_offset(BYTE* unenc_response);
