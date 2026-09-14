@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 N3xtery
+Copyright Â© 2026 N3xtery
 
 This file is part of Telegacy.
 

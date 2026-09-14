@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 N3xtery
+Copyright Â© 2026 N3xtery
 
 This file is part of Telegacy.
 
@@ -12,12 +12,13 @@ You should have received a copy of the GNU General Public License along with Tel
 
 #include <telegacy.h>
 
-int message_handler(bool to_front, BYTE* message, bool update_order, bool editing, bool rplhelper) {
+int message_handler(bool to_front, BYTE* message, bool update_order, bool editing, bool rplhelper, bool dry_run) {
 	int msg_cons = read_le(message, 4);
-	bool service = (msg_cons == 0xd3d28540) ? true : false;
+	if (!is_message_constructor(msg_cons)) return 0;
+	bool service = is_message_service_constructor(msg_cons);
 	int offset_msg = 4;
 	int flags_msg = read_le(message + offset_msg, 4);
-	if (msg_cons == 0x90a6ca84) {
+	if (msg_cons == TL_MESSAGE_EMPTY) {
 		offset_msg += 8;
 		if (flags_msg & (1 << 0)) offset_msg += 12;
 		return offset_msg;
@@ -33,6 +34,7 @@ int message_handler(bool to_front, BYTE* message, bool update_order, bool editin
 		offset_msg += 12;
 	}
 	if (flags_msg & (1 << 29)) offset_msg += 4;
+	if (!service && (flags_msg2 & (1 << 12))) offset_msg += tlstr_len(message + offset_msg, true);
 	offset_msg += 4;
 	BYTE* peer_id = &message[offset_msg];
 
@@ -49,11 +51,11 @@ int message_handler(bool to_front, BYTE* message, bool update_order, bool editin
 	bool duplicate = (peer && msg_id_int <= peer->last_recv && !to_front);
 	if (!duplicate && !to_front && peer) peer->last_recv = msg_id_int;
 
-	if (!duplicate && update_order) {
+	if (!dry_run && !duplicate && update_order) {
 		char type = 0;
 		int peer_cons = read_le(message + offset_msg - 4, 4);
-		if (peer_cons == 0x36c6019a) type = 1;
-		else if (peer_cons == 0xa2a5371e) type = 2;
+		if (peer_cons == TL_PEER_CHAT) type = 1;
+		else if (peer_cons == TL_PEER_CHANNEL) type = 2;
 		update_chats_order(message + offset_msg, msg_id, type);
 		peer = &peers[0];
 	}
@@ -65,7 +67,12 @@ int message_handler(bool to_front, BYTE* message, bool update_order, bool editin
 		offset_msg += msgfwd_offset(message + offset_msg);
 	}
 	if (flags_msg & (1 << 11)) offset_msg += 8;
-	if (!service && flags_msg2 & (1 << 0)) offset_msg += 8;
+	if (!service && (flags_msg2 & (1 << 0))) offset_msg += 8;
+	if (!service && (flags_msg2 & (1 << 19))) {
+		int pcons = read_le(message + offset_msg, 4);
+		if (pcons == 0xb9e11b21) offset_msg += 4;
+		else offset_msg += 12;
+	}
 	BYTE* msgrpl = NULL;
 	if (flags_msg & (1 << 3)) {
 		msgrpl = rplhelper ? NULL : &message[offset_msg];
@@ -77,8 +84,8 @@ int message_handler(bool to_front, BYTE* message, bool update_order, bool editin
 
 	if (service) {
 		int service_cons = read_le(message + offset_msg, 4);
-		if (!duplicate && service_cons == 0xaa786345 || service_cons == 0xb5a1ce5a || service_cons == 0x7fcb13a8 || service_cons == 0x95e3fbef) {
-			if (service_cons == 0xaa786345 && peer && peer->full && date > peer->theme_set_time) {
+		if (!dry_run && !duplicate && (service_cons == TL_ACTION_SET_CHAT_THEME || service_cons == TL_ACTION_CHAT_EDIT_TITLE || service_cons == TL_ACTION_CHAT_EDIT_PHOTO || service_cons == TL_ACTION_CHAT_DELETE_PHOTO)) {
+			if (service_cons == TL_ACTION_SET_CHAT_THEME && peer && peer->full && date > peer->theme_set_time) {
 				if (peer && peer->full && date > peer->theme_set_time) {
 					if (tlstr_len(message + offset_msg + 4, false) == 0) {
 						memset(peer->theme_id, 0, 8);
@@ -92,15 +99,15 @@ int message_handler(bool to_front, BYTE* message, bool update_order, bool editin
 					}
 					peer->theme_set_time = date;
 				}
-			} else if (service_cons == 0xb5a1ce5a && peer && date > peer->name_set_time) {
+			} else if (service_cons == TL_ACTION_CHAT_EDIT_TITLE && peer && date > peer->name_set_time) {
 				free(peer->name);
 				peer->name = read_string(message + offset_msg + 4, NULL);
 				peer->name_set_time = date;
 				update_name_in_list(index);
-			} else if (service_cons == 0x7fcb13a8 && peer && date > peer->pfp_set_time) {
+			} else if (service_cons == TL_ACTION_CHAT_EDIT_PHOTO && peer && date > peer->pfp_set_time) {
 				memcpy(peer->photo, message + offset_msg + 12, 8);
 				peer->pfp_set_time = date;
-			} else if (service_cons == 0x95e3fbef && peer && date > peer->pfp_set_time) {
+			} else if (service_cons == TL_ACTION_CHAT_DELETE_PHOTO && peer && date > peer->pfp_set_time) {
 				memset(peer->photo, 0, 8);
 				peer->pfp_set_time = date;
 			} 
@@ -114,7 +121,9 @@ int message_handler(bool to_front, BYTE* message, bool update_order, bool editin
 	if (flags_msg & (1 << 7)) {
 		int count = read_le(message + offset_msg + 4, 4);
 		offset_msg += 8;
-		for (int j = 0; j < count; j++) offset_msg += msgent_offset(message + offset_msg, message_adding ? &format_vecs[0] : NULL);
+		if (count > 0 && count < 1000) {
+			for (int j = 0; j < count; j++) offset_msg += msgent_offset(message + offset_msg, message_adding ? &format_vecs[0] : NULL);
+		}
 	}
 	BYTE* views = NULL;
 	if (flags_msg & (1 << 10)) {
@@ -122,12 +131,15 @@ int message_handler(bool to_front, BYTE* message, bool update_order, bool editin
 		offset_msg += 8;
 	}
 	if (flags_msg & (1 << 23)) {
+		int rep_cons = read_le(message + offset_msg, 4);
 		int flags_msgrep = read_le(message + offset_msg + 4, 4);
 		offset_msg += 16;
 		if (flags_msgrep & (1 << 1)) {
 			int count = read_le(message + offset_msg + 4, 4);
 			offset_msg += 8;
-			for (int j = 0; j < count; j++) offset_msg += 12;
+			if (count > 0 && count < 1000) {
+				for (int j = 0; j < count; j++) offset_msg += 12;
+			}
 		}
 		if (flags_msgrep & (1 << 0)) offset_msg += 8;
 		if (flags_msgrep & (1 << 2)) offset_msg += 4;
@@ -139,7 +151,7 @@ int message_handler(bool to_front, BYTE* message, bool update_order, bool editin
 	bool footer = true;
 	BYTE zero_arr[8] = {0};
 	if (flags_msg & (1 << 17)) {
-		if (!duplicate && !rplhelper && !editing) {
+		if (!dry_run && !duplicate && !rplhelper && !editing) {
 			if (to_front) {
 				if (memcmp(message + offset_msg, group_id_tofront, 8) != 0) {
 					if (memcmp(zero_arr, group_id_tofront, 8) != 0)  groupmed_end = true;
@@ -150,7 +162,7 @@ int message_handler(bool to_front, BYTE* message, bool update_order, bool editin
 		}
 		if (rplhelper) flags_msg &= ~(1 << 17);
 		offset_msg += 8;
-	} else if (!rplhelper && to_front) {
+	} else if (!dry_run && !rplhelper && to_front) {
 		if (memcmp(zero_arr, group_id_tofront, 8) != 0) groupmed_end = true;
 		memset(group_id_tofront, 0, 8);
 	}
@@ -180,9 +192,99 @@ int message_handler(bool to_front, BYTE* message, bool update_order, bool editin
 		offset_msg += 8;
 	}
 	if (flags_msg2 & (1 << 5)) offset_msg += 4;
-	if (message_adding)
+	if (flags_msg2 & (1 << 6)) offset_msg += 8;
+	if (flags_msg2 & (1 << 7)) {
+		int sp_cons = read_le(message + offset_msg, 4);
+		offset_msg += 4;
+		if (sp_cons == TL_SUGGESTED_POST) {
+			int sp_flags = read_le(message + offset_msg, 4);
+			offset_msg += 4;
+			if (sp_flags & (1 << 3)) {
+				int sa_cons = read_le(message + offset_msg, 4);
+				offset_msg += 4;
+				if (sa_cons == TL_STARS_AMOUNT) offset_msg += 12;
+				else offset_msg += 8;
+			}
+		}
+	}
+	if (flags_msg2 & (1 << 10)) offset_msg += 4;
+	if (flags_msg2 & (1 << 11)) offset_msg += tlstr_len(message + offset_msg, true);
+	if (dry_run) return offset_msg;
+	if (message_adding) {
+		if (msg_id_int != 0) {
+			size_t m;
+			for (m = 0; m < messages.size(); m++) {
+				if (messages[m].id == msg_id_int) {
+					return offset_msg;
+				}
+			}
+		}
+
+		if (!to_front && (flags_msg & (1 << 1))) {
+			for (int m = (int)messages.size() - 1; m >= 0; m--) {
+				if (messages[m].outgoing && !messages[m].seen) {
+					messages[m].id = msg_id_int;
+					FINDTEXTEX ft;
+					ft.chrg.cpMin = messages[m].end_char;
+					ft.chrg.cpMax = messages[m].end_footer;
+					get_lang_string("c_snd", lang_str, NULL);
+					ft.lpstrText = lang_str;
+					wchar_t deliv[25];
+					get_lang_string("c_dlv", deliv, NULL);
+					int diff = replace_in_chat(&ft, NULL, deliv, NULL, NULL, NULL, NULL);
+					messages[m].end_footer += diff;
+					return offset_msg;
+				}
+			}
+		}
+
+		if (current_peer && current_peer->is_forum && current_peer->active_topic_id > 0) {
+			int msg_tid = get_message_topic_id(msgrpl, current_peer);
+			bool is_other_topic = false;
+			int target_tid = msg_tid > 0 ? msg_tid : 1;
+			if (current_peer->active_topic_id == 1) {
+				if (target_tid > 1) is_other_topic = true;
+			} else {
+				if (target_tid != current_peer->active_topic_id && msg_id_int != current_peer->active_topic_id) {
+					is_other_topic = true;
+				}
+			}
+			if (is_other_topic) {
+				if (!to_front && !duplicate && !(flags_msg & (1 << 1)) && !editing && !rplhelper) {
+					if (current_peer->topics) {
+						for (size_t t = 0; t < current_peer->topics->size(); t++) {
+							if (current_peer->topics->at(t).id == target_tid) {
+								current_peer->topics->at(t).unread_count++;
+								InvalidateRect(hComboBoxTopics, NULL, TRUE);
+								break;
+							}
+						}
+					}
+					new_msg_notification(current_peer, msg_bytes, groupmed_end, target_tid, msg_id_int, (flags_msg & (1 << 4)) != 0, (flags_msg & (1 << 13)) != 0);
+					InvalidateRect(hComboBoxChats, NULL, TRUE);
+				}
+				return offset_msg;
+			}
+			if (current_peer->active_topic_id > 1 && msg_id_int == current_peer->active_topic_id && to_front && !is_last_history_batch) {
+				return offset_msg;
+			}
+		}
 		message_adder(service, to_front, flags_msg, msg_id, msg_bytes, NULL, chat_member_id, &format_vecs[0], reactions, msgrpl, msgfwd, views, groupmed_end, footer, editing, date);
-	else if (!to_front && !duplicate && peer && !(flags_msg & (1 << 1)) && msg_id_int > peer->last_read_in && !editing && !rplhelper) new_msg_notification(peer, msg_bytes, groupmed_end);
+	} else if (!to_front && !duplicate && peer && !(flags_msg & (1 << 1)) && !editing && !rplhelper) {
+		int notif_topic_id = 0;
+		if (peer->is_forum) {
+			notif_topic_id = get_message_topic_id(msgrpl, peer);
+			if (peer->topics) {
+				for (size_t t = 0; t < peer->topics->size(); t++) {
+					if (peer->topics->at(t).id == notif_topic_id) {
+						peer->topics->at(t).unread_count++;
+						break;
+					}
+				}
+			}
+		}
+		new_msg_notification(peer, msg_bytes, groupmed_end, notif_topic_id, msg_id_int, (flags_msg & (1 << 4)) != 0, (flags_msg & (1 << 13)) != 0);
+	}
 	return offset_msg;
 }
 
@@ -190,8 +292,58 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 	Message message;
 	message.id = NULL;
 	if (msg_id) message.id = read_le(msg_id, 4);
+	message.topic_id = 0;
+	if (msgrpl) {
+		int rflags = read_le(msgrpl + 4, 4);
+		if (rflags & (1 << 3)) {
+			if (rflags & (1 << 1)) {
+				int roff = 8;
+				if (rflags & (1 << 4)) roff += 4;
+				if (rflags & (1 << 0)) roff += 12;
+				if (rflags & (1 << 5)) roff += msgfwd_offset(msgrpl + roff);
+				if (rflags & (1 << 8)) roff += messagemedia_offset(msgrpl + roff);
+				message.topic_id = read_le(msgrpl + roff, 4);
+			} else if (rflags & (1 << 4)) {
+				message.topic_id = read_le(msgrpl + 8, 4);
+			}
+		}
+	}
+	if (message.topic_id == 0 && current_peer && current_peer->is_forum) {
+		message.topic_id = (current_peer->active_topic_id > 0) ? current_peer->active_topic_id : 1;
+	}
 	message.outgoing = (flags & (1 << 1)) != 0 || memcmp(current_peer->id, myself.id, 8) == 0;
-	message.seen = ((to_front && !message.outgoing) || (message.outgoing && message.id != NULL && message.id <= current_peer->last_read_out)) ? true : false;
+	if (message.outgoing) {
+		message.seen = (message.id != NULL && message.id <= current_peer->last_read_out);
+	} else {
+		if (current_peer && current_peer->is_forum && current_peer->topics) {
+			int top_read_in = 0;
+			int top_unread = 0;
+			for (size_t t = 0; t < current_peer->topics->size(); t++) {
+				if (current_peer->topics->at(t).id == current_peer->active_topic_id) {
+					top_read_in = current_peer->topics->at(t).read_inbox_max_id;
+					top_unread = current_peer->topics->at(t).unread_count;
+					break;
+				}
+			}
+			if (top_read_in > 0) {
+				message.seen = (message.id <= top_read_in);
+			} else if (top_unread == 0) {
+				message.seen = true;
+			} else {
+				message.seen = false;
+			}
+		} else if (current_peer) {
+			if (current_peer->last_read_in > 0) {
+				message.seen = (message.id <= current_peer->last_read_in);
+			} else if (current_peer->unread_msgs_count == 0) {
+				message.seen = true;
+			} else {
+				message.seen = false;
+			}
+		} else {
+			message.seen = true;
+		}
+	}
 	if ((flags & (1 << 4)) && message.outgoing && !to_front && !editing) read_react_ment(false);
 	
 	SCROLLINFO si = {0};
@@ -245,7 +397,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 	if (editing && editing_index == -1) return;
 
 	bool group_media = (flags & (1 << 17)) ? true : false;
-	bool header = (group_media && (to_front || (!to_front && (groupmed_end || (editing && messages[editing_index-1].end_char == messages[editing_index-1].end_footer))))) ? false : true;
+	bool header = (group_media && (to_front || (!to_front && (groupmed_end || (editing && editing_index > 0 && messages[editing_index-1].end_char == messages[editing_index-1].end_footer))))) ? false : true;
 	if (editing && !header) footer = false;
 	bool groupmed_end_nottofront = false;
 	if (!to_front && groupmed_end) {
@@ -253,27 +405,44 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 		groupmed_end_nottofront = true;
 	}
 	
-	bool chat_member_found = true;
-	wchar_t* sender = current_peer->name;
-	if (message.outgoing) sender = myself.name;
-	if (current_peer->type == 1 && !message.outgoing) {
-		chat_member_found = false;
-		for (int i = 0; i < current_peer->chat_users->size(); i++) {
-			if (memcmp(chat_member_id, current_peer->chat_users->at(i).id, 8) == 0) {
-				chat_member_found = true;
-				sender = current_peer->chat_users->at(i).name;
-				break;
+	bool sender_allocated = false;
+	wchar_t* sender = NULL;
+	if (message.outgoing || (chat_member_id && read_le(myself.id, 8) != 0 && memcmp(chat_member_id, myself.id, 8) == 0)) {
+		message.outgoing = true;
+		if (myself.name && wcslen(myself.name) > 0) sender = myself.name;
+	}
+	if (!sender && current_peer && current_peer->type == 1) {
+		if (chat_member_id && current_peer->chat_users) {
+			for (int i = 0; i < (int)current_peer->chat_users->size(); i++) {
+				if (memcmp(chat_member_id, current_peer->chat_users->at(i).id, 8) == 0) {
+					sender = current_peer->chat_users->at(i).name;
+					break;
+				}
 			}
 		}
 	}
-	if (!chat_member_found || (chat_member_id && !message.outgoing && current_peer->type == 2)) {
-		if (msg_bytes - chat_member_id == 16) sender = L"Unknown";
-		else {
-			char type = -1;
-			BYTE* peer_bytes = find_peer(chat_member_id + 8, chat_member_id - 4, true, &type);
+	if (!sender && chat_member_id) {
+		Peer* p = get_peer_by_id(chat_member_id);
+		if (p && p->name) sender = p->name;
+	}
+	if (!sender && chat_member_id) {
+		char type = -1;
+		BYTE* peer_bytes = find_peer(chat_member_id + 8, chat_member_id - 4, true, &type);
+		if (peer_bytes) {
 			peer_set_name(peer_bytes, &sender, type);
+			if (sender) sender_allocated = true;
 		}
 	}
+	if (!sender && message.outgoing && myself.name && wcslen(myself.name) > 0) {
+		sender = myself.name;
+	}
+	if (!sender && current_peer && current_peer->name) {
+		sender = current_peer->name;
+	}
+	if ((!sender || wcslen(sender) == 0 || _wcsicmp(sender, L"Unknown") == 0) && current_peer && current_peer->is_forum && current_peer->active_topic_id > 0 && message.id == current_peer->active_topic_id && root_topic_sender[0] != 0) {
+		sender = root_topic_sender;
+	}
+	if (!sender || wcslen(sender) == 0) sender = L"Unknown";
 
 	wchar_t* msg;
 	int msg_len = 0;
@@ -373,7 +542,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 	int written = riched_write(chat, msg);
 	if (es) written += SendMessage(chat, EM_STREAMIN, SF_RTF | SF_UNICODE | SFF_SELECTION, (LPARAM)es);
 	bool added_doc = false, added_photo = false;
-	if (doc != NULL && read_le(doc, 4) == 0xdd570bd5 && (read_le(doc + 4, 4) & (1 << 0))) { // messageMediaDocument
+	if (doc != NULL && read_le(doc, 4) == TL_MEDIA_DOCUMENT && (read_le(doc + 4, 4) & (1 << 0))) { // messageMediaDocument
 		added_doc = true;
 		wchar_t duration_str[15] = {0};
 		bool voice = false, gif = false, round = false, sticker = false;
@@ -402,11 +571,11 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			int att_count = read_le(doc + offset - 4, 4);
 			for (int i = 0; i < att_count; i++) {
 				int att_cons = read_le(doc + offset, 4);
-				if (att_cons == 0x15590068) document.filename = read_string(doc + offset + 4, NULL);
-				else if (att_cons == 0x9852f9c6 || att_cons == 0x43c57c48) {
+				if (att_cons == TL_ATT_FILENAME) document.filename = read_string(doc + offset + 4, NULL);
+				else if (att_cons == TL_ATT_AUDIO || att_cons == TL_ATT_VIDEO) {
 					int att_flags = read_le(doc + offset + 4, 4);
 					int duration;
-					if (att_cons == 0x9852f9c6) {
+					if (att_cons == TL_ATT_AUDIO) {
 						duration = read_le(doc + offset + 8, 4);
 						voice = (att_flags & (1 << 10)) ? true : false;
 					}
@@ -418,8 +587,8 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 					}
 					if (duration < 3600) swprintf(duration_str, L" (%02d:%02d)", duration / 60, duration % 60);
 					else swprintf(duration_str, L" (%02d:%02d:%02d)", duration / 3600, (duration / 60) % 60, duration % 60);
-				} else if (att_cons == 0x11b58939) gif = true;
-				else if (att_cons == 0x6319d612) sticker = true;
+				} else if (att_cons == TL_ATT_ANIMATED) gif = true;
+				else if (att_cons == TL_ATT_STICKER) sticker = true;
 				offset += docatt_offset(doc + offset);
 			}
 			if (document.filename == NULL) {
@@ -474,7 +643,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			if (duration_str[0] == ' ') written += riched_write(chat, &duration_str[0]);
 			written += riched_write(chat, &size_str[0]);
 		}
-	} else if (doc != NULL && read_le(doc, 4) == 0x695150d7 && (read_le(doc + 4, 4) & (1 << 0))) {
+	} else if (doc != NULL && read_le(doc, 4) == TL_MEDIA_PHOTO && (read_le(doc + 4, 4) & (1 << 0))) {
 		added_doc = true;
 		HBITMAP hClone;
 		if (!same_photo) {
@@ -528,7 +697,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 					if (doc[offset + 5] == 254) offset -= 3;
 				} else if ((size > size_main || size == 'w') && size != 'i' && size != 'j') {
 					size_main = size;
-					if (photosize_cons == 0xfa3efb95) document.size = read_le(doc + offset + 20 + read_le(doc + offset + 20, 4) * 4, 4);
+					if (photosize_cons == TL_PHOTO_SIZE_PROGRESSIVE) document.size = read_le(doc + offset + 20 + read_le(doc + offset + 20, 4) * 4, 4);
 					else document.size = read_le(doc + offset + 16, 4);
 				}
 				offset += photo_video_size_offset(doc + offset, true, false, false);
@@ -553,7 +722,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			cr_startmsg.cpMin--;
 			cr_startmsg.cpMax--;
 		}
-		if (editing && !header && msghastext && messages[editing_index].end_char - messages[editing_index].end_header <= 2) {
+		if (editing && editing_index > 0 && !header && msghastext && messages[editing_index].end_char - messages[editing_index].end_header <= 2) {
 			update_positions(1, messages[editing_index - 1].start_char, 0);
 			SendMessage(chat, EM_SETSEL, cr_startmsg.cpMin, cr_startmsg.cpMin);
 			SendMessage(chat, EM_REPLACESEL, FALSE, (LPARAM)L"\n");
@@ -586,8 +755,8 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 		}
 	}
 
-	bool addnewline = (editing && added_photo && group_media && editing_index != messages.size() - 1 && messages[editing_index + 1].start_char == messages[editing_index + 1].end_header) ? false : true;
-	if (!addnewline && another_footer && messages[editing_index + 1].end_char - messages[editing_index + 1].end_header > 2) addnewline = true;
+	bool addnewline = (editing && added_photo && group_media && editing_index >= 0 && editing_index < (int)messages.size() - 1 && messages[editing_index + 1].start_char == messages[editing_index + 1].end_header) ? false : true;
+	if (!addnewline && another_footer && editing_index >= 0 && editing_index < (int)messages.size() - 1 && messages[editing_index + 1].end_char - messages[editing_index + 1].end_header > 2) addnewline = true;
 
 	message.reply_needed = 0;
 	int written_info = 0;
@@ -612,6 +781,9 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 		if (msgrpl) {
 			int flags = read_le(msgrpl + 4, 4);
 			if (flags & (1 << 4)) replying_msg_id = read_le(msgrpl + 8, 4);
+			if (current_peer && current_peer->is_forum && current_peer->active_topic_id > 0 && replying_msg_id == current_peer->active_topic_id) {
+				replying_msg_id = 0;
+			}
 			if (flags & (1 << 6)) {
 				int offset = 8;
 				if (flags & (1 << 4)) offset += 4;
@@ -636,7 +808,7 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			format_vecs[1].push_back(written - header_len + written_info);
 			written_info += riched_write(chat, L"\n");
 		} else {
-			if (to_front && msgrpl) {
+			if (to_front && replying_msg_id) {
 				written_info += riched_write(chat, lang_str);
 				if (quote_text) {
 					format_vecs[1].push_back(written - header_len + written_info);
@@ -648,9 +820,12 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			}
 			if (!to_front && replying_msg_id && !editing) {
 				if (!format_vecs) format_vecs = new std::vector<int>[9];
-				for (int i = messages.size() - 1; i >= -1; i--) {
-					int id = messages[i].id;
-					if (i == -1 || messages[i].id == replying_msg_id) break;
+				int i = -1;
+				for (int m = (int)messages.size() - 1; m >= 0; m--) {
+					if (messages[m].id == replying_msg_id) {
+						i = m;
+						break;
+					}
 				}
 				written_info += riched_write(chat, lang_str);
 				format_vecs[1].push_back(written - header_len + written_info);
@@ -914,15 +1089,39 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 		if (si.nPos >= (int)(si.nMax - si.nPage) - 15) {
 			SendMessage(chat, WM_VSCROLL, SB_BOTTOM, 0);
 			if (!message.outgoing && !editing) {
-				if (!IsIconic(hMain) && IsWindowVisible(hMain)) {
-					make_seen(&message);
-					if (sound_paths[1][0] && !groupmed_end_nottofront) PlaySound(sound_paths[1], NULL, SND_FILENAME | SND_ASYNC);
+				if (GetForegroundWindow() == hMain && !IsIconic(hMain) && IsWindowVisible(hMain)) {
+					mark_active_chat_seen(message.id);
+					if (sound_paths[1][0] && !groupmed_end_nottofront && !(flags & (1 << 13)) && !is_peer_muted(current_peer)) PlaySound(sound_paths[1], NULL, SND_FILENAME | SND_ASYNC);
 				}
-				else if (!message.outgoing && !editing) new_msg_notification(current_peer, service ? 0 : msg_bytes, groupmed_end_nottofront);
+				else if (!message.outgoing && !editing) {
+					int cur_tid = (current_peer && current_peer->is_forum) ? current_peer->active_topic_id : 0;
+					if (current_peer && current_peer->is_forum && current_peer->topics) {
+						for (size_t t = 0; t < current_peer->topics->size(); t++) {
+							if (current_peer->topics->at(t).id == cur_tid) {
+								current_peer->topics->at(t).unread_count++;
+								InvalidateRect(hComboBoxTopics, NULL, TRUE);
+								break;
+							}
+						}
+					}
+					new_msg_notification(current_peer, service ? 0 : msg_bytes, groupmed_end_nottofront, cur_tid, message.id, (flags & (1 << 4)) != 0, (flags & (1 << 13)) != 0);
+				}
 			}
 		} else {
 			SendMessage(chat, WM_VSCROLL, MAKEWPARAM(SB_THUMBPOSITION, si.nPos), 0);
-			if (!message.outgoing && !editing) new_msg_notification(current_peer, service ? 0 : msg_bytes, groupmed_end_nottofront);
+			if (!message.outgoing && !editing) {
+				int cur_tid = (current_peer && current_peer->is_forum) ? current_peer->active_topic_id : 0;
+				if (current_peer && current_peer->is_forum && current_peer->topics) {
+					for (size_t t = 0; t < current_peer->topics->size(); t++) {
+						if (current_peer->topics->at(t).id == cur_tid) {
+							current_peer->topics->at(t).unread_count++;
+							InvalidateRect(hComboBoxTopics, NULL, TRUE);
+							break;
+						}
+					}
+				}
+				new_msg_notification(current_peer, service ? 0 : msg_bytes, groupmed_end_nottofront, cur_tid, message.id, (flags & (1 << 4)) != 0, (flags & (1 << 13)) != 0);
+			}
 		}
 		if (message.outgoing && !editing && sound_paths[2][0] && !groupmed_end_nottofront) PlaySound(sound_paths[2], NULL, SND_FILENAME | SND_ASYNC);
 	}
@@ -949,6 +1148,6 @@ void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* m
 			else documents.push_back(document);
 		}
 	}
-	if (!chat_member_found && msg_bytes - chat_member_id != 16) free(sender);
+	if (sender_allocated && !to_front) free(sender);
 	if (!to_front) get_unknown_custom_emojis();
 }

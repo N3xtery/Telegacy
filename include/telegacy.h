@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 N3xtery
+Copyright Â© 2026 N3xtery
 
 This file is part of Telegacy.
 
@@ -26,6 +26,7 @@ You should have received a copy of the GNU General Public License along with Tel
 #include <process.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <richedit.h>
 #include <oleidl.h>
 #include <richole.h>
@@ -43,6 +44,7 @@ You should have received a copy of the GNU General Public License along with Tel
 #include <jpeglib.h>
 #include <ddeml.h>
 #include "../res/resource.h"
+#include <tl_constructors.h>
 #pragma comment(lib, "wsock32.lib")
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "tomcrypt.lib")
@@ -67,6 +69,22 @@ struct Permissions {
 	bool canchangedesc;
 };
 
+struct ForumTopic {
+	int id;
+	wchar_t* title;
+	int icon_color;
+	__int64 icon_emoji_id;
+	int top_message;
+	int unread_count;
+	int unread_mentions_count;
+	int unread_reactions_count;
+	int read_inbox_max_id;
+	bool closed;
+	bool pinned;
+	bool hidden;
+	bool title_missing;
+};
+
 struct Peer {
 	BYTE id[8];
 	BYTE access_hash[8];
@@ -80,6 +98,7 @@ struct Peer {
 	int last_recv;
 	int unread_msgs_count;
 	int mute_until;
+	bool notifications_muted;
 	BYTE photo[8];
 	int photo_dc;
 	std::vector<wchar_t*>* reaction_list;
@@ -95,6 +114,12 @@ struct Peer {
 	bool full;
 	bool status_updated;
 	char type; // 0 - user, 1 - group, 2 - channel
+	bool is_forum;
+	std::vector<ForumTopic>* topics;
+	int active_topic_id;
+	int requested_topic_id;
+	bool is_broadcast;
+	bool is_bot;
 };
 
 struct ChatsFolder {
@@ -123,6 +148,7 @@ struct Message {
 	std::vector<wchar_t*> reacted;
 	bool outgoing;
 	bool seen;
+	int topic_id;
 };
 
 struct Theme {
@@ -223,6 +249,13 @@ struct NOTIFYICONDATAV2 {
     DWORD dwInfoFlags;
 };
 
+struct NotificationContext {
+    BYTE peer_id[8];
+    int topic_id;
+    int message_id;
+};
+extern NotificationContext active_balloon_ctx;
+
 extern wchar_t* version;
 
 extern BYTE pubkey_der[];
@@ -231,7 +264,7 @@ extern unsigned int pubkey_der_len;
 
 extern prng_state prng;
 extern hash_state md;
-extern CRITICAL_SECTION csSock, csCM;
+extern CRITICAL_SECTION csSock, csCM, csLog;
 
 extern DCInfo dcInfoMain;
 extern int time_diff;
@@ -255,12 +288,13 @@ extern BYTE* phone_number_bytes;
 extern BYTE* phone_code_hash;
 extern BYTE* qrCodeToken;
 
-extern HWND hComboBoxChats, hComboBoxFolders, msgInput, chat, hMain, hStatus, hToolbar, tbSeparatorHider, hTabs, emojiStatic, emojiScroll, hOverlayTabs, reactionStatic, splitter;
+extern HWND hComboBoxChats, hComboBoxTopics, hComboBoxFolders, msgInput, chat, hMain, hStatus, hToolbar, tbSeparatorHider, hTabs, emojiStatic, emojiScroll, hOverlayTabs, reactionStatic, splitter;
 extern HWND hNumber, hNumberBtn, hCode, hCodeBtn, hQRCode, h2FA, hPass, h2FAHint, hProxyIP, hProxyPort, hProxyUsername, hProxyPassword, hProxyHidePassword;
 extern IActiveIMMApp* g_pAIMM;
 extern HMENU hMenuBar;
 extern HBITMAP tbBmp;
 extern HFONT hFonts[3];
+extern HFONT hFontCyrillic;
 extern HBRUSH hBrushes[4];
 extern COLORREF colors[4];
 
@@ -323,6 +357,11 @@ extern bool nt6;
 extern bool hint_needed;
 extern wchar_t* hint;
 extern bool no_more_msgs;
+extern bool getting_history;
+extern bool is_last_history_batch;
+extern BYTE root_topic_msg_buf[4096];
+extern int root_topic_msg_len;
+extern wchar_t root_topic_sender[128];
 extern int get_dialogs_lowest_date;
 extern bool closed_logged_out;
 extern int dpi;
@@ -473,11 +512,17 @@ int place_inputmedia(BYTE* unenc_query, Document* docstemp, int index);
 void get_future_salt(DCInfo* dcInfo);
 int update_own_status(bool status);
 void get_history();
+void get_forum_topics(Peer* peer);
+const wchar_t* get_topic_title(ForumTopic* topic);
 void set_typing(int cons, int add);
 void make_seen(Message* message);
+void mark_message_seen(Message* message, bool emit_network);
 void update_positions(int diff, int pos, int new_links);
 int replace_in_chat(FINDTEXTEX* ft, CHARRANGE* cr, wchar_t* replacement, HBITMAP hBitmap, BYTE* reactions, CustomEmojiPlacement* cep, ReplyFront* rf);
-int array_find(BYTE* buf, BYTE* find, int find_len, int find_count);
+int array_find(BYTE* buf, BYTE* find, int find_len, int find_count, int max_len = 500000);
+int parse_chat_participants(BYTE* buf, int offset, int chat_users_count, std::vector<Peer>* chat_users, int max_len = 500000);
+Peer* get_peer_by_id(const BYTE* id);
+bool is_valid_peer_constructor(int cons, int type);
 int place_peer(BYTE* unenc_query, Peer* peer, bool peer_name);
 void set_reply_tofront(int i, BYTE* message, int j);
 void get_date(wchar_t* buf, int date_init, bool preposition);
@@ -494,6 +539,9 @@ void register_themes();
 void set_permissions(BYTE* unenc_response, Peer* peer);
 void get_channel_difference(Peer* peer);
 void get_peerid_from_msg(BYTE* unenc_response, BYTE** id, BYTE** msg_id);
+BYTE* get_message_peer_id(BYTE* message);
+int get_msg_id_from_raw(BYTE* message);
+void get_myself();
 HBITMAP jpg_to_bmp(BYTE* unenc_response, int myjpg_size);
 void write_md5(BYTE* unenc_query, FILE* f);
 void get_full_peer(Peer* peer);
@@ -512,10 +560,61 @@ void unknown_custom_emoji_solver(int msg_id, int pos, int size, __int64 custom_e
 void get_unknown_custom_emojis();
 void exit_telegacy();
 int save_dcs(BYTE* unenc_response, BYTE* this_dc);
-void apply_notifysettings(BYTE* unenc_response, int* mute_until, __int64 id);
-void new_msg_notification(Peer* peer, BYTE* msg_bytes, bool groupmed);
+void apply_notifysettings(BYTE* unenc_response, int* mute_until, bool* notifications_muted, __int64 id);
+void init_peer_defaults(Peer* peer, const BYTE* id = NULL, char type = 0, bool is_forum = false);
+void new_msg_notification(Peer* peer, BYTE* msg_bytes, bool groupmed, int topic_id = 0, int message_id = 0, bool mentioned = false, bool silent = false);
 void update_total_unread_msgs_count(int new_total_unread_msgs_count);
 void click_on_notification();
+void navigate_to_notification(NotificationContext* ctx);
+void select_topic_by_id(int topic_id);
+void mark_active_chat_seen(int specific_msg_id = 0);
+extern int pending_notif_msg_id;
+extern BYTE notify_req_msg_id[3][8];
+void sync_notifications();
+void update_category_unread_count(int type, bool now_muted);
+inline bool is_peer_individually_muted(Peer* peer) {
+	if (!peer) return false;
+	if (peer->notifications_muted) return true;
+	if (peer->mute_until > 0) {
+		if (peer->mute_until > current_time()) return true;
+		peer->mute_until = 0;
+	}
+	return false;
+}
+inline int get_peer_notify_type(Peer* peer) {
+	if (!peer) return 0;
+	if (peer->type == 2) {
+		if (peer->is_forum || !peer->is_broadcast) return 1;
+		return 2;
+	}
+	return peer->type;
+}
+inline bool is_peer_muted(Peer* peer) {
+	if (!peer) return false;
+	if (is_peer_individually_muted(peer)) return true;
+	if (peer->mute_until == -1) return false;
+	int ntype = get_peer_notify_type(peer);
+	return (muted_types[ntype] > 0);
+}
+int write_init_connection(BYTE* buf);
+void send_init_connection(DCInfo* dcInfo);
+wchar_t* get_winver();
+inline bool is_message_service_constructor(int cons) {
+	return cons == TL_MESSAGE_SERVICE;
+}
+inline bool is_message_constructor(int cons) {
+	return cons == TL_MESSAGE ||
+	       cons == TL_MESSAGE_SERVICE ||
+	       cons == TL_MESSAGE_EMPTY;
+}
+inline bool is_updates_boundary(unsigned int cons) {
+	return cons == TL_VECTOR ||
+	       cons == TL_USER || cons == TL_USER_EMPTY ||
+	       cons == TL_CHAT || cons == TL_CHAT_FORBIDDEN || cons == TL_CHAT_EMPTY ||
+	       cons == TL_CHANNEL || cons == TL_CHANNEL_FORBIDDEN;
+}
+
+int get_message_topic_id(BYTE* msgrpl, Peer* peer = NULL);
 void remove_notification();
 void get_dll_version(wchar_t* dll, DWORD* minor, DWORD* major);
 void set_tray_icon();
@@ -547,9 +646,10 @@ LRESULT back_brush(HDC hDC);
 void get_lang_string(char* id, wchar_t* wdest, char* dest);
 void update_toolbar();
 void nt3_combobox_fit(HWND comboBox);
+void telegacy_log(const char* format, ...);
 
 // message.cpp
-int message_handler(bool to_front, BYTE* message, bool update_order, bool editing, bool rplhelper);
+int message_handler(bool to_front, BYTE* message, bool update_order, bool editing, bool rplhelper, bool dry_run = false);
 void message_adder(bool service, bool to_front, int flags, BYTE* msg_id, BYTE* msg_bytes, EDITSTREAM* es, BYTE* chat_member_id, std::vector<int>* format_vecs, BYTE* reactions, BYTE* msgrpl, BYTE* msgfwd, BYTE* views, bool groupmed_end, bool footer, bool editing, int date);
 
 // response.cpp
@@ -581,6 +681,8 @@ unsigned __stdcall FileSenderWorker(void* param);
 unsigned __stdcall UpdateWorker(void* param);
 
 // offsets.cpp
+int forumtopic_offset(BYTE* unenc_response, ForumTopic* topic);
+int draftmessage_offset(BYTE* unenc_response);
 int msgfwd_offset(BYTE* unenc_response);
 int messagemedia_offset(BYTE* unenc_response);
 int msgrpl_offset(BYTE* unenc_response);
@@ -602,4 +704,14 @@ int chatreactions_offset(BYTE* unenc_response, Peer* peer);
 int geo_offset(BYTE* unenc_response);
 int chatphoto_offset(BYTE* unenc_response);
 int inputchannel_offset(BYTE* unenc_response);
+int inputpeer_offset(BYTE* unenc_response);
 int story_offset(BYTE* unenc_response);
+
+void update_cyrillic_font();
+bool string_has_cyrillic(const wchar_t* str);
+void clean_title_for_combobox(const wchar_t* src, wchar_t* dst, int max_chars);
+bool draw_topic_icon(HDC hDC, const wchar_t* emoji_path, const RECT* rcIcon, int icon_size);
+void draw_combobox_text(HDC hDC, const wchar_t* str, RECT* rc, UINT format);
+bool is_valid_reaction_list(std::vector<wchar_t*>* ptr);
+bool is_valid_topics_vector(std::vector<ForumTopic>* ptr);
+HICON load_icon_file(const wchar_t* path, int cx = 0, int cy = 0);

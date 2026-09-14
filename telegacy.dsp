@@ -133,6 +133,10 @@ SOURCE=.\src\telegacy.cpp
 
 SOURCE=.\include\telegacy.h
 # End Source File
+# Begin Source File
+
+SOURCE=.\include\tl_constructors.h
+# End Source File
 # End Group
 # Begin Group "Resource Files"
 

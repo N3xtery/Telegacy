@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 N3xtery
+Copyright Â© 2026 N3xtery
 
 This file is part of Telegacy.
 
@@ -12,12 +12,144 @@ You should have received a copy of the GNU General Public License along with Tel
 
 #include <telegacy.h>
 
+
+// Core & Auth
+#define TL_PONG                             0x347773c5 // pong
+#define TL_CONFIG                           0xcc1a241e // config
+#define TL_AUTH_SENT_CODE                   0x5e002502 // auth.sentCode
+#define TL_ACCOUNT_PASSWORD                 0x957b50fb // account.password
+#define TL_AUTH_CHECK_PASSWORD              0xd18b4d16 // auth.checkPassword
+#define TL_INPUT_CHECK_PASSWORD_SRP         0xd27ff082 // inputCheckPasswordSRP
+#define TL_AUTH_LOGIN_TOKEN_SUCCESS         0x390d5c5e // auth.loginTokenSuccess
+#define TL_AUTH_AUTHORIZATION               0x2ea2c0d4 // auth.authorization
+#define TL_AUTH_EXPORTED_AUTHORIZATION      0xb434e2b8 // auth.exportedAuthorization
+#define TL_AUTH_IMPORT_AUTHORIZATION        0xa57a7dad // auth.importAuthorization
+#define TL_AUTH_IMPORT_LOGIN_TOKEN          0x95ac5ce4 // auth.importLoginToken
+#define TL_AUTH_EXPORT_LOGIN_TOKEN          0xb7e085fe // auth.exportLoginToken
+#define TL_AUTH_LOGGED_OUT                  0xc3a2835f // auth.loggedOut
+#define TL_AUTH_LOGIN_TOKEN_MIGRATE_TO      0x068e9916 // auth.loginTokenMigrateTo
+#define TL_AUTH_LOGIN_TOKEN                 0x629f1980 // auth.loginToken
+#define TL_BAD_SERVER_SALT                  0xedab447b // bad_server_salt
+#define TL_GZIP_PACKED                      0x3072cfa1 // gzip_packed
+#define TL_FUTURE_SALTS                     0xae500895 // future_salts
+#define TL_MSG_DETAILED_INFO                0x276d3ec6 // msg_detailed_info
+#define TL_MSGS_ACK                         0x62d6b459 // msgs_ack
+#define TL_RECEIVED_NOTIFY_MESSAGE          0xa384b779 // receivedNotifyMessage
+
+// Users & Account
+#define TL_USERS_GET_USERS                  0x0d91a548 // users.getUsers
+#define TL_INPUT_USER_SELF                  0xf7c1b13f // inputUserSelf
+#define TL_USERS_USER_FULL                  0x3b6d152e // users.userFull
+#define TL_USER_FULL                        0x06cbe645 // userFull
+#define TL_USER_STATUS_EMPTY                0x09d05049 // userStatusEmpty
+#define TL_ACCOUNT_GET_CHAT_THEMES          0xd638de89 // account.getChatThemes
+#define TL_ACCOUNT_THEMES                   0x9a3d8c6d // account.themes
+#define TL_ACCOUNT_THEMES_NOT_MODIFIED      0xf41eb622 // account.themesNotModified
+#define TL_CHAT_THEME                       0xc3dffc04 // chatTheme
+#define TL_BASE_THEME_CLASSIC               0xc3a12462 // baseThemeClassic
+#define TL_BASE_THEME_DAY                   0xfbd81688 // baseThemeDay
+#define TL_BUSINESS_AWAY_SCHEDULE_CUSTOM    0xcc4d9ecc // businessAwayMessageScheduleCustom
+
+// Messages & History & Reactions
+#define TL_MESSAGES_MESSAGES                0x1d73e7ea // messages.messages
+#define TL_MESSAGES_MESSAGES_SLICE          0x5f206716 // messages.messagesSlice
+#define TL_MESSAGES_CHANNEL_MESSAGES        0xc776ba4e // messages.channelMessages
+#define TL_MESSAGES_FORUM_TOPICS            0x367617d3 // messages.forumTopics
+#define TL_MESSAGES_AFFECTED_MESSAGES       0x84d19185 // messages.affectedMessages
+#define TL_MESSAGES_AFFECTED_HISTORY        0xb45c69d1 // messages.affectedHistory
+#define TL_MESSAGES_DIALOG_FILTERS          0x2ad93719 // messages.dialogFilters
+#define TL_DIALOG_FILTER                    0xaa472651 // dialogFilter
+#define TL_MESSAGES_GET_AVAILABLE_REACTIONS 0x18dea0ac // messages.getAvailableReactions
+#define TL_MESSAGES_AVAILABLE_REACTIONS     0x768e3aad // messages.availableReactions
+#define TL_MESSAGES_AVAILABLE_REACTIONS_NOT_MODIFIED 0x9f071957 // messages.availableReactionsNotModified
+
+// Chats & Channels
+#define TL_MESSAGES_CHAT_FULL               0xe5d7d19c // messages.chatFull
+#define TL_CHAT_FULL                        0x2633421b // chatFull
+#define TL_CHANNEL_FULL                     0xe4e0b29d // channelFull
+#define TL_CHANNEL_LOCATION                 0x209b82db // channelLocation
+#define TL_CHAT_PARTICIPANTS                0x3cbc93f8 // chatParticipants
+
+// Files & Upload
+#define TL_UPLOAD_FILE                      0x096a18d5 // upload.file
+#define TL_PHOTOS_PHOTO                     0x20212ca8 // photos.photo
+#define TL_INPUT_PEER_CHAT                  0x35a95cb9 // inputPeerChat
+#define TL_INPUT_PHOTO                      0x3bb3b94a // inputPhoto
+#define TL_INPUT_DOCUMENT                   0x1abfb575 // inputDocument
+#define TL_DOCUMENT                         0x8fd4c4d8 // document
+#define TL_INPUT_MEDIA_PHOTO                0xe3af4434 // inputMediaPhoto
+#define TL_INPUT_MEDIA_DOCUMENT             0xa8763ab5 // inputMediaDocument
+
+// Updates & Differences
+#define TL_UPDATES_GET_DIFFERENCE           0x19c2f763 // updates.getDifference
+#define TL_UPDATES_STATE                    0xa56c2a3e // updates.state
+#define TL_UPDATES_DIFFERENCE               0x00f49ca0 // updates.difference
+#define TL_UPDATES_DIFFERENCE_SLICE         0xa8fb1981 // updates.differenceSlice
+#define TL_UPDATES_DIFFERENCE_EMPTY         0x5d75a138 // updates.differenceEmpty
+#define TL_UPDATES_CHANNEL_DIFFERENCE       0x2064674e // updates.channelDifference
+#define TL_UPDATES_CHANNEL_DIFFERENCE_EMPTY 0x3e11affb // updates.channelDifferenceEmpty
+#define TL_UPDATES_CHANNEL_DIFFERENCE_TOO_LONG 0xa4bcc6fe // updates.channelDifferenceTooLong
+#define TL_UPDATE_SHORT_MESSAGE             0x313bc7f8 // updateShortMessage
+#define TL_UPDATE_SHORT_CHAT_MESSAGE        0x4d6deea5 // updateShortChatMessage
+#define TL_UPDATE_SHORT_SENT_MESSAGE        0x9015e101 // updateShortSentMessage
+
+// Update Constructors
+#define TL_UPDATE_USER_TYPING               0x2a17bf5c // updateUserTyping
+#define TL_UPDATE_CHAT_USER_TYPING          0x83487af0 // updateChatUserTyping
+#define TL_UPDATE_CHANNEL_USER_TYPING       0x8c88c923 // updateChannelUserTyping
+#define TL_UPDATE_USER_STATUS               0xe5bdf8de // updateUserStatus
+#define TL_UPDATE_READ_CHANNEL_OUTBOX       0xb75f99a9 // updateReadChannelOutbox
+#define TL_UPDATE_READ_HISTORY_OUTBOX       0x2f2f21bf // updateReadHistoryOutbox
+#define TL_UPDATE_READ_CHANNEL_INBOX        0x922e6e10 // updateReadChannelInbox
+#define TL_UPDATE_READ_HISTORY_INBOX        0x9e84bc99 // updateReadHistoryInbox
+#define TL_UPDATE_CHAT_PARTICIPANTS         0x07761198 // updateChatParticipants
+#define TL_UPDATE_EDIT_MESSAGE              0xe40370a3 // updateEditMessage
+#define TL_UPDATE_EDIT_CHANNEL_MESSAGE      0x1b3f4df7 // updateEditChannelMessage
+#define TL_UPDATE_CHANNEL_MSG_VIEWS         0xf226ac08 // updateChannelMessageViews
+#define TL_UPDATE_MESSAGE_REACTIONS         0x1e297bfa // updateMessageReactions
+#define TL_UPDATE_DELETE_MESSAGES           0xa20db0e5 // updateDeleteMessages
+#define TL_UPDATE_CHAT_DEFAULT_BANNED_RIGHTS 0x54c01850 // updateChatDefaultBannedRights
+#define TL_UPDATE_USER_NAME                 0xa7848924 // updateUserName
+#define TL_UPDATE_NEW_MESSAGE               0x1f2b0afd // updateNewMessage
+#define TL_UPDATE_NEW_CHANNEL_MESSAGE       0x62ba04d9 // updateNewChannelMessage
+#define TL_UPDATE_DIALOG_FILTER             0x26ffde7d // updateDialogFilter
+#define TL_UPDATE_DIALOG_FILTER_ORDER       0xa5d72105 // updateDialogFilterOrder
+#define TL_UPDATE_CHAT                      0xf89a6a4e // updateChat
+#define TL_UPDATE_CHANNEL                   0x635b4c09 // updateChannel
+#define TL_UPDATE_USER                      0x20529438 // updateUser
+#define TL_UPDATE_LOGIN_TOKEN               0x564fe691 // updateLoginToken
+#define TL_UPDATE_DC_OPTIONS                0x8e5e9873 // updateDcOptions
+#define TL_UPDATE_NOTIFY_SETTINGS           0xbec268ef // updateNotifySettings
+#define TL_UPDATE_CHANNEL_TOO_LONG          0x108d941f // updateChannelTooLong
+#define TL_UPDATE_PTS_CHANGED               0x3354678f // updatePtsChanged
+#define TL_UPDATE_MESSAGE_ID                0x4e90bfd6 // updateMessageID
+
+// Notify Peer
+#define TL_NOTIFY_PEER                      0x9fd40bd8 // notifyPeer
+#define TL_NOTIFY_USERS                     0xb4c83b4c // notifyUsers
+#define TL_NOTIFY_CHATS                     0xc007cec3 // notifyChats
+#define TL_NOTIFY_BROADCASTS                0xd612e8ef // notifyBroadcasts
+
+// Send Message Actions (in typing updates)
+#define TL_SEND_MSG_CANCEL_ACTION           0xfd5ec8f5 // sendMessageCancelAction
+#define TL_SEND_MSG_TYPING_ACTION           0x16bf744e // sendMessageTypingAction
+#define TL_SEND_MSG_RECORD_VIDEO_ACTION     0xa187d66f // sendMessageRecordVideoAction
+#define TL_SEND_MSG_UPLOAD_VIDEO_ACTION     0xe9763aec // sendMessageUploadVideoAction
+#define TL_SEND_MSG_RECORD_AUDIO_ACTION     0xd52f73f7 // sendMessageRecordAudioAction
+#define TL_SEND_MSG_UPLOAD_AUDIO_ACTION     0xf351d7ab // sendMessageUploadAudioAction
+#define TL_SEND_MSG_UPLOAD_PHOTO_ACTION     0xd1d34a26 // sendMessageUploadPhotoAction
+#define TL_SEND_MSG_UPLOAD_DOCUMENT_ACTION  0xaa0cd9e4 // sendMessageUploadDocumentAction
+#define TL_SEND_MSG_RECORD_ROUND_ACTION     0x88f27fbc // sendMessageRecordRoundAction
+#define TL_SEND_MSG_UPLOAD_ROUND_ACTION     0x243e1c66 // sendMessageUploadRoundAction
+#define TL_SEND_MSG_CHOOSE_STICKER_ACTION   0xb05ac6b1 // sendMessageChooseStickerAction
+
 void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement, int length) {
 	unsigned int constructor = read_le(unenc_response, 4);
+	telegacy_log("[RECV] DC %d, cons=0x%08x, len=%d, ack=%d", dcInfo ? dcInfo->dc : 0, constructor, length, acknowledgement);
 	switch (constructor) {
-	case 0x9ec20908: // new_session_created
+	case TL_NEW_SESSION_CREATED:
 		break;
-	case 0x347773c5: // pong
+	case TL_PONG:
 		acknowledgement = false;
 		if (needtosetuplogin) {
 			wchar_t* winver = NULL;
@@ -67,39 +199,24 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				else winver = L"Windows";
 			}
 
-			BYTE unenc_query[208];
-			BYTE enc_query[232];
+			BYTE unenc_query[320];
+			BYTE enc_query[344];
 			internal_header(unenc_query, true);
-			write_le(unenc_query + 32, 0xda9b0d0d, 4);
-			write_le(unenc_query + 36, 196, 4);
-			write_le(unenc_query + 40, 0xc1cd5ea9, 4);
-			memset(unenc_query + 44, 0, 4);
-			write_le(unenc_query + 48, 27752131, 4);
-			wchar_t pc_name[MAX_COMPUTERNAME_LENGTH + 1];
-			DWORD size = sizeof(pc_name);
-			GetComputerName(pc_name, &size);
-			write_string(unenc_query + 52, pc_name);
-			int offset = 52 + tlstr_len(unenc_query + 52, true);
-			write_string(unenc_query + offset, winver);
-			offset += tlstr_len(unenc_query + offset, true);
-			write_string(unenc_query + offset, version);
-			write_string(unenc_query + offset + 8, L"en");
-			write_string(unenc_query + offset + 12, L"tdesktop");
-			write_string(unenc_query + offset + 24, L"en");
+			int offset = 32 + write_init_connection(unenc_query + 32);
 			if (qrCodeToken) {
-				write_le(unenc_query + offset + 28, 0x95ac5ce4, 4);
+				write_le(unenc_query + offset, TL_AUTH_IMPORT_LOGIN_TOKEN, 4);
 				int token_len = tlstr_len(qrCodeToken, true);
-				memcpy(unenc_query + offset + 32, qrCodeToken, token_len);
-				offset += 32 + token_len;
+				memcpy(unenc_query + offset + 4, qrCodeToken, token_len);
+				offset += 4 + token_len;
 				free(qrCodeToken);
 				qrCodeToken = NULL;
 			} else {
-				write_le(unenc_query + offset + 28, 0xb7e085fe, 4);
-				write_le(unenc_query + offset + 32, 27752131, 4);
-				write_string(unenc_query + offset + 36, L"f60c7955c55ad59d438d007f1fd59c0d");
-				write_le(unenc_query + offset + 72, 0x1cb5c415, 4);
-				memset(unenc_query + offset + 76, 0, 4);
-				offset += 80;
+				write_le(unenc_query + offset, TL_AUTH_EXPORT_LOGIN_TOKEN, 4);
+				write_le(unenc_query + offset + 4, 27752131, 4);
+				write_string(unenc_query + offset + 8, L"f60c7955c55ad59d438d007f1fd59c0d");
+				write_le(unenc_query + offset + 44, TL_VECTOR, 4);
+				memset(unenc_query + offset + 48, 0, 4);
+				offset += 52;
 				place_dialog_center(current_dialog, false);
 				SetForegroundWindow(current_dialog);
 				if (current_info) ShowWindow(current_info, SW_HIDE);
@@ -113,11 +230,11 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			needtosetuplogin = false;
 		}
 		break;
-	case 0xcc1a241e: { // config
+	case TL_CONFIG: {
 		save_dcs(unenc_response + 28, unenc_response + 20);
 		break;
 	}
-	case 0x5e002502: { // auth.sentCode
+	case TL_AUTH_SENT_CODE: {
 		if (phone_code_hash != NULL) free(phone_code_hash);
 		phone_code_hash = (BYTE*)malloc(20);
 		memcpy(phone_code_hash, unenc_response + 16, 20);
@@ -126,7 +243,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		SetFocus(hCode);
 		break;
 	}
-	case 0x957b50fb: { // account.password
+	case TL_ACCOUNT_PASSWORD: {
 		int flags = read_le(unenc_response + 4, 4);
 		if (flags & (1 << 2)) {
 			if (hint_needed) {
@@ -280,8 +397,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				BYTE enc_query[392];
 				internal_header(buf, true);
 				write_le(buf + 28, 312, 4);
-				write_le(buf + 32, 0xd18b4d16, 4);
-				write_le(buf + 36, 0xd27ff082, 4);
+				write_le(buf + 32, TL_AUTH_CHECK_PASSWORD, 4);
+				write_le(buf + 36, TL_INPUT_CHECK_PASSWORD_SRP, 4);
 				memcpy(buf + 40, unenc_response + offset, 8);
 				memset(buf + 48, 0, 296);
 				buf[48] = 254;
@@ -297,10 +414,11 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		}
 		break;
 	}
-	case 0x390d5c5e: // auth.loginTokenSuccess
+	case TL_AUTH_LOGIN_TOKEN_SUCCESS:
 		response_handler(dcInfo, unenc_response + 4, false, length - 4);
 		break;
-	case 0x2ea2c0d4: { // auth.authorization
+	case TL_AUTH_AUTHORIZATION: {
+		telegacy_log("[AUTH_AUTHORIZATION] user authorization received, authorized=%d, dc=%d", dcInfo->authorized, dcInfo ? dcInfo->dc : 0);
 		if (!dcInfo->authorized) {
 			if (dcInfo == &dcInfoMain) {
 				free(phone_number_bytes);
@@ -359,16 +477,16 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		}
 		break;
 	}
-	case 0xb434e2b8: { // auth.exportedAuthorization
+	case TL_AUTH_EXPORTED_AUTHORIZATION: {
 		for (std::list<DCInfo>::iterator it = active_dcs.begin(); it != active_dcs.end(); it++) {
 			DCInfo* active_dc = &(*it);
 			if (memcmp(active_dc->future_salt, last_rpcresult_msgid, 8) == 0) {
 				BYTE unenc_query[320];
 				BYTE enc_query[344];
 				internal_header(active_dc, unenc_query, true);
-				write_le(unenc_query + 32, 0xda9b0d0d, 4);
-				write_le(unenc_query + 36, 196, 4);
-				write_le(unenc_query + 40, 0xc1cd5ea9, 4);
+				write_le(unenc_query + 32, TL_INVOKE_WITH_LAYER, 4);
+				write_le(unenc_query + 36, MTPROTO_LAYER, 4);
+				write_le(unenc_query + 40, TL_INIT_CONNECTION, 4);
 				memset(unenc_query + 44, 0, 4);
 				write_le(unenc_query + 48, 27752131, 4);
 				write_string(unenc_query + 52, L"com");
@@ -377,7 +495,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				write_string(unenc_query + 68, L"en");
 				write_string(unenc_query + 72, L"tdesktop");
 				write_string(unenc_query + 84, L"en");
-				write_le(unenc_query + 88, 0xa57a7dad, 4);
+				write_le(unenc_query + 88, TL_AUTH_IMPORT_AUTHORIZATION, 4);
 				memcpy(unenc_query + 92, unenc_response + 4, 8 + tlstr_len(unenc_response + 12, true));
 				int offset = 100 + tlstr_len(unenc_response + 12, true);
 				write_le(unenc_query + 28, offset - 32, 4);
@@ -394,19 +512,21 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		}
 		break;
 	}
-	case 0xc3a2835f: { // auth.loggedOut
+	case TL_AUTH_LOGGED_OUT: {
 		acknowledgement = false;
 		logout_cleanup();
 		break;
 	}
-	case 0xedab447b: { // bad_server_salt
+	case TL_BAD_SERVER_SALT: {
+		telegacy_log("[BAD_SERVER_SALT] received, updating server_salt and calling get_future_salt");
 		memcpy(dcInfo->server_salt, unenc_response + 20, 8);
 		get_future_salt(dcInfo);
 		acknowledgement = false;
 		break;
 	}
-	case 0xa7eff811: { // bad_msg_notification
+	case TL_BAD_MSG_NOTIFICATION: {
 		int error_code = read_le(unenc_response + 16, 4);
+		telegacy_log("[BAD_MSG_NOTIFICATION] code=%d", error_code);
 		wchar_t error_message[30];
 		get_lang_string("e_c", lang_str, NULL);
 		wsprintf(error_message, lang_str, error_code);
@@ -418,7 +538,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		acknowledgement = false;
 		break;				 
 	}
-	case 0x73f1f8dc: { // msg_container
+	case TL_MSG_CONTAINER: {
 		int msg_count = read_le(unenc_response + 4, 4);
 		int pos = 8;
 		for (int i = 0; i < msg_count; i++) {
@@ -431,18 +551,27 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		acknowledgement = false;
 		break;
 	}
-	case 0xf35c6d01: { // rpc_result
+	case TL_RPC_RESULT: {
+		unsigned int inner_cons = 0;
+		unsigned int req_hi = (unsigned int)read_le(unenc_response + 8, 4);
+		unsigned int req_lo = (unsigned int)read_le(unenc_response + 4, 4);
+		if (length >= 16) inner_cons = (unsigned int)read_le(unenc_response + 12, 4);
+		telegacy_log("[RPC_RESULT] req_msg_id=%08x%08x, inner_cons=0x%08x", req_hi, req_lo, inner_cons);
 		if (memcmp(last_rpcresult_msgid, unenc_response + 4, 8) == 0) break;
 		memcpy(last_rpcresult_msgid, unenc_response + 4, 8);
 		response_handler(dcInfo, unenc_response + 12, false, length - 12);
-		if (memcmp(last_rpcresult_msgid, difference_msg_id, 8) == 0 && !closed_logged_out) show_main();
+		if (memcmp(last_rpcresult_msgid, difference_msg_id, 8) == 0 && !closed_logged_out) {
+			telegacy_log("[RPC_RESULT] difference_msg_id matched -> calling show_main()");
+			show_main();
+		}
 		if (!dcInfo->dc) acknowledgement = false;
 		break;
 	}
-	case 0x2144ca19: { // rpc_error
+	case TL_RPC_ERROR: {
 		int error_code = read_le(unenc_response + 4, 4);
-		wchar_t error_message[50];
+		wchar_t error_message[1024];
 		read_string(unenc_response + 8, error_message);
+		telegacy_log("[RPC_ERROR] code=%d, msg='%S'", error_code, error_message);
 		if (error_code == 303) {
 			if (error_message[0] == L'P') {
 				ShowWindow(current_dialog, SW_HIDE);
@@ -452,12 +581,12 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				UpdateWindow(current_info);
 				dcInfoMain.dc = error_message[14] - L'0';
 				FILE* f = _wfopen(get_path(appdata_path, L"DCs.dat"), L"rb+");
-				fseek(f, 0, SEEK_SET);
-				fwrite(&dcInfoMain.dc, 4, 1, f);
-				fclose(f);
+				if (f) {
+					fseek(f, 0, SEEK_SET);
+					fwrite(&dcInfoMain.dc, 4, 1, f);
+					fclose(f);
+				}
 				reconnect(&dcInfoMain);
-				unsigned threadID;
-				_beginthreadex(NULL, 0, SocketWorker, (void*)&dcInfoMain, 0, &threadID);
 				SendMessage(current_dialog, WM_INITDIALOG, 0, 10);
 				SendMessage(current_dialog, WM_COMMAND, MAKEWPARAM(3, 0), 0);
 				return;
@@ -581,7 +710,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			int wait_time = wcstol(wait_time_str, NULL, 10);
 			SetTimer(hMain, 4, wait_time * 1000, NULL);
 		} else {
-			wchar_t error_message2[50];
+			wchar_t error_message2[1024];
 			get_lang_string("e_c", lang_str, NULL);
 			wcscat(lang_str, L": %s");
 			swprintf(error_message2, lang_str, error_code, error_message);
@@ -589,7 +718,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		}
 		break;
 	}
-	case 0x68e9916: { // auth.loginTokenMigrateTo
+	case TL_AUTH_LOGIN_TOKEN_MIGRATE_TO: {
 		ShowWindow(current_dialog, SW_HIDE);
 		get_lang_string("a_ddc", lang_str, NULL);
 		SetWindowText(infoLabel, lang_str);
@@ -599,16 +728,16 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		qrCodeToken = (BYTE*)malloc(tlstr_len(unenc_response + 8, true));
 		memcpy(qrCodeToken, unenc_response + 8, tlstr_len(unenc_response + 8, true));
 		FILE* f = _wfopen(get_path(appdata_path, L"DCs.dat"), L"rb+");
-		fseek(f, 0, SEEK_SET);
-		fwrite(&dcInfoMain.dc, 4, 1, f);
-		fclose(f);
+		if (f) {
+			fseek(f, 0, SEEK_SET);
+			fwrite(&dcInfoMain.dc, 4, 1, f);
+			fclose(f);
+		}
 		reconnect(&dcInfoMain);
-		unsigned threadID;
-		_beginthreadex(NULL, 0, SocketWorker, (void*)&dcInfoMain, 0, &threadID);
 		SendMessage(current_dialog, WM_INITDIALOG, 0, 10);
 		break;
 	}
-	case 0x3072cfa1: { // gzip_packed
+	case TL_GZIP_PACKED: {
 		int str_len = tlstr_len(unenc_response + 4, false) - 10;
 		int str_start = (str_len >= 244 ? 4 : 1) + 14;
 		unsigned int out_len;
@@ -618,9 +747,12 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		free(out_data);
 		break;			 
 	}
-	case 0xae500895: { // future_salts
+	case TL_FUTURE_SALTS: {
+		telegacy_log("[FUTURE_SALTS] DC %d, is_main=%d, future_salt_is_zero=%d",
+			dcInfo ? dcInfo->dc : 0, (dcInfo == &dcInfoMain), (read_le(dcInfo->future_salt, 8) == 0));
 		if (closed_logged_out) return;
 		if (dcInfo == &dcInfoMain && read_le(dcInfo->future_salt, 8) == 0) {
+			send_init_connection(dcInfo);
 			update_own_status(true);
 			FILE* f = _wfopen(get_path(appdata_path, L"database.dat"), L"rb");
 			if (f) {
@@ -638,7 +770,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				if (rip) {
 					fclose(f);
 					f = NULL;
-					DeleteFile(L"database.dat");
+					DeleteFile(get_path(appdata_path, L"database.dat"));
 				}
 			}
 			if (f) {
@@ -657,153 +789,229 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					ModifyMenu(hMenuMute, 2, MF_BYPOSITION | MF_STRING, 40, lang_str);
 				}
 				fread(&peers_count, 4, 1, f);
-				peers = (Peer*)malloc(peers_count*sizeof(Peer));
-				int new_unread_msgs_count = 0;
-				for (int i = -1; i < peers_count; i++) {
-					Peer* peer = (i == -1) ? &myself : &peers[i];
-					fread(peer->id, 1, 8, f);
-					fread(peer->access_hash, 1, 8, f);
-					int name_len = 0;
-					fread(&name_len, 4, 1, f);
-					peer->name = (wchar_t*)malloc(name_len*2);
-					fread(peer->name, 2, name_len, f);
-					int handle_len = 0;
-					fread(&handle_len, 4, 1, f);
-					if (handle_len) {
-						peer->handle = (wchar_t*)malloc(handle_len*2);
-						fread(peer->handle, 2, handle_len, f);
-					} else peer->handle = NULL;
-					fread(&peer->online, 4, 1, f);
-					fread(peer->photo, 1, 8, f);
-					fread(&peer->photo_dc, 4, 1, f);
-					fread(&peer->last_read_out, 4, 1, f);
-					fread(&peer->unread_msgs_count, 4, 1, f);
-					fread(&peer->mute_until, 4, 1, f);
-					fread(&peer->perm, sizeof(Permissions), 1, f);
-					fread(&peer->amadmin, 1, 1, f);
-					fread(&peer->full, 1, 1, f);
-					fread(&peer->type, 1, 1, f);
-					if (peer->type != 0) {
-						fread(&peer->name_set_time, 4, 1, f);
-						fread(&peer->pfp_set_time, 4, 1, f);
-					}
-					peer->chat_users = NULL;
-					peer->reaction_list = &reaction_list;
-					peer->status_updated = false;
-					if (peer->full) {
-						int about_len = 0;
-						fread(&about_len, 4, 1, f);
-						if (about_len) {
-							peer->about = (wchar_t*)malloc(about_len*2);
-							fread(peer->about, 2, about_len, f);
-						} else peer->about = NULL;
-						if (peer->type == 0) fread(peer->birthday, 1, 4, f);
-						fread(&peer->theme_id, 1, 8, f);
-						fread(&peer->theme_set_time, 4, 1, f);
-						if (peer->type == 1) {
-							int chat_users_count;
-							fread(&chat_users_count, 4, 1, f);
-							peer->chat_users = new std::vector<Peer>();
-							for (int j = 0; j < chat_users_count; j++) {
-								Peer peer_participant;
-								fread(peer_participant.id, 1, 8, f);
-								fread(peer_participant.access_hash, 1, 8, f);
-								int name_len;
-								fread(&name_len, 4, 1, f);
-								peer_participant.name = (wchar_t*)malloc(name_len*2);
-								fread(peer_participant.name, 2, name_len, f);
-								peer_participant.handle = NULL;
-								peer->chat_users->push_back(peer_participant);
-							}
+				bool rip_during_read = false;
+				if (peers_count <= 0 || peers_count > 10000) rip_during_read = true;
+				if (!rip_during_read) {
+					peers = (Peer*)malloc(peers_count*sizeof(Peer));
+					memset(peers, 0, peers_count*sizeof(Peer));
+					int new_unread_msgs_count = 0;
+					for (int i = -1; i < peers_count; i++) {
+						Peer* peer = (i == -1) ? &myself : &peers[i];
+						fread(peer->id, 1, 8, f);
+						fread(peer->access_hash, 1, 8, f);
+						int name_len = 0;
+						fread(&name_len, 4, 1, f);
+						if (name_len <= 0 || name_len > 4096) { rip_during_read = true; break; }
+						peer->name = (wchar_t*)malloc(name_len*2);
+						fread(peer->name, 2, name_len, f);
+						int handle_len = 0;
+						fread(&handle_len, 4, 1, f);
+						if (handle_len < 0 || handle_len > 4096) { rip_during_read = true; break; }
+						if (handle_len) {
+							peer->handle = (wchar_t*)malloc(handle_len*2);
+							fread(peer->handle, 2, handle_len, f);
+						} else peer->handle = NULL;
+						fread(&peer->online, 4, 1, f);
+						fread(peer->photo, 1, 8, f);
+						fread(&peer->photo_dc, 4, 1, f);
+						fread(&peer->last_read_out, 4, 1, f);
+						fread(&peer->unread_msgs_count, 4, 1, f);
+						fread(&peer->mute_until, 4, 1, f);
+						fread(&peer->perm, sizeof(Permissions), 1, f);
+						fread(&peer->amadmin, 1, 1, f);
+						fread(&peer->full, 1, 1, f);
+						fread(&peer->type, 1, 1, f);
+						fread(&peer->is_forum, 1, 1, f);
+						if (peer->type == 2) {
+							peer->is_broadcast = !peer->is_forum;
+						} else {
+							peer->is_broadcast = false;
 						}
 						if (peer->type != 0) {
-							int reaction_count, reaction_len;
-							fread(&reaction_count, 4, 1, f);
-							if (reaction_count == 0) peer->reaction_list = NULL;
-							else if (reaction_count == 0xFFFFFFFF) peer->reaction_list = &reaction_list;
-							else {
-								peer->reaction_list = new std::vector<wchar_t*>(reaction_count);
-								for (int j = 0; j < reaction_count; j++) {
-									fread(&reaction_len, 4, 1, f);
-									wchar_t* reaction = (wchar_t*)malloc(reaction_len * 2);
-									fread(reaction, 2, reaction_len, f);
-									peer->reaction_list->at(j) = reaction;
+							fread(&peer->name_set_time, 4, 1, f);
+							fread(&peer->pfp_set_time, 4, 1, f);
+						}
+						peer->chat_users = NULL;
+						peer->reaction_list = &reaction_list;
+						peer->status_updated = false;
+						peer->notifications_muted = false;
+						peer->topics = NULL;
+						peer->active_topic_id = 0;
+						if (peer->is_forum) peer->topics = new std::vector<ForumTopic>();
+						if (peer->full) {
+							int about_len = 0;
+							fread(&about_len, 4, 1, f);
+							if (about_len < 0 || about_len > 16384) { rip_during_read = true; break; }
+							if (about_len) {
+								peer->about = (wchar_t*)malloc(about_len*2);
+								fread(peer->about, 2, about_len, f);
+							} else peer->about = NULL;
+							if (peer->type == 0) fread(peer->birthday, 1, 4, f);
+							fread(&peer->theme_id, 1, 8, f);
+							fread(&peer->theme_set_time, 4, 1, f);
+							if (peer->type == 1) {
+								int chat_users_count = 0;
+								fread(&chat_users_count, 4, 1, f);
+								if (chat_users_count < 0 || chat_users_count > 50000) { rip_during_read = true; break; }
+								peer->chat_users = new std::vector<Peer>();
+								for (int j = 0; j < chat_users_count; j++) {
+									Peer peer_participant;
+									memset(&peer_participant, 0, sizeof(Peer));
+									fread(peer_participant.id, 1, 8, f);
+									fread(peer_participant.access_hash, 1, 8, f);
+									int u_name_len = 0;
+									fread(&u_name_len, 4, 1, f);
+									if (u_name_len <= 0 || u_name_len > 4096) { rip_during_read = true; break; }
+									peer_participant.name = (wchar_t*)malloc(u_name_len*2);
+									fread(peer_participant.name, 2, u_name_len, f);
+									peer_participant.handle = NULL;
+									peer->chat_users->push_back(peer_participant);
+								}
+								if (rip_during_read) break;
+							}
+							if (peer->type != 0) {
+								int reaction_count = 0, reaction_len = 0;
+								fread(&reaction_count, 4, 1, f);
+								if (reaction_count == 0) peer->reaction_list = NULL;
+								else if (reaction_count == 0xFFFFFFFF) peer->reaction_list = &reaction_list;
+								else if (reaction_count > 0 && reaction_count <= 1000) {
+									peer->reaction_list = new std::vector<wchar_t*>(reaction_count);
+									for (int j = 0; j < reaction_count; j++) {
+										fread(&reaction_len, 4, 1, f);
+										if (reaction_len <= 0 || reaction_len > 256) {
+											peer->reaction_list->at(j) = NULL;
+											rip_during_read = true;
+											break;
+										}
+										wchar_t* reaction = (wchar_t*)malloc(reaction_len * 2);
+										fread(reaction, 2, reaction_len, f);
+										peer->reaction_list->at(j) = reaction;
+									}
+									if (rip_during_read) break;
+								} else {
+									peer->reaction_list = &reaction_list;
+									rip_during_read = true;
+									break;
 								}
 							}
+							if (peer->type == 2) {
+								fread(&peer->chat_users, 4, 1, f);
+								peer->chat_users = NULL;
+							}
 						}
-						if (peer->type == 2) fread(&peer->chat_users, 4, 1, f);
+						if (peer->type == 2) {
+							fread(&peer->channel_pts, 4, 1, f);
+							memset(peer->channel_msg_id, 0, 8);
+						}
+						if (peer->mute_until && peer->mute_until != 2147483647) {
+							if (peer->mute_until - current_time() <= 0) peer->mute_until = 0;
+							else {
+								UnmuteTimer ut;
+								memcpy((BYTE*)&ut.peer_id, peer->id, 8);
+								ut.timer_id = 50 + unmuteTimers.size();
+								unmuteTimers.push_back(ut);
+								SetTimer(hMain, ut.timer_id, (peer->mute_until - current_time()) * 1000, NULL);
+							}
+						}
+						if (peer->unread_msgs_count && !is_peer_muted(peer))
+							new_unread_msgs_count += peer->unread_msgs_count;
+						peer->last_recv = 0;
+						peer->last_read_in = 0;
 					}
-					if (peer->type == 2) {
-						fread(&peer->channel_pts, 4, 1, f);
-						memset(peer->channel_msg_id, 0, 8);
-					}
-					if (peer->mute_until && peer->mute_until != 2147483647) {
-						if (peer->mute_until - current_time() <= 0) peer->mute_until = 0;
+					if (!rip_during_read) {
+						if (new_unread_msgs_count) update_total_unread_msgs_count(new_unread_msgs_count);
+						fread(&folders_count, 4, 1, f);
+						if (folders_count <= 0 || folders_count > 100) rip_during_read = true;
 						else {
-							UnmuteTimer ut;
-							memcpy((BYTE*)&ut.peer_id, peer->id, 8);
-							ut.timer_id = 50 + unmuteTimers.size();
-							unmuteTimers.push_back(ut);
-							SetTimer(hMain, ut.timer_id, (peer->mute_until - current_time()) * 1000, NULL);
+							folders = (ChatsFolder*)malloc(folders_count*sizeof(ChatsFolder));
+							memset(folders, 0, folders_count*sizeof(ChatsFolder));
+							for (i = 0; i < folders_count; i++) {
+								fread(folders[i].id, 1, 4, f);
+								fread(&folders[i].count, 4, 1, f);
+								fread(&folders[i].pinned_count, 4, 1, f);
+								if (folders[i].count < 0 || folders[i].count > 10000) { rip_during_read = true; break; }
+								folders[i].peers = (int*)malloc(folders[i].count * 4);
+								fread(folders[i].peers, 4, folders[i].count, f);
+								for (int k = 0; k < folders[i].count; k++) {
+									if (folders[i].peers[k] < 0 || folders[i].peers[k] >= peers_count) {
+										rip_during_read = true;
+										break;
+									}
+								}
+								if (rip_during_read) break;
+								int name_len = 0;
+								fread(&name_len, 4, 1, f);
+								if (name_len <= 0 || name_len > 1024) { rip_during_read = true; break; }
+								if (i == 0) {
+									get_lang_string("all", lang_str, NULL);
+									folders[i].name = _wcsdup(lang_str);
+									fseek(f, name_len * 2, SEEK_CUR);
+								} else {
+									folders[i].name = (wchar_t*)malloc(name_len*2);
+									fread(folders[i].name, 2, name_len, f);
+								}
+								SendMessage(hComboBoxFolders, CB_ADDSTRING, 0, (LPARAM)folders[i].name);
+								SendMessage(hComboBoxFolders, CB_SETITEMDATA, i, (LPARAM)&folders[i]);
+							}
 						}
 					}
-					if (peer->unread_msgs_count && !peer->mute_until && !muted_types[peer->type])
-						new_unread_msgs_count += peer->unread_msgs_count;
-					peer->last_recv = 0;
-					peer->last_read_in = 0;
-				}
-				if (new_unread_msgs_count) update_total_unread_msgs_count(new_unread_msgs_count);
-				fread(&folders_count, 4, 1, f);
-				folders = (ChatsFolder*)malloc(folders_count*sizeof(ChatsFolder));
-				for (i = 0; i < folders_count; i++) {
-					fread(folders[i].id, 1, 4, f);
-					fread(&folders[i].count, 4, 1, f);
-					fread(&folders[i].pinned_count, 4, 1, f);
-					folders[i].peers = (int*)malloc(folders[i].count * 4);
-					fread(folders[i].peers, 4, folders[i].count, f);
-					int name_len = 0;
-					fread(&name_len, 4, 1, f);
-					if (i == 0) {
-						get_lang_string("all", lang_str, NULL);
-						folders[i].name = _wcsdup(lang_str);
-						fseek(f, name_len * 2, SEEK_CUR);
-					} else {
-						folders[i].name = (wchar_t*)malloc(name_len*2);
-						fread(folders[i].name, 2, name_len, f);
+					if (!rip_during_read) {
+						fread(&reaction_hash, 4, 1, f);
+						int reactions_count = 0, reaction_len = 0;
+						fread(&reactions_count, 4, 1, f);
+						if (reactions_count < 0 || reactions_count > 1000) rip_during_read = true;
+						else {
+							for (i = 0; i < reactions_count; i++) {
+								fread(&reaction_len, 4, 1, f);
+								if (reaction_len <= 0 || reaction_len > 256) { rip_during_read = true; break; }
+								wchar_t* reaction = (wchar_t*)malloc(reaction_len * 2);
+								fread(reaction, 2, reaction_len, f);
+								reaction_list.push_back(reaction);
+							}
+						}
 					}
-					SendMessage(hComboBoxFolders, CB_ADDSTRING, 0, (LPARAM)folders[i].name);
-					SendMessage(hComboBoxFolders, CB_SETITEMDATA, i, (LPARAM)&folders[i]);
+					if (!rip_during_read) {
+						fread(&theme_hash, 8, 1, f);
+						int themes_count = 0, theme_len = 0;
+						fread(&themes_count, 4, 1, f);
+						if (themes_count < 0 || themes_count > 100) rip_during_read = true;
+						else {
+							for (i = 0; i < themes_count; i++) {
+								Theme theme;
+								fread(theme.id, 1, 8, f);
+								fread(&theme.color, 4, 1, f);
+								fread(&theme_len, 4, 1, f);
+								if (theme_len <= 0 || theme_len > 65536) { rip_during_read = true; break; }
+								theme.emoji_id = (BYTE*)malloc(theme_len);
+								fread(theme.emoji_id, 1, theme_len, f);
+								themes.push_back(theme);
+							}
+						}
+					}
 				}
-				fread(&reaction_hash, 4, 1, f);
-				int reactions_count, reaction_len;
-				fread(&reactions_count, 4, 1, f);
-				for (i = 0; i < reactions_count; i++) {
-					fread(&reaction_len, 4, 1, f);
-					wchar_t* reaction = (wchar_t*)malloc(reaction_len * 2);
-					fread(reaction, 2, reaction_len, f);
-					reaction_list.push_back(reaction);
+				if (rip_during_read) {
+					fclose(f);
+					f = NULL;
+					DeleteFile(get_path(appdata_path, L"database.dat"));
+					if (peers) { free(peers); peers = NULL; }
+					peers_count = 0;
+				} else {
+					fclose(f);
+					register_themes();
+					SendMessage(hComboBoxFolders, CB_SETCURSEL, 0, 0);
+					current_folder = &folders[0];
+					for (int i = 0; i < peers_count; i++) {
+						wchar_t* pname = peers[folders[0].peers[i]].name;
+						SendMessage(hComboBoxChats, CB_ADDSTRING, 0, (LPARAM)(pname ? pname : L""));
+						SendMessage(hComboBoxChats, CB_SETITEMDATA, i, (LPARAM)&peers[folders[0].peers[i]]);
+					}
+					if (folders[0].count > 0) {
+						SendMessage(hComboBoxChats, CB_SETCURSEL, 0, 0);
+						SendMessage(hMain, WM_COMMAND, MAKEWPARAM(3, CBN_SELCHANGE), (LPARAM)hComboBoxChats);
+					}
 				}
-				fread(&theme_hash, 8, 1, f);
-				int themes_count, theme_len;
-				fread(&themes_count, 4, 1, f);
-				for (i = 0; i < themes_count; i++) {
-					Theme theme;
-					fread(theme.id, 1, 8, f);
-					fread(&theme.color, 4, 1, f);
-					fread(&theme_len, 4, 1, f);
-					theme.emoji_id = (BYTE*)malloc(theme_len);
-					fread(theme.emoji_id, 1, theme_len, f);
-					themes.push_back(theme);
-				}
-				fclose(f);
 
-				register_themes();
-				SendMessage(hComboBoxFolders, CB_SETCURSEL, 0, 0);
-				current_folder = &folders[0];
-				for (i = 0; i < peers_count; i++) {
-					SendMessage(hComboBoxChats, CB_ADDSTRING, 0, (LPARAM)peers[folders[0].peers[i]].name);
-					SendMessage(hComboBoxChats, CB_SETITEMDATA, i, (LPARAM)&peers[folders[0].peers[i]]);
-				}
+				get_myself();
 
 				// updates.getDifference
 				if (pts > 0) {
@@ -812,7 +1020,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					internal_header(unenc_query, true);
 					memcpy(difference_msg_id, unenc_query + 16, 8);
 					write_le(unenc_query + 28, 20, 4);
-					write_le(unenc_query + 32, 0x19c2f763, 4);
+					write_le(unenc_query + 32, TL_UPDATES_GET_DIFFERENCE, 4);
 					memset(unenc_query + 36, 0, 4);
 					write_le(unenc_query + 40, pts, 4);
 					write_le(unenc_query + 44, date, 4);
@@ -829,10 +1037,10 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				BYTE enc_query[88];
 				internal_header(unenc_query, true);
 				write_le(unenc_query + 28, 16, 4);
-				write_le(unenc_query + 32, 0xd91a548, 4);
-				write_le(unenc_query + 36, 0x1cb5c415, 4);
+				write_le(unenc_query + 32, TL_USERS_GET_USERS, 4);
+				write_le(unenc_query + 36, TL_VECTOR, 4);
 				write_le(unenc_query + 40, 1, 4);
-				write_le(unenc_query + 44, 0xf7c1b13f, 4);
+				write_le(unenc_query + 44, TL_INPUT_USER_SELF, 4);
 				fortuna_read(unenc_query + 48, 16, &prng);
 				convert_message(unenc_query, enc_query, 64, 0);
 				send_query(enc_query, 88);
@@ -844,7 +1052,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				BYTE enc_query[88];
 				internal_header(unenc_query, true);
 				write_le(unenc_query + 28, 8, 4);
-				write_le(unenc_query + 32, 0x18dea0ac, 4);
+				write_le(unenc_query + 32, TL_MESSAGES_GET_AVAILABLE_REACTIONS, 4);
 				write_le(unenc_query + 36, reaction_hash, 4);
 				fortuna_read(unenc_query + 40, 24, &prng);
 				convert_message(unenc_query, enc_query, 64, 0);
@@ -853,22 +1061,13 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				// account.getChatThemes
 				internal_header(unenc_query, true);
 				write_le(unenc_query + 28, 12, 4);
-				write_le(unenc_query + 32, 0xd638de89, 4);
+				write_le(unenc_query + 32, TL_ACCOUNT_GET_CHAT_THEMES, 4);
 				write_le(unenc_query + 36, theme_hash, 8);
 				fortuna_read(unenc_query + 48, 16, &prng);
 				convert_message(unenc_query, enc_query, 64, 0);
 				send_query(enc_query, 88);
 
-				if (muted_types[0] == -1) {
-					// account.getNotifySettings
-					internal_header(unenc_query, true);
-					write_le(unenc_query + 28, 8, 4);
-					write_le(unenc_query + 32, 0x12b3ad31, 4);
-					write_le(unenc_query + 36, 0x193b4417, 4);
-					fortuna_read(unenc_query + 40, 24, &prng);
-					convert_message(unenc_query, enc_query, 64, 0);
-					send_query(enc_query, 88);
-				}
+				sync_notifications();
 
 				FILE* f = _wfopen(get_path(appdata_path, L"DCs.dat"), L"rb");
 				if (!f) get_config();
@@ -889,62 +1088,60 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		}
 		break;		 
 	}
-	case 0x99622c0c: { // peerNotifySettings
+	case TL_PEER_NOTIFY_SETTINGS: {
 		int type = -1;
-		if (muted_types[0] == -1) type = 0;
-		else if (muted_types[1] == -1) type = 1;
-		else if (muted_types[2] == -1) type = 2;
-		if (type != -1) {
-			apply_notifysettings(unenc_response, &muted_types[type], type);
-			if (!muted_types[type]) {
-				int new_unread_msgs_count = 0;
-				for (int i = 0; i < peers_count; i++)
-					if (peers[i].type == type && !peers[i].mute_until && peers[i].unread_msgs_count) new_unread_msgs_count += peers[i].unread_msgs_count;
-				if (new_unread_msgs_count) update_total_unread_msgs_count(new_unread_msgs_count);
-			} else change_mute_all(type, false);
-			if (type != 2) {
-				BYTE unenc_query[64];
-				BYTE enc_query[88];
-				internal_header(unenc_query, true);
-				write_le(unenc_query + 28, 8, 4);
-				write_le(unenc_query + 32, 0x12b3ad31, 4);
-				write_le(unenc_query + 36, type == 0 ? 0x4a95e84e : 0xb1db7c7e, 4);
-				fortuna_read(unenc_query + 40, 24, &prng);
-				convert_message(unenc_query, enc_query, 64, 0);
-				send_query(enc_query, 88);
+		for (int k = 0; k < 3; k++) {
+			if (memcmp(last_rpcresult_msgid, notify_req_msg_id[k], 8) == 0) {
+				type = k;
+				memset(notify_req_msg_id[k], 0, 8);
+				break;
 			}
 		}
-		break;
-	}
-	case 0xbc799737: // boolFalse
-	case 0x997275b5: { // boolTrue
-		for (int i = 0; i < uploadEvents.size(); i++) if (memcmp(uploadEvents[i]->lastId, last_rpcresult_msgid, 8) == 0) SetEvent(uploadEvents[i]->event);
-		if (memcmp(handle_msgid, last_rpcresult_msgid, 8) == 0) {
-			for (int i = 0; i < peers_count; i++) {
-				if (memcmp(dlg_peer.id, peers[i].id, 8) == 0) {
-					if (constructor == 0x997275b5) {
-						if (peers[i].handle) free(peers[i].handle);
-						peers[i].handle = dlg_peer.handle;
-					} else free(dlg_peer.handle);
-					break;
+		if (type >= 0 && type <= 2) {
+			int muted_type_old = muted_types[type];
+			apply_notifysettings(unenc_response, &muted_types[type], NULL, type);
+			if (muted_type_old != -1) {
+				if (!muted_type_old && muted_types[type]) {
+					update_category_unread_count(type, true);
+				} else if (muted_type_old && !muted_types[type]) {
+					update_category_unread_count(type, false);
+				}
+			} else {
+				if (!muted_types[type]) {
+					update_category_unread_count(type, false);
 				}
 			}
+			change_mute_all(type, muted_types[type] == 0);
 		}
 		break;
 	}
-	case 0xa56c2a3e: { // updates.State
+	case TL_BOOL_FALSE:
+	case TL_BOOL_TRUE: {
+		for (int i = 0; i < uploadEvents.size(); i++) if (memcmp(uploadEvents[i]->lastId, last_rpcresult_msgid, 8) == 0) SetEvent(uploadEvents[i]->event);
+		if (memcmp(handle_msgid, last_rpcresult_msgid, 8) == 0) {
+			Peer* peer = get_peer_by_id(dlg_peer.id);
+			if (peer) {
+				if (constructor == TL_BOOL_TRUE) {
+					if (peer->handle) free(peer->handle);
+					peer->handle = dlg_peer.handle;
+				} else free(dlg_peer.handle);
+			}
+		}
+		break;
+	}
+	case TL_UPDATES_STATE: {
 		update_pts(read_le(unenc_response + 4, 4));
 		qts = read_le(unenc_response + 8, 4);
 		date = read_le(unenc_response + 12, 4);
 		break;
 	}
-	case 0xa8fb1981: // updates.differenceSlice
-	case 0x2064674e: // updates.channelDifference
-	case 0xf49ca0: { // updates.difference
+	case TL_UPDATES_DIFFERENCE_SLICE:
+	case TL_UPDATES_CHANNEL_DIFFERENCE:
+	case TL_UPDATES_DIFFERENCE: {
 		if (dcInfo != &dcInfoMain) break;
 		int offset = 4;
 		Peer* channel = NULL;
-		if (constructor == 0x2064674e) {
+		if (constructor == TL_UPDATES_CHANNEL_DIFFERENCE) {
 			for (int i = 0; i < peers_count; i++) {
 				if (peers[i].type == 2 && memcmp(last_rpcresult_msgid, peers[i].channel_msg_id, 8) == 0) {
 					channel = &peers[i];
@@ -966,21 +1163,34 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		}
 		int msg_count = read_le(unenc_response + offset + 4, 4);
 		offset += 8;
-		for (int i = 0; i < msg_count; i++) offset += message_handler(false, unenc_response + offset, true, false, false);
+		for (int i = 0; i < msg_count; i++) {
+			if (offset + 16 > length) break;
+			int m_cons = read_le(unenc_response + offset, 4);
+			if (!is_message_constructor(m_cons)) break;
+			int mlen = message_handler(false, unenc_response + offset, true, false, false);
+			if (mlen <= 0 || offset + mlen > length) break;
+			offset += mlen;
+		}
 		offset += 8;
-		for (i = offset; i < length - 40;) i += update_handler(unenc_response + i);
-		if (constructor != 0x2064674e) {
+		for (i = offset; i < length - 40;) {
+			unsigned int next_cons = read_le(unenc_response + i, 4);
+			if (is_updates_boundary(next_cons)) break;
+			int step = update_handler(unenc_response + i);
+			if (step >= 1000000 || step <= 0) break;
+			i += step;
+		}
+		if (constructor != TL_UPDATES_CHANNEL_DIFFERENCE) {
 			update_pts(read_le(unenc_response + length - 20, 4));
 			qts = read_le(unenc_response + length - 16, 4);
 			date = read_le(unenc_response + length - 12, 4);
 		}
-		if (constructor == 0xa8fb1981) {
+		if (constructor == TL_UPDATES_DIFFERENCE_SLICE) {
 			BYTE unenc_query[64];
 			BYTE enc_query[88];
 			internal_header(unenc_query, true);
 			memcpy(difference_msg_id, unenc_query + 16, 8);
 			write_le(unenc_query + 28, 20, 4);
-			write_le(unenc_query + 32, 0x19c2f763, 4);
+			write_le(unenc_query + 32, TL_UPDATES_GET_DIFFERENCE, 4);
 			memset(unenc_query + 36, 0, 4);
 			write_le(unenc_query + 40, pts, 4);
 			write_le(unenc_query + 44, date, 4);
@@ -989,24 +1199,25 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			convert_message(unenc_query, enc_query, 64, 0);
 			send_query(enc_query, 88);
 		}
-		if (channel) memset(msg_count ? peers[0].channel_msg_id : channel->channel_msg_id, 0, 8);
+		if (channel) memset(channel->channel_msg_id, 0, 8);
 		break;
 	}
-	case 0xa4bcc6fe: { // updates.channelDifferenceTooLong
+	case TL_UPDATES_CHANNEL_DIFFERENCE_TOO_LONG: {
 		for (int i = 0; i < peers_count; i++) {
 			if (peers[i].type == 2 && memcmp(last_rpcresult_msgid, peers[i].channel_msg_id, 8) == 0) {
 				int flags1 = read_le(unenc_response + 4, 4);
 				int offset = 8;
 				if (flags1 & (1 << 1)) offset += 4; 
+				int dlg_cons = read_le(unenc_response + offset, 4);
 				int flags = read_le(unenc_response + offset + 4, 4);
 				offset += 28;
 				peers[i].last_read_out = read_le(unenc_response + offset, 4);
 				offset += 4;
 				int unread_count_old = peers[i].unread_msgs_count;
 				peers[i].unread_msgs_count = read_le(unenc_response + offset, 4);
-				offset += 12;
-				apply_notifysettings(unenc_response + offset, &peers[i].mute_until, read_le(peers[i].id, 8));				
-				if (unread_count_old != peers[i].unread_msgs_count && !peers[i].mute_until && !muted_types[peers[i].type]) update_total_unread_msgs_count(peers[i].unread_msgs_count - unread_count_old);
+				offset += (dlg_cons == TL_DIALOG) ? 16 : 12;
+				apply_notifysettings(unenc_response + offset, &peers[i].mute_until, &peers[i].notifications_muted, read_le(peers[i].id, 8));				
+				if (unread_count_old != peers[i].unread_msgs_count && !is_peer_muted(&peers[i])) update_total_unread_msgs_count(peers[i].unread_msgs_count - unread_count_old);
 				if (flags & (1 << 0)) {
 					offset += peernotifyset_offset(unenc_response + offset);
 					peers[i].channel_pts = read_le(unenc_response + offset, 4);
@@ -1017,9 +1228,9 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		}
 		break;
 	}
-	case 0x5d75a138: // updates.differenceEmpty
+	case TL_UPDATES_DIFFERENCE_EMPTY:
 		break;
-	case 0x3e11affb: { // updates.channelDifferenceEmpty
+	case TL_UPDATES_CHANNEL_DIFFERENCE_EMPTY: {
 		for (int i = 0; i < peers_count; i++) {
 			if (peers[i].type == 2 && memcmp(last_rpcresult_msgid, peers[i].channel_msg_id, 8) == 0) {
 				memset(peers[i].channel_msg_id, 0, 8);
@@ -1028,19 +1239,29 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		}
 		break;
 	}
-	case 0x725b04c3: // updatesCombined
-	case 0x74ae4240: { // updates
-		if (dcInfo == &dcInfoMain) for (int i = 12; i < length;) i += update_handler(unenc_response + i);
+	case TL_UPDATES_COMBINED:
+	case TL_UPDATES: {
+		if (dcInfo == &dcInfoMain) {
+			int count = read_le(unenc_response + 8, 4);
+			int pos = 12;
+			for (int u = 0; u < count && pos < length - 4; u++) {
+				unsigned int next_cons = read_le(unenc_response + pos, 4);
+				if (is_updates_boundary(next_cons)) break;
+				int step = update_handler(unenc_response + pos);
+				if (step >= 1000000 || step <= 0) break;
+				pos += step;
+			}
+		}
 		break;
 	}
-	case 0x78d4dec1: { // updateShort
+	case TL_UPDATE_SHORT: {
 		if (dcInfo == &dcInfoMain) update_handler(unenc_response + 4);
 		break;		 
 	}
-	case 0x313bc7f8: // updateShortMessage
-	case 0x4d6deea5: { // updateShortChatMessage
+	case TL_UPDATE_SHORT_MESSAGE:
+	case TL_UPDATE_SHORT_CHAT_MESSAGE: {
 		if (peers_count == 0 || dcInfo != &dcInfoMain) break;
-		bool chatMsg = (constructor == 0x4d6deea5) ? true : false;
+		bool chatMsg = (constructor == TL_UPDATE_SHORT_CHAT_MESSAGE) ? true : false;
 		int offset = chatMsg ? 8 : 0;
 		update_chats_order(unenc_response + 12 + offset, unenc_response + 8, chatMsg ? 1 : 0);
 		int flags = read_le(unenc_response + 4, 4);
@@ -1073,13 +1294,13 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		} else if (!(flags & (1 << 1))) {
 			for (int i = 0; i < peers_count; i++) if (memcmp(peers[i].id, msg_bytes - 8, 8) == 0) {
 				int msg_id_int = read_le(unenc_response + 8, 4);
-				if (msg_id_int > peers[i].last_read_in) new_msg_notification(&peers[i], msg_bytes, false);
+				new_msg_notification(&peers[i], msg_bytes, false, 0, msg_id_int, (flags & (1 << 4)) != 0, (flags & (1 << 13)) != 0);
 				break;
 			}
 		}
 		break;			 
 	}
-	case 0x9015e101: { // updateShortSentMessage
+	case TL_UPDATE_SHORT_SENT_MESSAGE: {
 		if (dcInfo != &dcInfoMain) break;
 		for (int i = messages.size() - 1; i >= 0; i--) {
 			Message message = messages[i];
@@ -1101,38 +1322,72 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		date = read_le(unenc_response + 20, 4);
 		break;
 	}
-	case 0xe317af7e: // updatesTooLong
+	case TL_UPDATES_TOO_LONG:
 		break;
-	case 0x84d19185: // messages.affectedMessages
+	case TL_MESSAGES_AFFECTED_MESSAGES:
 		break;
-	case 0x71e094f3: // messages.dialogsSlice
+	case TL_MESSAGES_DIALOGS_SLICE:
 		total_peers_count = read_le(unenc_response + 4, 4);
-		write_le(unenc_response + 4, 0x15ba6c40, 4);
+		telegacy_log("[MESSAGES_DIALOGS_SLICE] total_peers_count=%d", total_peers_count);
+		write_le(unenc_response + 4, TL_MESSAGES_DIALOGS, 4);
 		response_handler(dcInfo, unenc_response + 4, false, length-4);
 		break;
-	case 0xf0e3e596: // messages.dialogsNotModified
+	case TL_MESSAGES_DIALOGS_NOT_MODIFIED:
+		telegacy_log("[MESSAGES_DIALOGS_NOT_MODIFIED]");
 		break;
-	case 0x15ba6c40: { // messages.dialogs
+	case TL_MESSAGES_DIALOGS: {
+		int num_dialogs = read_le(unenc_response + 8, 4);
+		telegacy_log("[MESSAGES_DIALOGS] dialogs_count=%d, current_peers=%d, total_peers=%d",
+			num_dialogs, peers_count, total_peers_count);
 		if (!read_le(dcInfo->future_salt, 8)) break;
 		if (!read_le(unenc_response + 8, 4)) {
 			get_folders();
 			break;
 		}
-		BYTE dialog_cons[4], message_cons[8], user_cons[4], group_cons[4], channel_cons[4];
-		write_le(dialog_cons, 0xd58a08c6, 4);
-		write_le(message_cons, 0x96fdbbe9, 4);
-		write_le(message_cons + 4, 0xd3d28540, 4);
-		write_le(user_cons, 0x4b46c37e, 4);
-		write_le(group_cons, 0x41cbf256, 4);
-		write_le(channel_cons, 0xe00998b7, 4);
-		int offset = 0, offset_msg = 0, offset_user = 0, offset_group = 0, offset_channel = 0;
+		BYTE message_cons[12], user_cons[8], group_cons[12], channel_cons[8];
+		write_le(message_cons, TL_MESSAGE, 4);             // message (Layer 225)
+		write_le(message_cons + 4, TL_MESSAGE_SERVICE, 4); // messageService (Layer 225)
+		write_le(message_cons + 8, TL_MESSAGE_EMPTY, 4);   // messageEmpty
 
-		offset_msg = array_find(unenc_response, message_cons, 4, 2);
+		write_le(user_cons, TL_USER, 4);                   // user (Layer 225)
+		write_le(user_cons + 4, TL_USER_EMPTY, 4);         // userEmpty
+
+		write_le(group_cons, TL_CHAT, 4);                  // chat
+		write_le(group_cons + 4, TL_CHAT_EMPTY, 4);        // chatEmpty
+		write_le(group_cons + 8, TL_CHAT_FORBIDDEN, 4);    // chatForbidden
+
+		write_le(channel_cons, TL_CHANNEL, 4);             // channel (Layer 225)
+		write_le(channel_cons + 4, TL_CHANNEL_FORBIDDEN, 4);// channelForbidden
+		int offset = 0, offset_msg = 0, offset_user = 0, offset_group = 0, offset_channel = 0;
+		int scan = 0, msg_count_in_vec = 0;
+
+		offset_msg = -1;
+		for (scan = 4; scan + 12 <= length; scan += 4) {
+			if (read_le(unenc_response + scan, 4) == TL_VECTOR) {
+				int cnt = read_le(unenc_response + scan + 4, 4);
+				int first_cons = read_le(unenc_response + scan + 8, 4);
+				if (cnt > 0 && cnt <= 500) {
+					if (first_cons == TL_MESSAGE || first_cons == TL_MESSAGE_SERVICE || first_cons == TL_MESSAGE_EMPTY) {
+						offset_msg = scan + 8;
+						msg_count_in_vec = cnt;
+						telegacy_log("[DLG_PARSE] matched Vector<Message> at scan=%d: count=%d, first_cons=0x%08x", scan, cnt, first_cons);
+						break;
+					}
+				}
+			}
+		}
+
+		telegacy_log("[DLG_PARSE] offset_msg=%d, msg_count_in_vec=%d, length=%d", offset_msg, msg_count_in_vec, length);
+		if (offset_msg < 0 || msg_count_in_vec <= 0 || msg_count_in_vec > 500) {
+			telegacy_log("[DLG_ERROR] Vector<Message> not found or invalid count, calling get_folders()");
+			get_folders();
+			break;
+		}
 		int peers_count_old = peers_count;
-		peers_count += read_le(unenc_response + offset_msg - 4, 4);
+		peers_count += msg_count_in_vec;
 
 		if (!peers) {
-			if (!total_peers_count) total_peers_count = peers_count;
+			if (!total_peers_count || total_peers_count < peers_count) total_peers_count = peers_count;
 			folders = (ChatsFolder*)malloc(sizeof(ChatsFolder));
 			get_lang_string("all", lang_str, NULL);
 			folders[0].name = _wcsdup(lang_str);
@@ -1144,7 +1399,14 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			current_folder = &folders[0];
 
 			peers = (Peer*)malloc(sizeof(Peer) * total_peers_count);
+			memset(peers, 0, sizeof(Peer) * total_peers_count);
 			folders[0].peers = (int*)malloc(sizeof(int) * total_peers_count);
+		} else if (peers_count > total_peers_count) {
+			int new_total = peers_count + 50;
+			peers = (Peer*)realloc(peers, sizeof(Peer) * new_total);
+			memset(peers + total_peers_count, 0, sizeof(Peer) * (new_total - total_peers_count));
+			folders[0].peers = (int*)realloc(folders[0].peers, sizeof(int) * new_total);
+			total_peers_count = new_total;
 		}
 
 		folders[0].count = peers_count;
@@ -1153,15 +1415,26 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		BYTE* pinned_peers_ids = NULL;
 		get_dialogs_lowest_date = 2147483647;
 		for (int i = peers_count_old; i < peers_count; i++) {
-			offset_msg += array_find(unenc_response + offset_msg, message_cons, 4, 2) + 4;
+			int found_msg = array_find(unenc_response + offset_msg, message_cons, 4, 3, length - offset_msg);
+			if (found_msg < 0) break;
+			offset_msg += found_msg + 4;
+			int cons_msg = read_le(unenc_response + offset_msg - 4, 4);
 			int flags_msg = read_le(unenc_response + offset_msg, 4);
 			int flags2_msg = 0;
-			if (memcmp(unenc_response + offset_msg - 4, message_cons, 4) == 0) {
+			bool is_service = is_message_service_constructor(cons_msg);
+			bool is_empty = (cons_msg == TL_MESSAGE_EMPTY);
+			if (is_empty) {
+				offset_msg += 8;
+				if (flags_msg & 1) offset_msg += 12;
+				continue;
+			}
+			if (!is_service) {
 				flags2_msg = read_le(unenc_response + offset_msg + 4, 4);
 				offset_msg += 12;
 			} else offset_msg += 8;
 			if (flags_msg & (1 << 8)) offset_msg += 12;
 			if (flags_msg & (1 << 29)) offset_msg += 4;
+			if (flags2_msg & (1 << 12)) offset_msg += tlstr_len(unenc_response + offset_msg, true);
 			memcpy(peers[i].id, unenc_response + offset_msg + 4, 8);
 			if (peers_count < total_peers_count) {
 				int offset_msg2 = offset_msg + 12;
@@ -1174,38 +1447,98 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				if (date < get_dialogs_lowest_date) get_dialogs_lowest_date = date;
 			}
 
-			int offset_dlg = array_find(unenc_response, peers[i].id, 8, 1) - 8;
+			if (read_le(peers[i].id, 8) == 0) continue;
+			int offset_dlg = array_find(unenc_response, peers[i].id, 8, 1, length) - 8;
+			if (offset_dlg < 0) continue;
 			int flags = read_le(unenc_response + offset_dlg, 4);
 			if (flags & (1 << 2)) {
 				pinned_peers_count++;
-				if (pinned_peers_ids) pinned_peers_ids = (BYTE*)malloc(pinned_peers_count * 8);
-				else pinned_peers_ids = (BYTE*)realloc(pinned_peers_ids, pinned_peers_count * 8);
+				pinned_peers_ids = (BYTE*)realloc(pinned_peers_ids, pinned_peers_count * 8);
 				memcpy(pinned_peers_ids + (pinned_peers_count-1)*8, unenc_response + offset_dlg + 8, 8);
 			}
 			peers[i].last_read_in = read_le(unenc_response + offset_dlg + 20, 4);
 			peers[i].last_read_out = read_le(unenc_response + offset_dlg + 24, 4);
 			peers[i].unread_msgs_count = read_le(unenc_response + offset_dlg + 28, 4);
-			apply_notifysettings(unenc_response + offset_dlg + 40, &peers[i].mute_until, read_le(peers[i].id, 8));
+			int dlg_cons = read_le(unenc_response + offset_dlg - 4, 4);
+			int notifyset_offset = (dlg_cons == TL_DIALOG) ? 44 : 40;
+			apply_notifysettings(unenc_response + offset_dlg + notifyset_offset, &peers[i].mute_until, &peers[i].notifications_muted, read_le(peers[i].id, 8));
 			
 			switch (read_le(unenc_response + offset_msg, 4)) {
-			case 0x59511722: {
-				if (offset_user == 0) offset_user = offset_msg + array_find(unenc_response + offset_msg, user_cons, 4, 1);
+			case TL_PEER_USER: {
+				if (offset_user == 0 && offset_msg < length) {
+					int found_u = array_find(unenc_response + offset_msg, user_cons, 4, 2, length - offset_msg);
+					if (found_u >= 0) offset_user = offset_msg + found_u;
+					else {
+						found_u = array_find(unenc_response, user_cons, 4, 2, length);
+						if (found_u >= 0) offset_user = found_u;
+					}
+				}
 				peers[i].type = 0;
-				set_peer_info(unenc_response + offset_user + array_find(unenc_response + offset_user, peers[i].id, 8, 1) - 12, &peers[i], false);
+				if (offset_user > 0 && offset_user < length) {
+					int found_id = array_find(unenc_response + offset_user, peers[i].id, 8, 1, length - offset_user);
+					if (found_id < 0) {
+						found_id = array_find(unenc_response, peers[i].id, 8, 1, length);
+						if (found_id >= 12 && array_find(unenc_response + found_id - 12, user_cons, 4, 2, 4) == 0) {
+							set_peer_info(unenc_response + found_id - 12, &peers[i], false);
+						}
+					} else if (offset_user + found_id >= 12 && offset_user + found_id - 12 + 32 <= length) {
+						set_peer_info(unenc_response + offset_user + found_id - 12, &peers[i], false);
+					}
+				}
 				break;
 			}
-			case 0x36c6019a: {
-				if (offset_group == 0) offset_group = offset_msg + array_find(unenc_response + offset_msg, group_cons, 4, 1);
+			case TL_PEER_CHAT: {
+				if (offset_group == 0 && offset_msg < length) {
+					int found_g = array_find(unenc_response + offset_msg, group_cons, 4, 3, length - offset_msg);
+					if (found_g >= 0) offset_group = offset_msg + found_g;
+					else {
+						found_g = array_find(unenc_response, group_cons, 4, 3, length);
+						if (found_g >= 0) offset_group = found_g;
+					}
+				}
 				peers[i].type = 1;
-				set_peer_info(unenc_response + offset_group + array_find(unenc_response + offset_group, peers[i].id, 8, 1) - 8, &peers[i], false);
+				if (offset_group > 0 && offset_group < length) {
+					int found_id = array_find(unenc_response + offset_group, peers[i].id, 8, 1, length - offset_group);
+					if (found_id < 0) {
+						found_id = array_find(unenc_response, peers[i].id, 8, 1, length);
+						if (found_id >= 8 && array_find(unenc_response + found_id - 8, group_cons, 4, 3, 4) == 0) {
+							set_peer_info(unenc_response + found_id - 8, &peers[i], false);
+						}
+					} else if (offset_group + found_id >= 8 && offset_group + found_id - 8 + 32 <= length) {
+						set_peer_info(unenc_response + offset_group + found_id - 8, &peers[i], false);
+					}
+				}
 				break;
 			}
-			case 0xa2a5371e: {
-				if (offset_channel == 0) offset_channel = offset_msg + array_find(unenc_response + offset_msg, channel_cons, 4, 1);
+			case TL_PEER_CHANNEL: {
+				if (offset_channel == 0 && offset_msg < length) {
+					int found_c = array_find(unenc_response + offset_msg, channel_cons, 4, 2, length - offset_msg);
+					if (found_c >= 0) offset_channel = offset_msg + found_c;
+					else {
+						found_c = array_find(unenc_response, channel_cons, 4, 2, length);
+						if (found_c >= 0) offset_channel = found_c;
+					}
+				}
 				peers[i].type = 2;
-				set_peer_info(unenc_response + offset_channel + array_find(unenc_response + offset_channel, peers[i].id, 8, 1) - 12, &peers[i], false);
+				if (offset_channel > 0 && offset_channel < length) {
+					int found_id = array_find(unenc_response + offset_channel, peers[i].id, 8, 1, length - offset_channel);
+					int base_off = offset_channel;
+					if (found_id < 0) {
+						found_id = array_find(unenc_response, peers[i].id, 8, 1, length);
+						base_off = 0;
+					}
+					if (found_id >= 0) {
+						BYTE* cand12 = unenc_response + base_off + found_id - 12;
+						BYTE* cand8 = unenc_response + base_off + found_id - 8;
+						if (base_off + found_id >= 12 && base_off + found_id - 12 + 32 <= length && array_find(cand12, channel_cons, 4, 2, 4) == 0) {
+							set_peer_info(cand12, &peers[i], false);
+						} else if (base_off + found_id >= 8 && base_off + found_id - 8 + 32 <= length && array_find(cand8, channel_cons, 4, 2, 4) == 0) {
+							set_peer_info(cand8, &peers[i], false);
+						}
+					}
+				}
 				if (flags & (1 << 0)) {
-					offset_dlg += 40 + peernotifyset_offset(unenc_response + offset_dlg + 40);
+					offset_dlg += notifyset_offset + peernotifyset_offset(unenc_response + offset_dlg + notifyset_offset);
 					peers[i].channel_pts = read_le(unenc_response + offset_dlg, 4);
 				}
 				break;
@@ -1219,9 +1552,11 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					break;
 				}
 			}
-			if (peers[i].unread_msgs_count && !peers[i].mute_until && !muted_types[peers[i].type]) update_total_unread_msgs_count(peers[i].unread_msgs_count);
+			if (peers[i].unread_msgs_count && !is_peer_muted(&peers[i])) update_total_unread_msgs_count(peers[i].unread_msgs_count);
 		}
 		if (pinned_peers_ids) free(pinned_peers_ids);
+		telegacy_log("[DLG_PARSE] sorting peers: old=%d, new=%d, total=%d, pinned=%d, old_pinned=%d",
+			peers_count_old, peers_count, total_peers_count, folders[0].pinned_count, old_pinned_count);
 		int diff = 0;
 		for (i = peers_count_old; i < peers_count; i++) {
 			bool found = false;
@@ -1233,49 +1568,87 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				}
 			}
 			if (found) continue;
-			folders[0].peers[i-diff+folders[0].pinned_count-old_pinned_count] = i;
+			int target_idx = i - diff + folders[0].pinned_count - old_pinned_count;
+			if (target_idx >= total_peers_count) {
+				int new_total = target_idx + 50;
+				telegacy_log("[DLG_PARSE] reallocating peers and folders[0].peers: %d -> %d", total_peers_count, new_total);
+				peers = (Peer*)realloc(peers, sizeof(Peer) * new_total);
+				memset(peers + total_peers_count, 0, sizeof(Peer) * (new_total - total_peers_count));
+				folders[0].peers = (int*)realloc(folders[0].peers, sizeof(int) * new_total);
+				total_peers_count = new_total;
+			}
+			if (target_idx >= 0 && target_idx < total_peers_count) {
+				folders[0].peers[target_idx] = i;
+			} else {
+				telegacy_log("[DLG_ERROR] invalid target_idx=%d", target_idx);
+			}
 		}	
 		for (i = peers_count_old; i < peers_count; i++) {
-			SendMessage(hComboBoxChats, CB_ADDSTRING, 0, (LPARAM)peers[folders[0].peers[i]].name);
-			SendMessage(hComboBoxChats, CB_SETITEMDATA, i, (LPARAM)&peers[folders[0].peers[i]]);
+			int p_idx = folders[0].peers[i];
+			wchar_t* pname = (p_idx >= 0 && p_idx < peers_count) ? peers[p_idx].name : NULL;
+			SendMessage(hComboBoxChats, CB_ADDSTRING, 0, (LPARAM)(pname ? pname : L""));
+			SendMessage(hComboBoxChats, CB_SETITEMDATA, i, (LPARAM)&peers[p_idx]);
 		}
 
-		if (peers_count < total_peers_count) get_dialogs();
+		if (peers_count > peers_count_old && peers_count < total_peers_count) get_dialogs();
 		else get_folders();
 		break;			 
 	}
-	case 0x2ad93719: { // messages.dialogFilters (folders)
-		if (peers_count == 0) break;
+	case TL_MESSAGES_DIALOG_FILTERS: {
 		folders_count = read_le(unenc_response + 12, 4);
+		telegacy_log("[MESSAGES_DIALOG_FILTERS] folders_count=%d, peers_count=%d", folders_count, peers_count);
+		if (peers_count == 0) {
+			telegacy_log("[MESSAGES_DIALOG_FILTERS] peers_count is 0, initializing empty 'All chats' and showing main");
+			if (!peers) {
+				total_peers_count = 0;
+				folders = (ChatsFolder*)malloc(sizeof(ChatsFolder));
+				get_lang_string("all", lang_str, NULL);
+				folders[0].name = _wcsdup(lang_str);
+				folders[0].pinned_count = 0;
+				memset(folders[0].id, 0, 4);
+				folders[0].count = 0;
+				folders[0].peers = NULL;
+				SendMessage(hComboBoxFolders, CB_ADDSTRING, 0, (LPARAM)folders[0].name);
+				SendMessage(hComboBoxFolders, CB_SETITEMDATA, 0, (LPARAM)&folders[0]);
+				SendMessage(hComboBoxFolders, CB_SETCURSEL, 0, 0);
+				current_folder = &folders[0];
+			}
+			show_main();
+			break;
+		}
 		if (folders_count > 1) {
 			folders = (ChatsFolder*)realloc(folders, sizeof(ChatsFolder)*folders_count);
 			SendMessage(hComboBoxFolders, CB_SETITEMDATA, 0, (LPARAM)&folders[0]);
 			current_folder = &folders[0];
-			int offset = 24;
-
 			BYTE folder_cons[4];
-			write_le(folder_cons, 0xaa472651, 4);
-
-			for (int i = 1; i < folders_count; i++) {
-				offset += folder_handler(unenc_response + offset, &folders[i], i, false);
-				if (i != folders_count-1) offset += array_find(unenc_response + offset, folder_cons, 4, 1) + 4;
+			write_le(folder_cons, TL_DIALOG_FILTER, 4);
+			int first_f = array_find(unenc_response + 16, folder_cons, 4, 1, length - 16);
+			if (first_f >= 0) {
+				int offset = 16 + first_f + 4;
+				for (int i = 1; i < folders_count; i++) {
+					offset += folder_handler(unenc_response + offset, &folders[i], i, false);
+					if (i != folders_count-1) {
+						int next_f = array_find(unenc_response + offset, folder_cons, 4, 1, length - offset);
+						if (next_f < 0) break;
+						offset += next_f + 4;
+					}
+				}
 			}
 		}
 		show_main();
 		break;
 	}
-	case 0x1cb5c415: { // vector
+	case TL_VECTOR: {
 		unsigned int vec_constructor = read_le(unenc_response + 8, 4);
 		switch (vec_constructor) {
-		case 0xa384b779: // received messages ack
+		case TL_RECEIVED_NOTIFY_MESSAGE: // received messages ack
 			break;
-		case 0x4b46c37e: // user (myself)
+		case TL_USER:
 			myself.type = 0;
 			myself.online = -2;
 			set_peer_info(unenc_response + 8, &myself, false);
-			get_full_peer(&myself);
 			break;
-		case 0x8fd4c4d8: { // document (custom emojis)
+		case TL_DOCUMENT: { // custom emojis
 			int offset = 8;
 			int count = read_le(unenc_response + 4, 4);
 			for (int i = 0; i < count; i++) {
@@ -1300,9 +1673,9 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		}
 		break;
 	}
-	case 0x4b46c37e: // user
+	case TL_USER:
 		break;
-	case 0x3b6d152e: { // users.userFull
+	case TL_USERS_USER_FULL: {
 		for (int i = -1; i < peers_count; i++) {
 			Peer* peer = (i == -1) ? &myself : &peers[i];
 			if (memcmp(peer->id, unenc_response + 16, 8) == 0) {
@@ -1321,16 +1694,16 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				if (peerset_flags & (1 << 13)) offset += tlstr_len(unenc_response + offset + 8, true) + 8;
 				if (peerset_flags & (1 << 14)) offset += 8;
 				if (peerset_flags & (1 << 15)) offset += tlstr_len(unenc_response + offset, true);
-				if (peerset_flags & (1 << 16)) offset += tlstr_len(unenc_response + offset + 8, true) + 8;
+				if (peerset_flags & (1 << 16)) offset += tlstr_len(unenc_response + offset, true);
 				if (peerset_flags & (1 << 17)) offset += 4;
-				if (peerset_flags & (1 << 18)) offset += 8;
+				if (peerset_flags & (1 << 18)) offset += 4;
 				if (flags & (1 << 21)) offset += photo_offset(unenc_response + offset);
 				if (flags & (1 << 2)) {
 					memcpy(peer->photo, unenc_response + offset + 8, 8);
 					offset += photo_offset(unenc_response + offset);
 				} else memset(peer->photo, 0, 8);
 				if (flags & (1 << 22)) offset += photo_offset(unenc_response + offset);
-				apply_notifysettings(unenc_response + offset, &peer->mute_until, read_le(peer->id, 8));
+				apply_notifysettings(unenc_response + offset, &peer->mute_until, &peer->notifications_muted, read_le(peer->id, 8));
 				offset += peernotifyset_offset(unenc_response + offset);
 				if (flags & (1 << 3)) offset += botinfo_offset(unenc_response + offset);
 				if (flags & (1 << 6)) offset += 4;
@@ -1338,30 +1711,24 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				if (flags & (1 << 11)) offset += 4;
 				if (flags & (1 << 14)) offset += 4;
 				if (flags & (1 << 15)) {
-					for (int j = 0; j < themes.size(); j++) {
-						if (memcmp(themes[j].emoji_id, unenc_response + offset, tlstr_len(unenc_response + offset, true)) == 0) {
-							memcpy(peer->theme_id, themes[j].id, 8);
-							break;
+					unsigned int theme_cons = read_le(unenc_response + offset, 4);
+					if (theme_cons == TL_CHAT_THEME) {
+						offset += 4;
+						for (int j = 0; j < (int)themes.size(); j++) {
+							if (memcmp(themes[j].emoji_id, unenc_response + offset, tlstr_len(unenc_response + offset, true)) == 0) {
+								memcpy(peer->theme_id, themes[j].id, 8);
+								break;
+							}
 						}
+						offset += tlstr_len(unenc_response + offset, true);
+					} else {
+						memset(peer->theme_id, 0, 8);
 					}
-					offset += tlstr_len(unenc_response + offset, true);
 				} else memset(peer->theme_id, 0, 8);
 				peer->theme_set_time = current_time();
 				if (flags & (1 << 16)) offset += tlstr_len(unenc_response + offset, true);
 				if (flags & (1 << 17)) offset += 8;
 				if (flags & (1 << 18)) offset += 8;
-				if (flags & (1 << 19)) {
-					int count = read_le(unenc_response + offset + 4, 4);
-					offset += 8;
-					for (int j = 0; j < count; j++) {
-						int flags_gift = read_le(unenc_response + offset + 4, 4);
-						offset += 12;
-						offset += tlstr_len(unenc_response + offset, true);
-						offset += 8;
-						offset += tlstr_len(unenc_response + offset, true);
-						if (flags_gift & (1 << 0)) offset += tlstr_len(unenc_response + offset, true);
-					}
-				}
 				if (flags & (1 << 24)) offset += wallpaper_offset(unenc_response + offset);
 				if (flags & (1 << 25)) {
 					int flags_story = read_le(unenc_response + offset + 4, 4);
@@ -1397,7 +1764,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				if (flags2 & (1 << 3)) {
 					offset += 12;
 					int sche_cons = read_le(unenc_response + offset, 4);
-					if (sche_cons == 0xcc4d9ecc) offset += 12;
+					if (sche_cons == TL_BUSINESS_AWAY_SCHEDULE_CUSTOM) offset += 12;
 					else offset += 4;
 					int flags_busrec = read_le(unenc_response + offset + 4, 4);
 					offset += 8;
@@ -1432,9 +1799,9 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		}
 		break;
 	}
-	case 0xe5d7d19c: { // messages.chatFull
+	case TL_MESSAGES_CHAT_FULL: {
 		switch (read_le(unenc_response + 4, 4)) {
-		case 0x2633421b: { // chatFull
+		case TL_CHAT_FULL: {
 			for (int i = 0; i < peers_count; i++) {
 				if (memcmp(peers[i].id, unenc_response + 12, 8) == 0) {
 					if (!peers[i].chat_users) peers[i].chat_users = new std::vector<Peer>();
@@ -1444,21 +1811,10 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					if (unenc_response[20]) peers[i].about = read_string(unenc_response + 20, NULL);
 					else peers[i].about = NULL;
 					int chat_users_count = read_le(unenc_response + offset + 36, 4);
-					BYTE user_cons[4];
-					write_le(user_cons, 0x4b46c37e, 4);
-					offset += 40;
-					int user_pos = offset; 
-					for (int j = 0; j < chat_users_count; j++) {
-						user_pos += array_find(unenc_response + user_pos + 4, user_cons, 4, 1) + 4;
-						Peer peer;
-						peer.type = 0;
-						set_peer_info(unenc_response + user_pos, &peer, false);
-						peers[i].chat_users->push_back(peer);
-						offset += (read_le(unenc_response + offset, 4) == 0xe46bcee4) ? 12 : 24;
-					}
+					offset = parse_chat_participants(unenc_response, offset + 40, chat_users_count, peers[i].chat_users, length);
 					offset += 4;
 					if (flags & (1 << 2)) offset += photo_offset(unenc_response + offset);
-					apply_notifysettings(unenc_response + offset, &peers[i].mute_until, read_le(peers[i].id, 8));
+					apply_notifysettings(unenc_response + offset, &peers[i].mute_until, &peers[i].notifications_muted, read_le(peers[i].id, 8));
 					offset += peernotifyset_offset(unenc_response + offset);
 					if (flags & (1 << 13)) offset += exchatinv_offset(unenc_response + offset);
 					if (flags & (1 << 3)) {
@@ -1496,7 +1852,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			}
 			break;				 
 		}
-		case 0x9ff3b858: { // channelFull
+		case TL_CHANNEL_FULL: {
 			for (int i = 0; i < peers_count; i++) {
 				if (memcmp(peers[i].id, unenc_response + 16, 8) == 0) {
 					peers[i].full = true;
@@ -1513,7 +1869,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					if (flags & (1 << 13)) offset += 4;
 					offset += 12;
 					offset += photo_offset(unenc_response + offset);
-					apply_notifysettings(unenc_response + offset, &peers[i].mute_until, read_le(peers[i].id, 8));
+					apply_notifysettings(unenc_response + offset, &peers[i].mute_until, &peers[i].notifications_muted, read_le(peers[i].id, 8));
 					offset += peernotifyset_offset(unenc_response + offset);
 					if (flags & (1 << 23)) offset += exchatinv_offset(unenc_response + offset);
 					int botinfo_count = read_le(unenc_response + offset + 4, 4);
@@ -1537,7 +1893,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 					if (flags & (1 << 15)) {
 						int channelloc_cons = read_le(unenc_response + offset, 4);
 						offset += 4;
-						if (channelloc_cons == 0x209b82db) {
+						if (channelloc_cons == TL_CHANNEL_LOCATION) {
 							offset += geo_offset(unenc_response + offset);
 							offset += tlstr_len(unenc_response + offset, true);
 						}
@@ -1582,28 +1938,28 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		}
 		break;
 	}
-	case 0x3a54685e: // messages.messagesSlice
-	case 0xc776ba4e: // messages.channelMessages
-	case 0x8c718e87: { // messages.Messages
+	case TL_MESSAGES_MESSAGES:
+	case TL_MESSAGES_MESSAGES_SLICE:
+	case TL_MESSAGES_CHANNEL_MESSAGES: {
 		int offset_msg = 12;
-		if (constructor != 0x8c718e87) {
+		if (constructor != TL_MESSAGES_MESSAGES) {
 			int flags = read_le(unenc_response + 4, 4);
 			offset_msg += 8;
 			if (flags & (1 << 0)) offset_msg += 4;
 			if (flags & (1 << 2)) offset_msg += 4;
-			if (constructor == 0xc776ba4e) offset_msg += 4;
+			if (constructor == TL_MESSAGES_MESSAGES_SLICE && (flags & (1 << 3))) { // search_flood:SearchPostsFlood
+				int sf_flags = read_le(unenc_response + offset_msg + 4, 4);
+				offset_msg += 24;
+				if (sf_flags & (1 << 1)) offset_msg += 4;
+			}
+			if (constructor == TL_MESSAGES_CHANNEL_MESSAGES) offset_msg += 4;
 		}
 
-		int offset2 = offset_msg + 16;
-		int flags_msg = read_le(unenc_response + offset_msg + 4, 4);
-		if (flags_msg & (1 << 29)) offset2 += 4;
-		if (flags_msg & (1 << 8)) offset2 += 12;
-		if (read_le(unenc_response + offset_msg, 4) == 0x96fdbbe9) offset2 += 4;
-
 		int count = read_le(unenc_response + offset_msg - 4, 4);
+		BYTE* first_msg_peer = (count > 0 && offset_msg + 16 <= length) ? get_message_peer_id(unenc_response + offset_msg) : NULL;
 		bool neworrep = false;
 		if (count == 1) {
-			int id = read_le(unenc_response + offset_msg + 12, 4);
+			int id = get_msg_id_from_raw(unenc_response + offset_msg);
 			for (int i = 0; i < messages.size(); i++) {
 				if (messages[i].reply_needed == id) {
 					messages[i].reply_needed = 0;
@@ -1614,7 +1970,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				}
 			}
 			for (i = 0; i < peers_count; i++) {
-				if (peers[i].name == NULL && memcmp(unenc_response + offset2, peers[i].id, 8) == 0) {
+				if (peers[i].name == NULL && first_msg_peer && memcmp(first_msg_peer, peers[i].id, 8) == 0) {
 					BYTE* peer_bytes = find_peer(unenc_response + offset_msg, &peers[i].id[0] - 4, true, &peers[i].type);
 					set_peer_info(peer_bytes, &peers[i], false);
 					neworrep = true;
@@ -1622,17 +1978,226 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				}
 			}
 		}
-		if (count == 0 && messages.size() == 0 && current_peer != NULL) {
-			remove_peer(current_peer);
+		if (count > 0 && first_msg_peer && current_peer && memcmp(first_msg_peer, current_peer->id, 8) != 0) {
+			getting_history = false;
 			break;
 		}
-		if (!current_peer || neworrep || memcmp(unenc_response + offset2, current_peer->id, 8) != 0) break;
+		if (!current_peer || neworrep) {
+			getting_history = false;
+			break;
+		}
 		int messages_count_old = messages.size();
 		int documents_count_old = documents.size();
-		for (int i = 0; i < count; i++) offset_msg += message_handler(true, unenc_response + offset_msg, false, false, false);
+		is_last_history_batch = (count < MSGSFETCHCOUNT);
+		bool is_forum_topic = (current_peer && current_peer->is_forum && current_peer->active_topic_id > 0);
+		if (messages_count_old == 0) {
+			root_topic_msg_len = 0;
+			root_topic_sender[0] = 0;
+		}
+		int i;
+		BYTE* root_msg_ptr = NULL;
+		for (i = 0; i < count; i++) {
+			if (offset_msg + 16 > length) break;
+			BYTE* cur_msg = unenc_response + offset_msg;
+			int cons_m = read_le(cur_msg, 4);
+			if (!is_message_constructor(cons_m)) {
+				break;
+			}
+			int mid = get_msg_id_from_raw(cur_msg);
+			if (is_forum_topic && mid == current_peer->active_topic_id) {
+				root_msg_ptr = cur_msg;
+				int rlen = message_handler(true, cur_msg, false, false, false, true);
+				if (rlen <= 0 || offset_msg + rlen > length) break;
+				if (rlen <= sizeof(root_topic_msg_buf)) {
+					memcpy(root_topic_msg_buf, cur_msg, rlen);
+					root_topic_msg_len = rlen;
+					root_topic_sender[0] = 0;
+					int flags_m = read_le(cur_msg + 4, 4);
+					if (flags_m & (1 << 8)) {
+						BYTE* chat_member_id = cur_msg + 16;
+						if (read_le(myself.id, 8) != 0 && memcmp(chat_member_id, myself.id, 8) == 0) {
+							if (myself.name && wcslen(myself.name) > 0) wcsncpy(root_topic_sender, myself.name, 127);
+						}
+						if (root_topic_sender[0] == 0 && current_peer && current_peer->type == 1 && current_peer->chat_users) {
+							for (size_t cu = 0; cu < current_peer->chat_users->size(); cu++) {
+								if (memcmp(chat_member_id, current_peer->chat_users->at(cu).id, 8) == 0) {
+									if (current_peer->chat_users->at(cu).name) wcsncpy(root_topic_sender, current_peer->chat_users->at(cu).name, 127);
+									break;
+								}
+							}
+						}
+						if (root_topic_sender[0] == 0) {
+							Peer* p = get_peer_by_id(chat_member_id);
+							if (p && p->name) wcsncpy(root_topic_sender, p->name, 127);
+						}
+						if (root_topic_sender[0] == 0) {
+							char ptype = -1;
+							BYTE* peer_bytes = find_peer(chat_member_id + 8, chat_member_id - 4, true, &ptype);
+							if (peer_bytes) {
+								wchar_t* s_name = NULL;
+								peer_set_name(peer_bytes, &s_name, ptype);
+								if (s_name) {
+									wcsncpy(root_topic_sender, s_name, 127);
+									free(s_name);
+								}
+							}
+						}
+					}
+					if (root_topic_sender[0] == 0 && (flags_m & (1 << 1))) {
+						if (myself.name && wcslen(myself.name) > 0) wcsncpy(root_topic_sender, myself.name, 127);
+					}
+					root_topic_sender[127] = 0;
+				}
+				offset_msg += rlen;
+			} else {
+				int msg_len = message_handler(true, cur_msg, false, false, false);
+				if (msg_len <= 0 || offset_msg + msg_len > length) break;
+				offset_msg += msg_len;
+			}
+		}
+		if (is_forum_topic && is_last_history_batch) {
+			bool already_has_root = false;
+			size_t rm;
+			for (rm = 0; rm < messages.size(); rm++) {
+				if (messages[rm].id == current_peer->active_topic_id) {
+					already_has_root = true;
+					break;
+				}
+			}
+			if (!already_has_root) {
+				if (root_msg_ptr != NULL) {
+					message_handler(true, root_msg_ptr, false, false, false);
+				} else if (root_topic_msg_len > 0) {
+					message_handler(true, root_topic_msg_buf, false, false, false);
+				}
+			}
+			root_topic_msg_len = 0;
+		}
+		int flags_msgs = 0;
+		if (constructor != TL_MESSAGES_MESSAGES) flags_msgs = read_le(unenc_response + 4, 4);
+		if ((constructor == TL_MESSAGES_CHANNEL_MESSAGES || constructor == TL_MESSAGES_MESSAGES_SLICE || constructor == TL_MESSAGES_MESSAGES) && offset_msg + 8 <= length && read_le(unenc_response + offset_msg, 4) == TL_VECTOR) {
+			int topics_count = read_le(unenc_response + offset_msg + 4, 4);
+			offset_msg += 8;
+			if (topics_count > 0 && current_peer) {
+				current_peer->is_forum = true;
+				if (!current_peer->topics) current_peer->topics = new std::vector<ForumTopic>();
+			}
+			for (int t = 0; t < topics_count; t++) {
+				if (offset_msg >= length - 4) break;
+				ForumTopic ft;
+				memset(&ft, 0, sizeof(ForumTopic));
+				int step = forumtopic_offset(unenc_response + offset_msg, current_peer ? &ft : NULL);
+				if (step <= 0 || offset_msg + step > length) break;
+				offset_msg += step;
+				if (current_peer && current_peer->is_forum && current_peer->topics && ft.id > 0) {
+					bool exists = false;
+					for (size_t k = 0; k < current_peer->topics->size(); k++) {
+						if (current_peer->topics->at(k).id == ft.id) {
+							exists = true;
+							ForumTopic* cur_t = &current_peer->topics->at(k);
+							if (ft.title) {
+								if (cur_t->title) free(cur_t->title);
+								cur_t->title = ft.title;
+							}
+							cur_t->closed = ft.closed;
+							cur_t->pinned = ft.pinned;
+							cur_t->hidden = ft.hidden;
+							cur_t->title_missing = ft.title_missing;
+							cur_t->icon_color = ft.icon_color;
+							cur_t->icon_emoji_id = ft.icon_emoji_id;
+							cur_t->top_message = ft.top_message;
+							if (ft.read_inbox_max_id > cur_t->read_inbox_max_id) {
+								cur_t->read_inbox_max_id = ft.read_inbox_max_id;
+							}
+							if (ft.top_message > 0 && cur_t->read_inbox_max_id >= ft.top_message) {
+								cur_t->unread_count = 0;
+							} else if (cur_t->read_inbox_max_id > ft.read_inbox_max_id) {
+								// Local read is ahead of server read response
+							} else {
+								cur_t->unread_count = ft.unread_count;
+							}
+							cur_t->unread_mentions_count = ft.unread_mentions_count;
+							cur_t->unread_reactions_count = ft.unread_reactions_count;
+							break;
+						}
+					}
+					if (!exists && (ft.id == 1 || ft.title_missing || (ft.title && _wcsicmp(ft.title, L"General") == 0))) {
+						for (size_t k2 = 0; k2 < current_peer->topics->size(); k2++) {
+							if (current_peer->topics->at(k2).id == 1 || current_peer->topics->at(k2).title_missing || (current_peer->topics->at(k2).title && _wcsicmp(current_peer->topics->at(k2).title, L"General") == 0)) {
+								exists = true;
+								ForumTopic* cur_t = &current_peer->topics->at(k2);
+								if (ft.title) {
+									if (cur_t->title) free(cur_t->title);
+									cur_t->title = ft.title;
+								}
+								cur_t->closed = ft.closed;
+								cur_t->pinned = ft.pinned;
+								cur_t->hidden = ft.hidden;
+								cur_t->title_missing = ft.title_missing;
+								cur_t->icon_color = ft.icon_color;
+								cur_t->icon_emoji_id = ft.icon_emoji_id;
+								cur_t->top_message = ft.top_message;
+								if (ft.read_inbox_max_id > cur_t->read_inbox_max_id) {
+									cur_t->read_inbox_max_id = ft.read_inbox_max_id;
+								}
+								if (ft.top_message > 0 && cur_t->read_inbox_max_id >= ft.top_message) {
+									cur_t->unread_count = 0;
+								} else if (cur_t->read_inbox_max_id > ft.read_inbox_max_id) {
+									// Local read is ahead of server read response
+								} else {
+									cur_t->unread_count = ft.unread_count;
+								}
+								cur_t->unread_mentions_count = ft.unread_mentions_count;
+								cur_t->unread_reactions_count = ft.unread_reactions_count;
+								break;
+							}
+						}
+					}
+					if (!exists) {
+						if (ft.top_message > 0 && ft.read_inbox_max_id >= ft.top_message) {
+							ft.unread_count = 0;
+						}
+						current_peer->topics->push_back(ft);
+					}
+					}
+				}
+			get_unknown_custom_emojis();
+			if (current_peer && current_peer->is_forum && current_peer->topics && current_peer->topics->size() > 0) {
+				bool has_gen = false;
+				for (size_t g = 0; g < current_peer->topics->size(); g++) {
+					if (current_peer->topics->at(g).id == 1 || current_peer->topics->at(g).title_missing || (current_peer->topics->at(g).title && _wcsicmp(current_peer->topics->at(g).title, L"General") == 0)) {
+						has_gen = true;
+						break;
+					}
+				}
+				if (!has_gen) {
+					ForumTopic ft;
+					memset(&ft, 0, sizeof(ForumTopic));
+					ft.id = 1;
+					ft.title = _wcsdup(L"General");
+					current_peer->topics->insert(current_peer->topics->begin(), ft);
+				}
+				if (!IsWindowVisible(hComboBoxTopics)) {
+					SendMessage(hComboBoxTopics, CB_RESETCONTENT, 0, 0);
+					for (size_t t2 = 0; t2 < current_peer->topics->size(); t2++) {
+						ForumTopic* ft_ptr = &current_peer->topics->at(t2);
+						SendMessage(hComboBoxTopics, CB_ADDSTRING, 0, (LPARAM)get_topic_title(ft_ptr));
+						SendMessage(hComboBoxTopics, CB_SETITEMDATA, t2, (LPARAM)ft_ptr->id);
+					}
+					SendMessage(hComboBoxTopics, CB_SETCURSEL, 0, 0);
+					if (current_peer->active_topic_id == 0) {
+						current_peer->active_topic_id = current_peer->topics->at(0).id;
+					}
+					ShowWindow(hComboBoxTopics, SW_SHOW);
+					SendMessage(hMain, WM_SIZE, 0, MAKELPARAM(width, height));
+				} else {
+					InvalidateRect(hComboBoxTopics, NULL, TRUE);
+				}
+			}
+		}
 		int reply_check = count;
-		while (reply_check < messages.size() && messages[reply_check-1].end_char == messages[reply_check-1].end_footer) reply_check++;
-		if (messages_count_old != messages.size()) for (i = 0; i < reply_check; i++) {
+		while (reply_check > 0 && reply_check < (int)messages.size() && messages[reply_check-1].end_char == messages[reply_check-1].end_footer) reply_check++;
+		if (reply_check > 0 && messages_count_old != messages.size()) for (i = 0; i < reply_check; i++) {
 			if (messages[i].reply_needed) {
 				for (int j = 0; j <= i; j++) if (j == i || messages[j].id == messages[i].reply_needed) break;
 				if (j == i) get_message(messages[i].reply_needed, current_peer);
@@ -1648,28 +2213,220 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		get_unknown_custom_emojis();
 		if (messages_count_old == 0 && count > 0) {
 			SendMessage(chat, WM_VSCROLL, SB_BOTTOM, 0);
-			if (current_peer->unread_msgs_count && !current_peer->mute_until && !muted_types[current_peer->type]) update_total_unread_msgs_count(0 - current_peer->unread_msgs_count);
-			current_peer->unread_msgs_count = 0;
-			if (memcmp(current_peer->id, notification_peer_id, 8) == 0) remove_notification();
-			if (!current_peer->status_updated) {
-				offset_msg += array_find(unenc_response + offset_msg, current_peer->id, 8, 1) - (current_peer->type == 1 ? 8 : 12);
-				set_peer_info(unenc_response + offset_msg, current_peer, true);
+			if (!current_peer->is_forum) {
+				if (current_peer->unread_msgs_count && !is_peer_muted(current_peer)) update_total_unread_msgs_count(0 - current_peer->unread_msgs_count);
+				current_peer->unread_msgs_count = 0;
+				if (memcmp(current_peer->id, notification_peer_id, 8) == 0) remove_notification();
+			} else {
+				RECT rect;
+				SendMessage(chat, EM_GETRECT, 0, (LPARAM)&rect);
+				POINTL point;
+				point.x = rect.left;
+				point.y = rect.bottom;
+				unsigned int last_visible_char = SendMessage(chat, EM_CHARFROMPOS, 0, (LPARAM)&point);
+				bool sent_seen = false;
+				for (int i = messages.size() - 1; i >= 0; i--) {
+					if (!sent_seen && !messages[i].outgoing && !messages[i].seen && messages[i].end_char <= last_visible_char) {
+						mark_message_seen(&messages[i], true);
+						sent_seen = true;
+					} else if (sent_seen && !messages[i].outgoing && !messages[i].seen) {
+						mark_message_seen(&messages[i], false);
+					} else if (!messages[i].outgoing && messages[i].seen) break;
+				}
+				if (current_peer->unread_msgs_count == 0) remove_notification();
+			}
+			if (pending_notif_msg_id > 0) {
+				for (int mi = 0; mi < (int)messages.size(); mi++) {
+					if (messages[mi].id == pending_notif_msg_id) {
+						SendMessage(chat, EM_SETSEL, messages[mi].start_char, messages[mi].end_char);
+						SendMessage(chat, EM_SCROLLCARET, 0, 0);
+						break;
+					}
+				}
+				mark_active_chat_seen(pending_notif_msg_id);
+				pending_notif_msg_id = 0;
+				remove_notification();
+			}
+			if (!current_peer->status_updated && offset_msg < length) {
+				int search_pos = offset_msg;
+				while (search_pos < length) {
+					int found = array_find(unenc_response + search_pos, current_peer->id, 8, 1, length - search_pos);
+					if (found == -1) break;
+					int id_pos = search_pos + found;
+					int p_offset = id_pos - (current_peer->type == 1 ? 8 : 12);
+					if (current_peer->type == 2 && p_offset >= offset_msg && p_offset + 32 <= length) {
+						int c = read_le(unenc_response + p_offset, 4);
+						if (c != TL_CHANNEL) {
+							if (id_pos - 8 >= offset_msg) p_offset = id_pos - 8;
+						}
+					}
+					if (p_offset >= offset_msg && p_offset + 32 <= length) {
+						int c = read_le(unenc_response + p_offset, 4);
+						if (is_valid_peer_constructor(c, current_peer->type)) {
+							set_peer_info(unenc_response + p_offset, current_peer, true);
+							break;
+						}
+					}
+					search_pos = id_pos + 4;
+				}
 			}
 			status_bar_status(current_peer);
 		}
-		if (current_peer->type == 2 && messages_count_old == 0 && messages.size() > 0) {
-			current_peer->channel_pts = read_le(unenc_response + 8, 4);
+		if (constructor == TL_MESSAGES_CHANNEL_MESSAGES && current_peer->type == 2 && messages_count_old == 0 && messages.size() > 0) {
+			if (length >= 12) current_peer->channel_pts = read_le(unenc_response + 8, 4);
 			get_channel_difference(current_peer);
 			SetTimer(hMain, 3, 30000, NULL);
 		}
 		UpdateWindow(chat);
-		if (messages.size() - messages_count_old < MSGSFETCHCOUNT) no_more_msgs = true;
+		getting_history = false;
+		if (count < MSGSFETCHCOUNT) no_more_msgs = true;
 		else if (SendMessage(chat, EM_GETFIRSTVISIBLELINE, 0, 0) == 0) get_history();
 		break;
 	}
-	case 0xb45c69d1: // messages.affectedHistory
+	case TL_MESSAGES_FORUM_TOPICS: {
+		int flags = read_le(unenc_response + 4, 4);
+		int count = read_le(unenc_response + 8, 4);
+		int offset_topics = 12;
+		if (read_le(unenc_response + offset_topics, 4) == TL_VECTOR) {
+			int topics_count = read_le(unenc_response + offset_topics + 4, 4);
+			offset_topics += 8;
+			if (current_peer) {
+				current_peer->is_forum = true;
+				if (!current_peer->topics) current_peer->topics = new std::vector<ForumTopic>();
+				SendMessage(hComboBoxTopics, CB_RESETCONTENT, 0, 0);
+				for (int t = 0; t < topics_count; t++) {
+					if (offset_topics >= length - 4) break;
+					ForumTopic ft;
+					memset(&ft, 0, sizeof(ForumTopic));
+					int step = forumtopic_offset(unenc_response + offset_topics, &ft);
+					if (step <= 0 || offset_topics + step > length) break;
+					offset_topics += step;
+					if (ft.id > 0) {
+						bool exists = false;
+						for (size_t k = 0; k < current_peer->topics->size(); k++) {
+							if (current_peer->topics->at(k).id == ft.id) {
+								exists = true;
+								ForumTopic* cur_t = &current_peer->topics->at(k);
+								if (ft.title) {
+									if (cur_t->title) free(cur_t->title);
+									cur_t->title = ft.title;
+								}
+								cur_t->closed = ft.closed;
+								cur_t->pinned = ft.pinned;
+								cur_t->hidden = ft.hidden;
+								cur_t->title_missing = ft.title_missing;
+								cur_t->icon_color = ft.icon_color;
+								cur_t->icon_emoji_id = ft.icon_emoji_id;
+								cur_t->top_message = ft.top_message;
+								if (ft.read_inbox_max_id > cur_t->read_inbox_max_id) {
+									cur_t->read_inbox_max_id = ft.read_inbox_max_id;
+								}
+								if (ft.top_message > 0 && cur_t->read_inbox_max_id >= ft.top_message) {
+									cur_t->unread_count = 0;
+								} else if (cur_t->read_inbox_max_id > ft.read_inbox_max_id) { // local read
+								} else {
+									cur_t->unread_count = ft.unread_count;
+								}
+								cur_t->unread_mentions_count = ft.unread_mentions_count;
+								cur_t->unread_reactions_count = ft.unread_reactions_count;
+								break;
+							}
+						}
+						if (!exists && (ft.id == 1 || ft.title_missing || (ft.title && _wcsicmp(ft.title, L"General") == 0))) {
+							for (size_t k2 = 0; k2 < current_peer->topics->size(); k2++) {
+								if (current_peer->topics->at(k2).id == 1 || current_peer->topics->at(k2).title_missing || (current_peer->topics->at(k2).title && _wcsicmp(current_peer->topics->at(k2).title, L"General") == 0)) {
+									exists = true;
+									ForumTopic* cur_t = &current_peer->topics->at(k2);
+									if (ft.title) {
+										if (cur_t->title) free(cur_t->title);
+										cur_t->title = ft.title;
+									}
+									cur_t->closed = ft.closed;
+									cur_t->pinned = ft.pinned;
+									cur_t->hidden = ft.hidden;
+									cur_t->title_missing = ft.title_missing;
+									cur_t->icon_color = ft.icon_color;
+									cur_t->icon_emoji_id = ft.icon_emoji_id;
+									cur_t->top_message = ft.top_message;
+									if (ft.read_inbox_max_id > cur_t->read_inbox_max_id) {
+										cur_t->read_inbox_max_id = ft.read_inbox_max_id;
+									}
+									if (ft.top_message > 0 && cur_t->read_inbox_max_id >= ft.top_message) {
+										cur_t->unread_count = 0;
+									} else if (cur_t->read_inbox_max_id > ft.read_inbox_max_id) {
+										// Local read is ahead of server read response
+									} else {
+										cur_t->unread_count = ft.unread_count;
+									}
+									cur_t->unread_mentions_count = ft.unread_mentions_count;
+									cur_t->unread_reactions_count = ft.unread_reactions_count;
+									break;
+								}
+							}
+						}
+						if (!exists) {
+							if (ft.top_message > 0 && ft.read_inbox_max_id >= ft.top_message) {
+								ft.unread_count = 0;
+							}
+							current_peer->topics->push_back(ft);
+						}
+					}
+				}
+				bool has_gen = false;
+				for (size_t g = 0; g < current_peer->topics->size(); g++) {
+					if (current_peer->topics->at(g).id == 1 || current_peer->topics->at(g).title_missing || (current_peer->topics->at(g).title && _wcsicmp(current_peer->topics->at(g).title, L"General") == 0)) {
+						has_gen = true;
+						break;
+					}
+				}
+				if (!has_gen) {
+					ForumTopic ft;
+					memset(&ft, 0, sizeof(ForumTopic));
+					ft.id = 1;
+					ft.title = _wcsdup(L"General");
+					current_peer->topics->insert(current_peer->topics->begin(), ft);
+				}
+				SendMessage(hComboBoxTopics, CB_RESETCONTENT, 0, 0);
+				for (size_t t2 = 0; t2 < current_peer->topics->size(); t2++) {
+					ForumTopic* ft_ptr = &current_peer->topics->at(t2);
+					SendMessage(hComboBoxTopics, CB_ADDSTRING, 0, (LPARAM)get_topic_title(ft_ptr));
+					SendMessage(hComboBoxTopics, CB_SETITEMDATA, t2, (LPARAM)ft_ptr->id);
+					if (ft_ptr->icon_emoji_id != 0) {
+						unknown_custom_emoji_solver(0, 0, 0, ft_ptr->icon_emoji_id, true);
+					}
+				}
+				get_unknown_custom_emojis();
+				if (current_peer->topics->size() > 0) {
+					int cur_sel = 0;
+					int target_tid = (current_peer->requested_topic_id > 0) ? current_peer->requested_topic_id : current_peer->active_topic_id;
+					current_peer->requested_topic_id = 0;
+					if (target_tid > 0) {
+						for (size_t t2 = 0; t2 < current_peer->topics->size(); t2++) {
+							if (current_peer->topics->at(t2).id == target_tid) {
+								cur_sel = t2;
+								break;
+							}
+						}
+					}
+					SendMessage(hComboBoxTopics, CB_SETCURSEL, cur_sel, 0);
+					current_peer->active_topic_id = current_peer->topics->at(cur_sel).id;
+					ShowWindow(hComboBoxTopics, SW_SHOW);
+					SendMessage(hMain, WM_SIZE, 0, MAKELPARAM(width, height));
+					status_bar_status(current_peer);
+					if (messages.size() == 0) {
+						SendMessage(chat, WM_SETTEXT, 0, (LPARAM)L"");
+						no_more_msgs = false;
+						getting_history = false;
+						get_history();
+					}
+				}
+			}
+		}
 		break;
-	case 0x629f1980: { // auth.loginToken
+	}
+	case TL_MESSAGES_AFFECTED_HISTORY:
+		break;
+	case TL_AUTH_LOGIN_TOKEN: {
 		int expires_in = (read_le(unenc_response + 4, 4) - current_time()) * 1000;
 		SetTimer(current_dialog, 1, expires_in + 1500, NULL);
 		char token[256] = "tg://login?token=";
@@ -1716,7 +2473,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		else get_config();
 		break;
 	}
-	case 0x96a18d5: { // upload.file
+	case TL_UPLOAD_FILE: {
 		if (dcInfo != &dcInfoMain) SetTimer(hMain, 20 + dcInfo->dc, 60000, NULL);
 		bool found = false;
 		for (int i = 0; i < downloading_docs.size(); i++) {
@@ -1888,27 +2645,27 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		}
 		break;
 	}
-	case 0x695150d7: // messageMediaPhoto
-	case 0xdd570bd5: // messageMediaDocument
+	case TL_MEDIA_PHOTO:
+	case TL_MEDIA_DOCUMENT:
 		if (sendMultiMedia != NULL) {
-			bool photo = (constructor == 0x695150d7) ? true : false;
-			int peer_len = (read_le(sendMultiMedia + 40, 4) == 0x35a95cb9) ? 12 : 20;
+			bool photo = (constructor == TL_MEDIA_PHOTO) ? true : false;
+			int peer_len = (read_le(sendMultiMedia + 40, 4) == TL_INPUT_PEER_CHAT) ? 12 : 20;
 			int count = read_le(sendMultiMedia + 44 + peer_len, 4);
 			int offset = 48 + peer_len;
 			bool finished = true;
 			for (int i = 0; i < count; i++) {
 				if (memcmp(sendMultiMedia + offset + 8, last_rpcresult_msgid, 8) == 0) {
-					if (photo && !SENDMEDIAASFILES) write_le(sendMultiMedia + offset + 8, 0xb3ba0635, 4);
-					else write_le(sendMultiMedia + offset + 8, 0x33473058, 4);
+					if (photo && !SENDMEDIAASFILES) write_le(sendMultiMedia + offset + 8, TL_INPUT_MEDIA_PHOTO, 4);
+					else write_le(sendMultiMedia + offset + 8, TL_INPUT_MEDIA_DOCUMENT, 4);
 					memset(sendMultiMedia + offset + 12, 0, 4);
-					if (photo && !SENDMEDIAASFILES) write_le(sendMultiMedia + offset + 16, 0x3bb3b94a, 4);
-					else write_le(sendMultiMedia + offset + 16, 0x1abfb575, 4);
+					if (photo && !SENDMEDIAASFILES) write_le(sendMultiMedia + offset + 16, TL_INPUT_PHOTO, 4);
+					else write_le(sendMultiMedia + offset + 16, TL_INPUT_DOCUMENT, 4);
 					memcpy(sendMultiMedia + offset + 20, unenc_response + 16, 40);
 				}
-				if (read_le(sendMultiMedia + offset + 8, 4) != 0x33473058 && read_le(sendMultiMedia + offset + 8, 4) != 0xb3ba0635) finished = false;
+				if (read_le(sendMultiMedia + offset + 8, 4) != TL_INPUT_MEDIA_DOCUMENT && read_le(sendMultiMedia + offset + 8, 4) != TL_INPUT_MEDIA_PHOTO) finished = false;
 				offset += 68;
 				offset += tlstr_len(sendMultiMedia + offset, true);
-				if (read_le(sendMultiMedia + offset, 4) == 0x1cb5c415) {
+				if (read_le(sendMultiMedia + offset, 4) == TL_VECTOR) {
 					int count = read_le(sendMultiMedia + offset + 4, 4);
 					offset += 8;
 					for (int i = 0; i < count; i++) offset += msgent_offset(sendMultiMedia + offset, NULL);
@@ -1927,7 +2684,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 			}
 		}
 		break;
-	case 0x768e3aad: { // messages.availableReactions
+	case TL_MESSAGES_AVAILABLE_REACTIONS: {
 		for (int i = 0; i < reaction_list.size(); i++) free(reaction_list[i]);
 		reaction_list.clear();
 		reaction_hash = read_le(unenc_response + 4, 4);
@@ -1958,7 +2715,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		}
 		break;			 
 	}
-	case 0x9a3d8c6d: { // account.themes
+	case TL_ACCOUNT_THEMES: {
 		for (int i = 0; i < themes.size(); i++) free(themes[i].emoji_id);
 		themes.clear();
 		theme_hash = read_le(unenc_response + 4, 8);
@@ -1979,7 +2736,7 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 				for (int j = 0; j < count2; j++) {
 					int flags2 = read_le(unenc_response + offset + 4, 4);
 					offset += 12;
-					if (read_le(unenc_response + offset - 4, 4) == 0xc3a12462 || read_le(unenc_response + offset - 4, 4) == 0xfbd81688) {
+					if (read_le(unenc_response + offset - 4, 4) == TL_BASE_THEME_CLASSIC || read_le(unenc_response + offset - 4, 4) == TL_BASE_THEME_DAY) {
 						int argb = read_le(unenc_response + offset, 4);
 						theme.color = RGB((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, (argb) & 0xFF);
 					}
@@ -2006,22 +2763,19 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		register_themes();
 		break;
 	}
-	case 0x9f071957: // messages.availableReactionsNotModified
+	case TL_MESSAGES_AVAILABLE_REACTIONS_NOT_MODIFIED:
 		break;
-	case 0xf41eb622: // account.themesNotModified
+	case TL_ACCOUNT_THEMES_NOT_MODIFIED:
 		break;
-	case 0x20212ca8: // photos.photo
+	case TL_PHOTOS_PHOTO:
 		break;
-	case 0x276d3ec6: // msg_detailed_info
-	case 0x62d6b459: // msgs_ack
+	case TL_MSG_DETAILED_INFO:
+	case TL_MSGS_ACK:
 		acknowledgement = false;	
 		break;
-#ifdef _DEBUG
 	default:
-		wchar_t text[15];
-		wsprintf(text, L"%x", constructor);
-		MessageBox(NULL, text, L"Unknown", MB_OK | MB_ICONINFORMATION);
-#endif
+		telegacy_log("[UNHANDLED CONSTRUCTOR] cons=0x%08x, len=%d", constructor, length);
+		break;
 	}
 
 	if (acknowledgement) {
@@ -2029,8 +2783,8 @@ void response_handler(DCInfo* dcInfo, BYTE* unenc_response, bool acknowledgement
 		BYTE unenc_query[64];
 		BYTE enc_query[88];
 		write_le(unenc_query + 28, 20, 4);
-		write_le(unenc_query + 32, 0x62d6b459, 4);
-		write_le(unenc_query + 36, 0x1cb5c415, 4);
+		write_le(unenc_query + 32, TL_MSGS_ACK, 4);
+		write_le(unenc_query + 36, TL_VECTOR, 4);
 		write_le(unenc_query + 40, 1, 4);
 		internal_header(dcInfo, unenc_query, false);
 		memcpy(unenc_query + 44, dcInfo->last_msg_id, 8);
@@ -2045,19 +2799,30 @@ int update_handler(BYTE* update) {
 	int bytes_count = 4;
 	unsigned int update_constructor = read_le(update, 4);
 	switch (update_constructor) {
-	case 0xc01e857f: // updateUserTyping
-	case 0x83487af0: // updateChatUserTyping
-	case 0x8c88c923: { // updateChannelUserTyping
+	case TL_UPDATE_USER_TYPING:
+	case TL_UPDATE_CHAT_USER_TYPING:
+	case TL_UPDATE_CHANNEL_USER_TYPING: {
 		wchar_t* name = current_peer ? current_peer->name : NULL;
 		bytes_count += 8;
 		bool changing_status_bar = false;
 		bool name_allocated = false;
-		if (update_constructor == 0xc01e857f) {
-			if (current_peer && memcmp(update + 4, current_peer->id, 8) == 0) changing_status_bar = true;
-		} else if (update_constructor == 0x83487af0) {
+		if (update_constructor == TL_UPDATE_USER_TYPING) {
+			int flags = read_le(update + 4, 4);
+			bytes_count += 4;
+			int top_msg_id = 0;
+			if (flags & 1) {
+				top_msg_id = read_le(update + 16, 4);
+				bytes_count += 4;
+			}
+			if (current_peer && memcmp(update + 8, current_peer->id, 8) == 0) {
+				if (!current_peer->is_forum || current_peer->active_topic_id == 0 || top_msg_id == current_peer->active_topic_id) {
+					changing_status_bar = true;
+				}
+			}
+		} else if (update_constructor == TL_UPDATE_CHAT_USER_TYPING) {
 			if (current_peer && memcmp(update + 4, current_peer->id, 8) == 0) changing_status_bar = true;
 			if (changing_status_bar && memcmp(current_peer->id, update + 16, 8) != 0) {
-				for (int i = 0; i < current_peer->chat_users->size(); i++) {
+				if (current_peer->chat_users) for (int i = 0; i < current_peer->chat_users->size(); i++) {
 					if (memcmp(current_peer->chat_users->at(i).id, update + 16, 8) == 0) {
 						name = current_peer->chat_users->at(i).name;
 						break;
@@ -2083,52 +2848,52 @@ int update_handler(BYTE* update) {
 			KillTimer(hMain, 0);
 			int sendmsgaction_cons = read_le(update + bytes_count, 4);
 			switch (sendmsgaction_cons) {
-			case 0xfd5ec8f5: // sendMessageCancelAction
+			case TL_SEND_MSG_CANCEL_ACTION:
 				status_bar_status(current_peer);
 				break;
-			case 0x16bf744e:
+			case TL_SEND_MSG_TYPING_ACTION:
 				get_lang_string("s_typ", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
-			case 0xa187d66f:
+			case TL_SEND_MSG_RECORD_VIDEO_ACTION:
 				get_lang_string("s_vrec", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
-			case 0xe9763aec:
+			case TL_SEND_MSG_UPLOAD_VIDEO_ACTION:
 				get_lang_string("s_vup", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
-			case 0xd52f73f7:
+			case TL_SEND_MSG_RECORD_AUDIO_ACTION:
 				get_lang_string("s_vorec", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
-			case 0xf351d7ab:
+			case TL_SEND_MSG_UPLOAD_AUDIO_ACTION:
 				get_lang_string("s_voup", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
-			case 0xd1d34a26:
+			case TL_SEND_MSG_UPLOAD_PHOTO_ACTION:
 				get_lang_string("s_ph", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
-			case 0xaa0cd9e4:
+			case TL_SEND_MSG_UPLOAD_DOCUMENT_ACTION:
 				get_lang_string("s_f", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
-			case 0x88f27fbc:
+			case TL_SEND_MSG_RECORD_ROUND_ACTION:
 				get_lang_string("s_rrec", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
-			case 0x243e1c66:
+			case TL_SEND_MSG_UPLOAD_ROUND_ACTION:
 				get_lang_string("s_rup", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
-			case 0xb05ac6b1:
+			case TL_SEND_MSG_CHOOSE_STICKER_ACTION:
 				get_lang_string("s_stk", lang_str, NULL);
 				swprintf(status_str, lang_str, name);
 				break;
 			}
-			if (sendmsgaction_cons != 0xfd5ec8f5) {
-				SendMessage(hStatus, SB_SETTEXTA, 0 | SBT_OWNERDRAW, wcslen(name));
+			if (sendmsgaction_cons != TL_SEND_MSG_CANCEL_ACTION) {
+				SendMessage(hStatus, SB_SETTEXTA, 0 | SBT_OWNERDRAW, name ? wcslen(name) : 0);
 				SetTimer(hMain, 0, 6000, NULL);
 			}
 			if (name_allocated) free(name);
@@ -2136,110 +2901,90 @@ int update_handler(BYTE* update) {
 		bytes_count += sendmsgaction_offset(update + bytes_count);
 		break;
 	}
-	case 0xe5bdf8de: { // updateUserStatus
-		if (read_le(update + 4, 4) == 0x9d05049) bytes_count += 4;
+	case TL_UPDATE_USER_STATUS: {
+		if (read_le(update + 4, 4) == TL_USER_STATUS_EMPTY) bytes_count += 4;
 		else bytes_count += 8;
-		for (int i = 0; i < peers_count; i++) {
-			if (memcmp(peers[i].id, update + 4, 8) == 0) {
-				user_status_updated(update + 12, &peers[i]);
-				break;
-			}
-		}
+		Peer* peer = get_peer_by_id(update + 4);
+		if (peer) user_status_updated(update + 12, peer);
 		break;
 	}
-	case 0xb75f99a9: // updateReadChannelOutbox
-	case 0x2f2f21bf: { // updateReadHistoryOutbox
-		int offset = update_constructor == 0xb75f99a9 ? 4 : 8;
-		for (int i = 0; i < peers_count; i++) {
-			if (memcmp(peers[i].id, update + offset, 8) == 0) {
-				peers[i].last_read_out = read_le(update + offset + 8, 4);
-				if (current_peer == &peers[i]) for (int j = messages.size() - 1; j >= 0; j--) {
-					if (messages[j].outgoing) {
-						if (messages[j].seen) break;
-						else {
-							messages[j].seen = true;
-							FINDTEXTEX ft;
-							ft.chrg.cpMin = messages[j].end_char;
-							ft.chrg.cpMax = messages[j].end_footer;
-							get_lang_string("c_dlv", lang_str, NULL);
-							ft.lpstrText = lang_str;
-							wchar_t seen[25];
-							get_lang_string("c_sn", seen, NULL);
-							int diff = replace_in_chat(&ft, NULL, seen, NULL, NULL, NULL, NULL);
-							messages[j].end_footer += diff;
-						}
+	case TL_UPDATE_READ_CHANNEL_OUTBOX:
+	case TL_UPDATE_READ_HISTORY_OUTBOX: {
+		int offset = update_constructor == TL_UPDATE_READ_CHANNEL_OUTBOX ? 4 : 8;
+		Peer* peer = get_peer_by_id(update + offset);
+		if (peer) {
+			peer->last_read_out = read_le(update + offset + 8, 4);
+			if (current_peer == peer) for (int j = messages.size() - 1; j >= 0; j--) {
+				if (messages[j].outgoing) {
+					if (messages[j].seen) break;
+					else {
+						messages[j].seen = true;
+						FINDTEXTEX ft;
+						ft.chrg.cpMin = messages[j].end_char;
+						ft.chrg.cpMax = messages[j].end_footer;
+						get_lang_string("c_dlv", lang_str, NULL);
+						ft.lpstrText = lang_str;
+						wchar_t seen[25];
+						get_lang_string("c_sn", seen, NULL);
+						int diff = replace_in_chat(&ft, NULL, seen, NULL, NULL, NULL, NULL);
+						messages[j].end_footer += diff;
 					}
 				}
-				break;
 			}
 		}
-		if (update_constructor == 0x2f2f21bf) {
+		if (update_constructor == TL_UPDATE_READ_HISTORY_OUTBOX) {
 			update_pts(read_le(update + 20, 4));
 			bytes_count += 24;
 		} else bytes_count += 12;
 		break;
 	}
-	case 0x922e6e10: // updateReadChannelInbox
-	case 0x9c974fdf: { // updateReadHistoryInbox
+	case TL_UPDATE_READ_CHANNEL_INBOX:
+	case TL_UPDATE_READ_HISTORY_INBOX: {
 		int flags = read_le(update + 4, 4);
 		bytes_count += 4;
 		if (flags & (1 << 0)) bytes_count += 4;
-		if (update_constructor == 0x9c974fdf) bytes_count += 4;
-		int index = -1;
-		for (int i = 0; i < peers_count; i++) {
-			if (memcmp(peers[i].id, update + bytes_count, 8) == 0) {
-				peers[i].last_recv = read_le(update + bytes_count + 8, 4);
-				int unread_count_old = peers[i].unread_msgs_count;
-				peers[i].unread_msgs_count = read_le(update + bytes_count + 12, 4);
-				if (unread_count_old != peers[i].unread_msgs_count && !peers[i].mute_until && !muted_types[peers[i].type]) update_total_unread_msgs_count(peers[i].unread_msgs_count - unread_count_old);
-				if (memcmp(peers[i].id, notification_peer_id, 8) == 0 && !peers[i].unread_msgs_count) remove_notification();
-				index = i;
-				break;
-			}
+		if (update_constructor == TL_UPDATE_READ_HISTORY_INBOX) bytes_count += 4;
+		int top_offset = (update_constructor == TL_UPDATE_READ_HISTORY_INBOX && (flags & (1 << 1))) ? 4 : 0;
+		Peer* peer = get_peer_by_id(update + bytes_count);
+		if (peer) {
+			peer->last_recv = read_le(update + bytes_count + 8 + top_offset, 4);
+			int unread_count_old = peer->unread_msgs_count;
+			peer->unread_msgs_count = read_le(update + bytes_count + 12 + top_offset, 4);
+			if (unread_count_old != peer->unread_msgs_count && !is_peer_muted(peer)) update_total_unread_msgs_count(peer->unread_msgs_count - unread_count_old);
+			if (memcmp(peer->id, notification_peer_id, 8) == 0 && !peer->unread_msgs_count) remove_notification();
 		}
-		bytes_count += 20;
-		if (update_constructor == 0x9c974fdf) {
+		bytes_count += 20 + top_offset;
+		if (update_constructor == TL_UPDATE_READ_HISTORY_INBOX) {
 			update_pts(read_le(update + bytes_count - 4, 4));
 			bytes_count += 4;
-		} else if (index != -1) peers[index].channel_pts = read_le(update + bytes_count - 4, 4);
+		} else if (peer) peer->channel_pts = read_le(update + bytes_count - 4, 4);
 		break;
 	}
-	case 0x7761198: { // updateChatParticipants
+	case TL_UPDATE_CHAT_PARTICIPANTS: {
 		int cons = read_le(update + 4, 4);
-		if (cons == 0x3cbc93f8) {
+		if (cons == TL_CHAT_PARTICIPANTS) {
 			for (int i = peers_count - 1; i >= 0; i--) {
 				if (memcmp(peers[i].id, update + 8, 4) == 0) {
-					if (!peers[i].full) break;
+					if (!peers[i].full || !peers[i].chat_users) break;
 					for (int j = 0; j < peers[i].chat_users->size(); j++) {
 						free(peers[i].chat_users->at(j).name);
 						if (peers[i].chat_users->at(j).handle) free(peers[i].chat_users->at(j).handle);
 					}
 					peers[i].chat_users->clear();
 					int chat_users_count = read_le(update + 20, 4);
-					int offset = 24;
-					BYTE user_cons[4];
-					write_le(user_cons, 0x4b46c37e, 4);
-					int user_pos = offset;
-					for (j = 0; j < chat_users_count; j++) {
-						user_pos += array_find(update + user_pos + 4, user_cons, 4, 1) + 4;
-						Peer peer;
-						peer.type = 0;
-						set_peer_info(update + user_pos, &peer, false);
-						peers[i].chat_users->push_back(peer);
-						offset += (read_le(update + offset, 4) == 0xe46bcee4) ? 12 : 24;
-					}
+					parse_chat_participants(update, 24, chat_users_count, peers[i].chat_users);
 					if (current_peer == &peers[i]) status_bar_status(current_peer);
 				}
 			}
 		}
 		break;
 	}
-	case 0xe40370a3: // updateEditMessage
+	case TL_UPDATE_EDIT_MESSAGE:
 		bytes_count += message_handler(false, update + 4, false, true, false);
 		update_pts(read_le(update + bytes_count, 4));
 		bytes_count += 8;
 		break;
-	case 0x1b3f4df7: { // updateEditChannelMessage
+	case TL_UPDATE_EDIT_CHANNEL_MESSAGE: {
 		bytes_count += message_handler(false, update + 4, false, true, false);
 		BYTE* id;
 		get_peerid_from_msg(update + 4, &id, NULL);
@@ -2252,7 +2997,7 @@ int update_handler(BYTE* update) {
 		bytes_count += 8;
 		break;
 	}
-	case 0xf226ac08: // updateChannelMessageViews
+	case TL_UPDATE_CHANNEL_MSG_VIEWS:
 		bytes_count += 16;
 		if (current_peer && memcmp(current_peer->id, update + 4, 8) == 0) {
 			for (int i = messages.size() - 1; i >= 0; i--) {
@@ -2278,7 +3023,7 @@ int update_handler(BYTE* update) {
 			}
 		}
 		break;
-	case 0x5e1b3cb8: { // updateMessageReactions
+	case TL_UPDATE_MESSAGE_REACTIONS: {
 		bytes_count += 36;
 		if (current_peer && memcmp(current_peer->id, update + 12, 8) == 0) {
 			for (int i = 0; i < messages.size(); i++) {
@@ -2303,7 +3048,7 @@ int update_handler(BYTE* update) {
 		}
 		break;
 	}
-	case 0xa20db0e5: { // updateDeleteMessages
+	case TL_UPDATE_DELETE_MESSAGES: {
 		int count = read_le(update + 8, 4);
 		bytes_count += 8;
 		bool deleted = false;
@@ -2323,7 +3068,7 @@ int update_handler(BYTE* update) {
 		bytes_count += 8;
 		break;			 
 	}
-	case 0x54c01850: { // updateChatDefaultBannedRights
+	case TL_UPDATE_CHAT_DEFAULT_BANNED_RIGHTS: {
 		for (int i = 0; i < peers_count; i++) {
 			if (memcmp(peers[i].id, update + 8, 8) == 0) {
 				if (!peers[i].amadmin) set_permissions(update + 16, &peers[i]); 
@@ -2333,7 +3078,7 @@ int update_handler(BYTE* update) {
 		bytes_count += 28;
 		break;
 	}
-	case 0xa7848924: { // updateUserName
+	case TL_UPDATE_USER_NAME: {
 		bytes_count += 8;
 		for (int i = -1; i < peers_count; i++) {
 			Peer* peer = (i == -1) ? &myself : &peers[i];
@@ -2357,14 +3102,15 @@ int update_handler(BYTE* update) {
 		}
 		break;
 	}
-	case 0x1f2b0afd: { // updateNewMessage
+	case TL_UPDATE_NEW_MESSAGE: {
 		bytes_count += message_handler(false, update + 4, true, false, false);
 		update_pts(read_le(update + bytes_count, 4));
 		bytes_count += 8;
 		break;				 
 	}
-	case 0x62ba04d9: { // updateNewChannelMessage
-		bytes_count += message_handler(false, update + 4, true, false, false);
+	case TL_UPDATE_NEW_CHANNEL_MESSAGE: {
+		int mlen = message_handler(false, update + 4, true, false, false);
+		bytes_count += mlen;
 		BYTE* id;
 		get_peerid_from_msg(update + 4, &id, NULL);
 		for (int i = 0; i < peers_count; i++) {
@@ -2376,7 +3122,7 @@ int update_handler(BYTE* update) {
 		bytes_count += 8;
 		break;			 
 	}
-	case 0x26ffde7d: { // updateDialogFilter
+	case TL_UPDATE_DIALOG_FILTER: {
 		int flags = read_le(update + 4, 4);
 		if (flags & (1 << 0)) {
 			bool found = false;
@@ -2413,7 +3159,7 @@ int update_handler(BYTE* update) {
 		}
 		break;
 	}
-	case 0xa5d72105: { // updateDialogFilterOrder
+	case TL_UPDATE_DIALOG_FILTER_ORDER: {
 		ChatsFolder temp;
 		int current_folder_index = 0;
 		bytes_count += 8 + read_le(update + 8, 4) * 4;
@@ -2442,9 +3188,9 @@ int update_handler(BYTE* update) {
 		SendMessage(hComboBoxFolders, CB_SETCURSEL, current_folder_index, 0);
 		break;
 	}
-	case 0xf89a6a4e: // updateChat
-	case 0x635b4c09: // updateChannel
-	case 0x20529438: { // updateUser
+	case TL_UPDATE_CHAT:
+	case TL_UPDATE_CHANNEL:
+	case TL_UPDATE_USER: {
 		bytes_count += 8;
 		Peer* peer = memcmp(update + 4, myself.id, 8) == 0 ? &myself : NULL; 
 		if (!peer) for (int i = 0; i < peers_count; i++) {
@@ -2455,84 +3201,88 @@ int update_handler(BYTE* update) {
 		}
 		if (peer) {
 			BYTE* peer_bytes = find_peer(update + bytes_count, &peer->id[0] - 4, true, &peer->type);
-			if (peer->type != 0 && (peer_bytes[4] & (1 << 2))) remove_peer(peer);
-			else if (peer->name) {
-				set_peer_info(peer_bytes, peer, true);
-				if (peer->full) get_full_peer(peer);
+			if (peer_bytes) {
+				if (peer->type != 0 && (peer_bytes[4] & (1 << 2))) remove_peer(peer);
+				else if (peer->name) {
+					set_peer_info(peer_bytes, peer, true);
+					if (peer->full) get_full_peer(peer);
+				}
 			}
-		} else if (update_constructor == 0x635b4c09) update_chats_order(update + 4, update + 4, 2);
+		} else if (update_constructor == TL_UPDATE_CHANNEL) update_chats_order(update + 4, update + 4, 2);
 		break;
 	}
-	case 0x564fe691: // updateLoginToken
+	case TL_UPDATE_LOGIN_TOKEN:
 		if (current_dialog && !dcInfoMain.authorized) SetTimer(current_dialog, 1, 0, NULL);
 		break;
-	case 0x8e5e9873: // updateDcOptions
+	case TL_UPDATE_DC_OPTIONS:
 		bytes_count += save_dcs(update + 8, (BYTE*)&dcInfoMain.dc) + 4;
 		break;
-	case 0xbec268ef: { // updateNotifySettings
-		bytes_count += 24;
+	case TL_UPDATE_NOTIFY_SETTINGS: {
 		int notify_cons = read_le(update + 4, 4);
 		int type = -1;
 		switch (notify_cons) {
-		case 0x9fd40bd8: {
-			for (int i = 0; i < peers_count; i++) {
-				if (memcmp(peers[i].id, update + 12, 8) == 0) {
-					int mute_until_old = peers[i].mute_until;
-					apply_notifysettings(update + 20, &peers[i].mute_until, read_le(peers[i].id, 8));
-					if ((!mute_until_old && peers[i].mute_until) || (mute_until_old && !peers[i].mute_until)) {
-						if (peers[i].unread_msgs_count && !muted_types[peers[i].type])
-							update_total_unread_msgs_count(mute_until_old ? peers[i].unread_msgs_count : (0 - peers[i].unread_msgs_count));
-						if (&peers[i] == current_peer) {
-							HMENU hMenuChat = GetSubMenu(hMenuBar, 1);
-							get_lang_string(mute_until_old ? "m_mc" : "m_uc", lang_str, NULL);
-							ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, lang_str);
-						}
+		case TL_NOTIFY_PEER: {
+			bytes_count += 16 + peernotifyset_offset(update + 20);
+			Peer* peer = get_peer_by_id(update + 12);
+			if (peer) {
+				bool was_muted = is_peer_muted(peer);
+				apply_notifysettings(update + 20, &peer->mute_until, &peer->notifications_muted, read_le(peer->id, 8));
+				bool is_muted = is_peer_muted(peer);
+				if (was_muted != is_muted) {
+					if (peer->unread_msgs_count && !muted_types[peer->type])
+						update_total_unread_msgs_count(was_muted ? peer->unread_msgs_count : (0 - peer->unread_msgs_count));
+					if (peer == current_peer) {
+						HMENU hMenuChat = GetSubMenu(hMenuBar, 1);
+						get_lang_string(is_muted ? "m_uc" : "m_mc", lang_str, NULL);
+						ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, lang_str);
 					}
-					break;
 				}
 			}
 			break;
 		}
-		case 0xb4c83b4c:
+		case TL_NOTIFY_USERS:
 			type = 0;
-		case 0xc007cec3:
+		case TL_NOTIFY_CHATS:
 			if (type == -1) type = 1;
-		case 0xd612e8ef:
+		case TL_NOTIFY_BROADCASTS: {
 			if (type == -1) type = 2;
+			bytes_count += 4 + peernotifyset_offset(update + 8);
 			int muted_type_old = muted_types[type];
-			apply_notifysettings(update + 8, &muted_types[type], type);
+			apply_notifysettings(update + 8, &muted_types[type], NULL, type);
 			if ((!muted_type_old && muted_types[type]) || (muted_type_old && !muted_types[type])) {
-				for (int i = 0; i < peers_count; i++) {
-					if (peers[i].type == type && peers[i].unread_msgs_count && !peers[i].mute_until)
-						update_total_unread_msgs_count(muted_type_old ? peers[i].unread_msgs_count : (0 - peers[i].unread_msgs_count));
-				}
-				change_mute_all(type, muted_type_old ? true : false);
+				update_category_unread_count(type, muted_types[type] != 0);
+				change_mute_all(type, muted_types[type] == 0);
 			}
+			break;
+		}
+		default:
+			bytes_count += 20;
 			break;
 		}
 		break;
 	}
-	case 0x108d941f: { // updateChannelTooLong
+	case TL_UPDATE_CHANNEL_TOO_LONG: {
 		bytes_count += 12;
 		int flags = read_le(update + 4, 4);
 		if (flags & (1 << 0)) bytes_count += 4;
-		for (int i = 0; i < peers_count; i++) {
-			if (memcmp(peers[i].id, update + 8, 8) == 0) {
-				get_channel_difference(&peers[i]);
-				break;
-			}
-		}
+		Peer* peer = get_peer_by_id(update + 8);
+		if (peer) get_channel_difference(peer);
 		break;
 	}
-	case 0x3354678f: // updatePtsChanged
+	case TL_UPDATE_PTS_CHANGED:
 		get_state(false);
 		break;
-	case 0x4e90bfd6: // updateMessageID
+	case TL_UPDATE_MESSAGE_ID:
 		bytes_count += 12;
 		break;
-	case 0x4b46c37e: // user
-	case 0x41cbf256: // chat
-	case 0xe00998b7: // channel
+	case TL_VECTOR:
+	case TL_USER:
+	case TL_USER_EMPTY:
+	case TL_CHAT:
+	case TL_CHAT_FORBIDDEN:
+	case TL_CHAT_EMPTY:
+	case TL_CHANNEL:
+	case TL_CHANNEL_FORBIDDEN:
 		bytes_count = 1000000;
 		break;
 	/*default:

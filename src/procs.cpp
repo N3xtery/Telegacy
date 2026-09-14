@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 N3xtery
+Copyright Â© 2026 N3xtery
 
 This file is part of Telegacy.
 
@@ -122,8 +122,10 @@ void update_fonts(int index) {
 		SendMessage(chat, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
 		SendMessage(msgInput, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
 	} else if (index == 1) {
+		update_cyrillic_font();
 		SendMessage(hComboBoxChats, WM_SETFONT, (WPARAM)hFonts[1], TRUE);
 		SendMessage(hComboBoxFolders, WM_SETFONT, (WPARAM)hFonts[1], TRUE);
+		SendMessage(hComboBoxTopics, WM_SETFONT, (WPARAM)hFonts[1], TRUE);
 	} else {
 		apply_fonts(hOptionsTabs);
 		apply_fonts(current_dialog);
@@ -1011,7 +1013,7 @@ INT_PTR CALLBACK DlgProcInfo(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) 
 			SetWindowText(infoLabel, lang_str);
 		} else {
 			wchar_t str[75];
-			swprintf(str, L"v%s  |  Copyright © 2026 N3xtery  |  GNU GPL v3 License", version);
+			swprintf(str, L"v%s  |  Copyright Â© 2026 N3xtery  |  GNU GPL v3 License", version);
 			SetWindowText(infoLabel, str);
 		}
 		apply_fonts(hDlg);
@@ -1182,10 +1184,12 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 		get_lang_string("cancel", lang_str, NULL);
 		HWND hButtonCancel = CreateWindow(L"BUTTON", lang_str, WS_CHILD | WS_VISIBLE | WS_TABSTOP, 245, 145, 55, 25, hDlg, (HMENU)IDCANCEL, NULL, NULL);
 		dlgPic = CreateWindowEx(WS_EX_CLIENTEDGE, L"STATIC", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY, 10, 10, 160, 160, hDlg, NULL, NULL, NULL);
-		riched_write(name, peer->name);
-		int name_len = wcslen(peer->name);
-		int deleted_wchars = 0;
-		for (int i = 0; i < name_len; i++) i = emoji_adder(i, peer->name, 0, 15, name, &deleted_wchars);
+		if (peer->name) {
+			riched_write(name, peer->name);
+			int name_len = wcslen(peer->name);
+			int deleted_wchars = 0;
+			for (int i = 0; i < name_len; i++) i = emoji_adder(i, peer->name, 0, 15, name, &deleted_wchars);
+		}
 		if (peer->handle) riched_write(handle, peer->handle);
 		if (peer->full && peer->about) {
 			riched_write(about, peer->about);
@@ -1245,7 +1249,7 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
 		cf.dwMask = CFM_COLOR;
 		cf.dwEffects = 0;
 		cf.crTextColor = colors[3];
-		for (i = 0; i < 3; i++) {
+		for (int i = 0; i < 3; i++) {
 			HWND edit = name;
 			if (i == 1) edit = handle;
 			else if (i == 2) edit = birthday;
@@ -1787,18 +1791,21 @@ LRESULT CALLBACK WndProcChat(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) 
 		if (editing_msg_id) SendMessage(hMain, WM_COMMAND, MAKEWPARAM(8, 0), 0);
 		break;
 	}
-	case WM_RBUTTONDOWN: {
+	case WM_RBUTTONDOWN:
+	case WM_LBUTTONDOWN: {
 		POINT pt;
 		GetCursorPos(&pt);
 		ScreenToClient(hWnd, &pt);
 		unsigned int last_visible_char = SendMessage(hWnd, EM_CHARFROMPOS, 0, (LPARAM)&pt);
 		SendMessage(chat, EM_SETSEL, last_visible_char, last_visible_char);
 		HideCaret(hWnd);
+		if (current_peer && current_peer->unread_msgs_count > 0) mark_active_chat_seen();
 		break;
 	}
 	case WM_PAINT:
 	case WM_LBUTTONUP:
 		HideCaret(hWnd);
+		if (current_peer && current_peer->unread_msgs_count > 0) mark_active_chat_seen();
 		break;
 	case WM_KEYDOWN:
 		switch (wParam) {
@@ -1819,6 +1826,7 @@ LRESULT CALLBACK WndProcChat(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) 
 				si.fMask = SIF_RANGE | SIF_PAGE;
 				GetScrollInfo(chat, SB_VERT, &si);
 				SendMessage(chat, WM_VSCROLL, MAKEWPARAM(SB_THUMBPOSITION, si.nMax - si.nPage), 0);
+				mark_active_chat_seen();
 				return 0;
 			} else if (submsg == SB_LINEDOWN) {
 				SCROLLINFO si = {0};
@@ -1839,21 +1847,15 @@ LRESULT CALLBACK WndProcChat(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) 
 		point.y = rect.bottom;
 		unsigned int last_visible_char = SendMessage(hWnd, EM_CHARFROMPOS, 0, (LPARAM)&point);
 		bool sent_seen = false;
-		int unread_msgs_count_old = current_peer->unread_msgs_count;
 		for (int i = messages.size() - 1; i >= 0; i--) {
 			if (!sent_seen && !messages[i].outgoing && !messages[i].seen && messages[i].end_char <= last_visible_char) {
-				make_seen(&messages[i]);
+				mark_message_seen(&messages[i], true);
 				sent_seen = true;
-				current_peer->unread_msgs_count--;
 			} else if (sent_seen && !messages[i].outgoing && !messages[i].seen) {
-				messages[i].seen = true;
-				current_peer->unread_msgs_count--;
+				mark_message_seen(&messages[i], false);
 			} else if (!messages[i].outgoing && messages[i].seen) break;
 		}
-		if (unread_msgs_count_old != current_peer->unread_msgs_count && !current_peer->mute_until && !muted_types[current_peer->type]) {
-			update_total_unread_msgs_count(current_peer->unread_msgs_count - unread_msgs_count_old);
-			if (!current_peer->unread_msgs_count) remove_notification();
-		}
+		if (current_peer->unread_msgs_count == 0) remove_notification();
 		if (!no_more_msgs) {
 			if (msg == WM_MOUSEWHEEL) {
 				SCROLLINFO si = {0};
@@ -2200,17 +2202,18 @@ INT_PTR CALLBACK DlgProcLogin(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
 			int num_tlstr_len = str_to_tlstr_len(number);
 
-			BYTE unenc_query[128];
-			BYTE enc_query[152];
+			BYTE unenc_query[320];
+			BYTE enc_query[344];
 			internal_header(unenc_query, true);
-			write_le(unenc_query + 32, 0xa677244f, 4);
+			int offset = 32 + write_init_connection(unenc_query + 32);
+			write_le(unenc_query + offset, 0xa677244f, 4);
 
-			write_string(unenc_query + 36, number);
+			write_string(unenc_query + offset + 4, number);
 			if (phone_number_bytes != NULL) free(phone_number_bytes);
 			phone_number_bytes = (BYTE*)malloc(num_tlstr_len + 1);
-			memcpy(phone_number_bytes, unenc_query + 36, num_tlstr_len);
+			memcpy(phone_number_bytes, unenc_query + offset + 4, num_tlstr_len);
 
-			int offset = 36 + num_tlstr_len;
+			offset += 4 + num_tlstr_len;
 			write_le(unenc_query + offset, 27752131, 4);
 			write_string(unenc_query + offset + 4, L"f60c7955c55ad59d438d007f1fd59c0d");
 			write_le(unenc_query + offset + 40, 0xad253d78, 4);

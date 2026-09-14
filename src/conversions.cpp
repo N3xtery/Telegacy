@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 N3xtery
+Copyright Â© 2026 N3xtery
 
 This file is part of Telegacy.
 
@@ -118,43 +118,48 @@ void insert_image(HWND hRichEdit, HMETAFILEPICT hMetaFilePict, HBITMAP hBitmap) 
 
 	IDataObject* pDataObject;
 	hr = pImageDataObject->QueryInterface(IID_IDataObject, (void**)&pDataObject);
-	LPOLEOBJECT pObject;
+	LPOLEOBJECT pObject = NULL;
 	hr = OleCreateStaticFromData(pDataObject, IID_IOleObject, OLERENDER_DRAW, NULL, pClientSite, pStorage, (void**)&pObject);
-	OleSetContainedObject(pObject, TRUE);
+	if (SUCCEEDED(hr) && pObject) {
+		OleSetContainedObject(pObject, TRUE);
 
-	CLSID clsid;
-    hr = pObject->GetUserClassID(&clsid);
+		CLSID clsid;
+		hr = pObject->GetUserClassID(&clsid);
 
-    REOBJECT reobject = { sizeof(REOBJECT) };
-    reobject.clsid = clsid;
-    reobject.cp = REO_CP_SELECTION;
-    reobject.dvaspect = DVASPECT_CONTENT;
-    reobject.dwFlags = hMetaFilePict ? REO_BELOWBASELINE : 0;
-	reobject.dwUser = 0;
-    reobject.poleobj = pObject;
-    reobject.polesite = pClientSite;
-    reobject.pstg = pStorage;
-    SIZEL sizel = {0};
-    reobject.sizel = sizel;
+		REOBJECT reobject = { sizeof(REOBJECT) };
+		reobject.clsid = clsid;
+		reobject.cp = REO_CP_SELECTION;
+		reobject.dvaspect = DVASPECT_CONTENT;
+		reobject.dwFlags = hMetaFilePict ? REO_BELOWBASELINE : 0;
+		reobject.dwUser = 0;
+		reobject.poleobj = pObject;
+		reobject.polesite = pClientSite;
+		reobject.pstg = pStorage;
+		SIZEL sizel = {0};
+		reobject.sizel = sizel;
 
-    hr = pRichEditOle->InsertObject(&reobject);
+		hr = pRichEditOle->InsertObject(&reobject);
+		pObject->Release();
+	} else {
+		hr = E_FAIL;
+	}
 	if (hr != S_OK) {
 		wchar_t placeholder[] = {0xFE0F, 0};
 		riched_write(hRichEdit, placeholder);
 	}
 	pDataObject->Release();
-    pObject->Release();
 	pClientSite->Release();
 	pStorage->Release();
 	pLockBytes->Release();
-    pRichEditOle->Release();
+	pRichEditOle->Release();
 }
 
 int utf8_to_wide(BYTE* src, wchar_t* str, int length) {
+    if (!src || length <= 0) return 0;
     int str_pos = 0;
     for (int i = 0; i < length; i++) {
-        unsigned int code;
-        int cont_bytes;
+        unsigned int code = src[i];
+        int cont_bytes = 0;
 
         if (src[i] < 0x80) {
             code = src[i];
@@ -168,14 +173,18 @@ int utf8_to_wide(BYTE* src, wchar_t* str, int length) {
         } else if ((src[i] & 0xF8) == 0xF0) {
             code = src[i] & 0x07;
             cont_bytes = 3;
-        };
+        } else {
+            continue;
+        }
 
-		for (int j = 0; j < cont_bytes; j++)
+        if (i + cont_bytes >= length) break;
+
+        for (int j = 0; j < cont_bytes; j++)
             code = (code << 6) | (src[i + 1 + j] & 0x3F);
 
         i += cont_bytes;
         if (str == NULL) {
-			str_pos += (code <= 0xFFFF) ? 1 : 2;
+            str_pos += (code <= 0xFFFF) ? 1 : 2;
             continue;
         }
         if (code <= 0xFFFF) str[str_pos++] = (wchar_t)code;

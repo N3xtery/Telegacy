@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 N3xtery
+Copyright Â© 2026 N3xtery
 
 This file is part of Telegacy.
 
@@ -16,7 +16,7 @@ wchar_t* version = L"1.0.4";
 
 prng_state prng;
 hash_state md;
-CRITICAL_SECTION csSock, csCM;
+CRITICAL_SECTION csSock, csCM, csLog;
 
 DCInfo dcInfoMain = {0};
 int time_diff = 0;
@@ -24,7 +24,7 @@ int pts = 0;
 int qts = 0;
 int date = 0;
 
-int database_version = 0;
+int database_version = 2;
 bool test_server = false;
 bool drawchat = true;
 bool closing = false;
@@ -40,12 +40,13 @@ BYTE* phone_number_bytes = NULL;
 BYTE* phone_code_hash = NULL;
 BYTE* qrCodeToken = NULL;
 
-HWND hComboBoxChats, hComboBoxFolders, msgInput, chat, hMain, hStatus, hToolbar, tbSeparatorHider, hTabs, emojiStatic, emojiScroll, hOverlayTabs, reactionStatic, splitter;
+HWND hComboBoxChats, hComboBoxTopics, hComboBoxFolders, msgInput, chat, hMain, hStatus, hToolbar, tbSeparatorHider, hTabs, emojiStatic, emojiScroll, hOverlayTabs, reactionStatic, splitter;
 HWND hNumber = NULL, hNumberBtn = NULL, hCode = NULL, hCodeBtn = NULL, hQRCode = NULL, h2FA = NULL, hPass = NULL, h2FAHint = NULL, hProxyIP = NULL, hProxyPort = NULL, hProxyUsername = NULL, hProxyPassword = NULL, hProxyHidePassword = NULL;
 IActiveIMMApp* g_pAIMM = NULL;
 HMENU hMenuBar;
 HBITMAP tbBmp = NULL;
 HFONT hFonts[3];
+HFONT hFontCyrillic = NULL;
 HBRUSH hBrushes[4];
 COLORREF colors[4];
 
@@ -90,6 +91,7 @@ wchar_t status_str[100];
 std::vector<RequestedCustomEmoji> rces;
 std::list<DCInfo> active_dcs;
 int muted_types[3] = {-1, -1, -1};
+BYTE notify_req_msg_id[3][8] = {0};
 int total_unread_msgs_count = 0;
 BYTE notification_peer_id[8];
 BYTE difference_msg_id[8];
@@ -108,6 +110,11 @@ bool nt6 = false;
 bool hint_needed = false;
 wchar_t* hint = NULL;
 bool no_more_msgs = false;
+bool getting_history = false;
+bool is_last_history_batch = false;
+BYTE root_topic_msg_buf[4096] = {0};
+int root_topic_msg_len = 0;
+wchar_t root_topic_sender[128] = {0};
 int get_dialogs_lowest_date = 0;
 bool closed_logged_out = false;
 int dpi = 0;
@@ -270,8 +277,10 @@ STDMETHODIMP COleCallback::GetContextMenu(WORD, LPOLEOBJECT, CHARRANGE* cr, HMEN
 				if (cr->cpMin > messages[i].end_char) {
 					POINT pt;
 					GetCursorPos(&pt);
-					int width = (current_peer->reaction_list->size() < 12) ? 15 + current_peer->reaction_list->size() * 20 : 255;
-					int height = 15 + 20 * ((current_peer->reaction_list->size() + 12) / 12);
+					if (current_peer->reaction_list && !is_valid_reaction_list(current_peer->reaction_list)) current_peer->reaction_list = &reaction_list;
+					int r_cnt = current_peer->reaction_list ? current_peer->reaction_list->size() : 0;
+					int width = (r_cnt < 12) ? 15 + r_cnt * 20 : 255;
+					int height = 15 + 20 * ((r_cnt + 12) / 12);
 					SetWindowPos(reactionStatic, NULL, pt.x, pt.y, NULL, NULL, SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_NOSIZE);
 				} else { // not using the function's HMENU* because that way the caret is shown
 					HideCaret(hWnd);
@@ -372,6 +381,7 @@ unsigned __stdcall SocketWorker(void* param) {
 		}
 		BYTE* unenc_response = (BYTE*)malloc(res_len-24);
 		if (!convert_message(dcInfo, unenc_response, enc_response, res_len-24, 8)) {
+			telegacy_log("[SOCKET_ERROR] DC %d convert_message decrypt failed, packet len=%d", dcInfo ? dcInfo->dc : 0, res_len);
 			free(unenc_response);
 			DestroyWindow(hMain);
 			continue;
@@ -418,7 +428,7 @@ unsigned __stdcall FileSenderWorker(void* param) {
 			if (j > 0) WaitForSingleObject(ute.event, INFINITE);
 			ResetEvent(ute.event);
 			get_lang_string("s_upl", lang_str, NULL);
-			swprintf(status_msg, lang_str, docstemp[i].filename, 100 * _ftelli64(f) / docstemp[i].size);
+			swprintf(status_msg, lang_str, docstemp[i].filename, docstemp[i].size > 0 ? (100 * _ftelli64(f) / docstemp[i].size) : 0);
 			SendMessage(hStatus, SB_SETTEXTA, 1 | SBT_OWNERDRAW, (LPARAM)status_msg);
 			write_le(unenc_query + 44, j, 4);
 			int part_size = (j == parts - 1) ? (docstemp[i].size - 524288 * j) : 524288;
@@ -505,6 +515,14 @@ unsigned __stdcall UpdateWorker(void* param) {
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
+	case WM_ACTIVATE: {
+		if (LOWORD(wParam) != WA_INACTIVE) {
+			if (current_peer && current_peer->unread_msgs_count > 0) {
+				mark_active_chat_seen();
+			}
+		}
+		break;
+	}
 	case WM_CREATE: {
 		LoadLibrary(L"RICHED20.DLL");
 		CoInitialize(NULL);
@@ -531,7 +549,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		}
 
 		hComboBoxFolders = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE | WS_VSCROLL | CBS_OWNERDRAWFIXED, 10, 10, 200, 300, hWnd, (HMENU)2, NULL, NULL);
-		hComboBoxChats = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE | WS_VSCROLL | CBS_OWNERDRAWFIXED, 220, 10, width / 2.5, 300, hWnd, (HMENU)3, NULL, NULL);
+		hComboBoxChats = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE | WS_VSCROLL | CBS_OWNERDRAWFIXED, 220, 10, (width - 230 > 100 ? width - 230 : 100), 300, hWnd, (HMENU)3, NULL, NULL);
+		hComboBoxTopics = CreateWindow(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_CHILD | WS_VSCROLL | CBS_OWNERDRAWFIXED, 220, 10, 100, 300, hWnd, (HMENU)9, NULL, NULL);
+		SendMessage(hComboBoxTopics, CB_SETITEMHEIGHT, -1, nt3 ? 20 : 16);
+		SendMessage(hComboBoxTopics, CB_SETITEMHEIGHT, 0, nt3 ? 20 : 16);
+		SendMessage(hComboBoxChats, WM_SETFONT, (WPARAM)hFonts[1], FALSE);
+		SendMessage(hComboBoxTopics, WM_SETFONT, (WPARAM)hFonts[1], FALSE);
 		msgInput = CreateWindow(L"RichEdit20W", NULL, WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_BORDER | ES_LEFT | ES_AUTOVSCROLL | ES_MULTILINE | WS_CLIPSIBLINGS,
 			10, height - 120, width - 30, 65, hWnd, NULL, NULL, NULL);
 		writing_str_from = msgInput;
@@ -963,15 +986,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (forwarding_msg_id) {
 				for (int k = 0; k < peers_count; k++) if (memcmp(forwarding_peer_id, peers[k].id, 8) == 0) break;
 				msgcontent_len += 36 + place_peer(NULL, &peers[k], true) + peer_len;
+				if (current_peer && current_peer->is_forum && current_peer->active_topic_id > 0) msgcontent_len += 4;
 			}
 			if (editing_msg_id) msgcontent_len -= 4;
-			if (replying_msg_id) msgcontent_len += 12;
+			bool has_reply = (replying_msg_id != 0) || (current_peer && current_peer->is_forum && current_peer->active_topic_id > 0);
+			if (has_reply) {
+				if (current_peer && current_peer->is_forum && current_peer->active_topic_id > 0) msgcontent_len += 16;
+				else msgcontent_len += 12;
+			}
 
 			int padding_len = get_padding(32 + msgcontent_len);
 			int unenc_query_len = 32 + msgcontent_len + padding_len;
 
 			bool message_added = false;
-			if (editing_msg_id == 0 && files_count != 1 && length > 0 && current_peer->online != -1 && (current_peer->type == 0 || (current_peer->type == 1 && current_peer->chat_users->size() > 1))) {
+			if (editing_msg_id == 0 && files_count != 1 && length > 0 && current_peer->online != -1 && (current_peer->type == 0 || current_peer->type == 2 || (current_peer->type == 1 && current_peer->chat_users && current_peer->chat_users->size() > 1))) {
 				StreamData sd = {0};
 				EDITSTREAM es = {0};
 				es.dwCookie = (DWORD_PTR)&sd;
@@ -1005,22 +1033,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				int start = offset;
 				if (!editing_msg_id) {
 					if (files_count != 1) {
-						if (message_added) messages[messages.size()-1].id = read_le(unenc_query + offset - 16, 4);
-						write_le(unenc_query + offset, 0x983f9745, 4); // sendMessage
-					} else write_le(unenc_query + offset, 0x7852834e, 4); // sendMedia
-				} else write_le(unenc_query + offset, 0xdfd14005, 4); // editMessage
+						if (message_added && !messages.empty()) messages[messages.size()-1].id = read_le(unenc_query + offset - 16, 4);
+						write_le(unenc_query + offset, 0x545cd15a, 4); // sendMessage (Layer 225)
+					} else write_le(unenc_query + offset, 0x0330e77f, 4); // sendMedia (Layer 225)
+				} else write_le(unenc_query + offset, 0x51e842e1, 4); // editMessage (Layer 225)
 				int flags = 0;
 				if (format_len) flags += 8;
 				if (editing_msg_id) flags += 2048;
 				if (editing_msg_id && files_count == 1) flags += 16384;
-				if (replying_msg_id) flags += 1;
+				if (has_reply) flags += 1;
 				write_le(unenc_query + offset + 4, flags, 4);
 				offset += place_peer(unenc_query + offset + 8, current_peer, true) + 8;
-				if (replying_msg_id) {
-					write_le(unenc_query + offset, 0x22c0f6d5, 4);
-					write_le(unenc_query + offset + 4, 0, 4);
-					write_le(unenc_query + offset + 8, replying_msg_id, 4);
-					offset += 12;
+				if (has_reply) {
+					write_le(unenc_query + offset, 0x3bd4b7c2, 4); // inputReplyToMessage (Layer 225)
+					if (current_peer && current_peer->is_forum && current_peer->active_topic_id > 0) {
+						write_le(unenc_query + offset + 4, 1, 4);
+						write_le(unenc_query + offset + 8, replying_msg_id ? replying_msg_id : current_peer->active_topic_id, 4);
+						write_le(unenc_query + offset + 12, current_peer->active_topic_id, 4);
+						offset += 16;
+					} else {
+						write_le(unenc_query + offset + 4, 0, 4);
+						write_le(unenc_query + offset + 8, replying_msg_id, 4);
+						offset += 12;
+					}
 				}
 				if (editing_msg_id) {
 					write_le(unenc_query + offset, editing_msg_id, 4);
@@ -1045,8 +1080,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					offset += 16;
 				}
 				int start = offset;
-				write_le(unenc_query + offset, 0xd5039208, 4);
-				write_le(unenc_query + offset + 4, 0, 4);
+				write_le(unenc_query + offset, 0x13704a7c, 4); // forwardMessages (Layer 225)
+				int fwd_flags = 0;
+				if (current_peer && current_peer->is_forum && current_peer->active_topic_id > 0) fwd_flags |= (1 << 9);
+				write_le(unenc_query + offset + 4, fwd_flags, 4);
 				for (int k = 0; k < peers_count; k++) if (memcmp(forwarding_peer_id, peers[k].id, 8) == 0) break;
 				offset += 8 + place_peer(unenc_query + offset + 8, &peers[k], true);
 				write_le(unenc_query + offset, 0x1cb5c415, 4);
@@ -1056,6 +1093,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				write_le(unenc_query + offset + 16, 1, 4);
 				fortuna_read(unenc_query + offset + 20, 8, &prng);
 				offset += 28 + place_peer(unenc_query + offset + 28, current_peer, true);
+				if (current_peer && current_peer->is_forum && current_peer->active_topic_id > 0) {
+					write_le(unenc_query + offset, current_peer->active_topic_id, 4);
+					offset += 4;
+				}
 				if (container) write_le(unenc_query + start - 4, offset - start, 4);
 			}
 
@@ -1078,7 +1119,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				int padding_len = get_padding(32 + smmcontent_len);
 				sendMultiMedia = (BYTE*)malloc(32 + smmcontent_len + padding_len);
 				write_le(sendMultiMedia + 28, smmcontent_len, 4);
-				write_le(sendMultiMedia + 32, 0x37b74355, 4);
+				write_le(sendMultiMedia + 32, 0x1bf89d74, 4); // sendMultiMedia (Layer 225)
 				memset(sendMultiMedia + 36, 0, 4);
 				place_peer(sendMultiMedia + 40, current_peer, true);
 				write_le(sendMultiMedia + 40 + peer_len, 0x1cb5c415, 4);
@@ -1126,7 +1167,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			break;
 		}
 		case 2: {
-			if (nt3 && HIWORD(wParam) == CBN_DROPDOWN) nt3_combobox_fit(hComboBoxFolders);
+			if (HIWORD(wParam) == CBN_DROPDOWN) nt3_combobox_fit(hComboBoxFolders);
 			if (HIWORD(wParam) != CBN_SELCHANGE) break;
 			SetFocus(hWnd);
 			int selIndex = SendMessage(hComboBoxFolders, CB_GETCURSEL, 0, 0);
@@ -1136,33 +1177,84 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			SendMessage(chat, WM_SETTEXT, 0, (LPARAM)L"");
 			SendMessage(hStatus, SB_SETTEXTA, 0, (LPARAM)"");
 			current_peer = NULL;
+			if (hComboBoxTopics) {
+				SendMessage(hComboBoxTopics, CB_RESETCONTENT, 0, 0);
+				ShowWindow(hComboBoxTopics, SW_HIDE);
+			}
 			EnableMenuItem(hMenuBar, 1, MF_BYPOSITION | MF_GRAYED);
 			DrawMenuBar(hMain);
 			SendMessage(hComboBoxChats, CB_RESETCONTENT, 0, 0);
 			current_folder = (ChatsFolder*)SendMessage(hComboBoxFolders, CB_GETITEMDATA, selIndex, 0);
-			for (int i = 0; i < current_folder->count; i++) {
-				SendMessage(hComboBoxChats, CB_ADDSTRING, 0, (LPARAM)peers[current_folder->peers[i]].name);
-				SendMessage(hComboBoxChats, CB_SETITEMDATA, i, (LPARAM)&peers[current_folder->peers[i]]);
+			if (current_folder) {
+				for (int i = 0; i < current_folder->count; i++) {
+					wchar_t* pname = peers[current_folder->peers[i]].name;
+					SendMessage(hComboBoxChats, CB_ADDSTRING, 0, (LPARAM)(pname ? pname : L""));
+					SendMessage(hComboBoxChats, CB_SETITEMDATA, i, (LPARAM)&peers[current_folder->peers[i]]);
+				}
+				if (current_folder->count > 0) {
+					SendMessage(hComboBoxChats, CB_SETCURSEL, 0, 0);
+					SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(3, CBN_SELCHANGE), (LPARAM)hComboBoxChats);
+				}
 			}
+			SendMessage(hWnd, WM_SIZE, 0, MAKELPARAM(width, height));
 			break;
 		}
 		case 3: {
-			if (nt3 && HIWORD(wParam) == CBN_DROPDOWN) nt3_combobox_fit(hComboBoxChats);
+			if (HIWORD(wParam) == CBN_DROPDOWN) nt3_combobox_fit(hComboBoxChats);
 			if (HIWORD(wParam) != CBN_SELCHANGE) break;
 			int selIndex = SendMessage(hComboBoxChats, CB_GETCURSEL, 0, 0);
 			SetFocus(msgInput);
 			if (selIndex == - 1 || (lParam && current_peer == &peers[current_folder->peers[selIndex]])) break;
 			KillTimer(hWnd, 3);
-			if (lParam) {
-				SendMessage(chat, WM_SETTEXT, 0, (LPARAM)L"");
-				SendMessage(hStatus, SB_SETTEXTA, 0, (LPARAM)"");
-			} else status_bar_status(current_peer);
 			old_peer = current_peer;
 			current_peer = (Peer*)SendMessage(hComboBoxChats, CB_GETITEMDATA, selIndex, 0);
 			if (old_peer == current_peer) old_peer = NULL;
+			if (lParam || (old_peer != current_peer)) {
+				SendMessage(chat, WM_SETTEXT, 0, (LPARAM)L"");
+				SendMessage(hStatus, SB_SETTEXTA, 0, (LPARAM)"");
+			} else status_bar_status(current_peer);
 
-			if (current_peer->full) {
+			if (current_peer && current_peer->is_forum) {
+				if (current_peer->topics && !is_valid_topics_vector(current_peer->topics)) current_peer->topics = NULL;
+				get_forum_topics(current_peer);
+				if (current_peer->topics && is_valid_topics_vector(current_peer->topics) && current_peer->topics->size() > 0) {
+					SendMessage(hComboBoxTopics, CB_RESETCONTENT, 0, 0);
+					for (int t = 0; t < (int)current_peer->topics->size(); t++) {
+						ForumTopic* ft_ptr = &current_peer->topics->at(t);
+						SendMessage(hComboBoxTopics, CB_ADDSTRING, 0, (LPARAM)get_topic_title(ft_ptr));
+						SendMessage(hComboBoxTopics, CB_SETITEMDATA, t, (LPARAM)ft_ptr->id);
+						if (ft_ptr->icon_emoji_id != 0) {
+							unknown_custom_emoji_solver(0, 0, 0, ft_ptr->icon_emoji_id, true);
+						}
+					}
+					get_unknown_custom_emojis();
+					int cur_sel = 0;
+					int target_tid = (current_peer->requested_topic_id > 0) ? current_peer->requested_topic_id : current_peer->active_topic_id;
+					current_peer->requested_topic_id = 0;
+					if (target_tid > 0) {
+						for (int t = 0; t < (int)current_peer->topics->size(); t++) {
+							if (current_peer->topics->at(t).id == target_tid) {
+								cur_sel = t;
+								break;
+							}
+						}
+					}
+					SendMessage(hComboBoxTopics, CB_SETCURSEL, cur_sel, 0);
+					current_peer->active_topic_id = current_peer->topics->at(cur_sel).id;
+					ShowWindow(hComboBoxTopics, SW_SHOW);
+					status_bar_status(current_peer);
+				}
+			} else {
+				if (hComboBoxTopics) ShowWindow(hComboBoxTopics, SW_HIDE);
+			}
+			SendMessage(hWnd, WM_SIZE, 0, MAKELPARAM(width, height));
+
+			if (current_peer && current_peer->full) {
 				no_more_msgs = false;
+				getting_history = false;
+				is_last_history_batch = false;
+				root_topic_msg_len = 0;
+				root_topic_sender[0] = 0;
 				if (current_peer->perm.cansendmsg) {
 					ShowWindow(msgInput, SW_SHOW);
 					ShowWindow(hToolbar, SW_SHOW);
@@ -1198,35 +1290,38 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					InvalidateRect(reactionStatic, NULL, TRUE);
 					UpdateWindow(reactionStatic);
 					int emoji_x = -15, emoji_y = 5;
-					if (current_peer->reaction_list != NULL) for (int i = 0; i < current_peer->reaction_list->size(); i++) {
-						bool custom_emoji = current_peer->reaction_list->at(i)[0] == 1;
-						wchar_t path[MAX_PATH];
-						if (custom_emoji) {
-							swprintf(path, L"%s\\%s.ico", get_path(appdata_path, L"custom_emojis"), current_peer->reaction_list->at(i) + 1);
-						} else swprintf(path, L"%s\\%s.ico", get_path(exe_path, L"emojis"), current_peer->reaction_list->at(i));
-						HICON hIcon = (HICON)LoadImage(NULL, path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-						if (nt3) hIcon = (HICON)(GetFileAttributes(path) != -1);
-						if (!hIcon) {
+					if (current_peer->reaction_list != NULL) {
+						if (!is_valid_reaction_list(current_peer->reaction_list)) current_peer->reaction_list = &reaction_list;
+						for (int i = 0; i < current_peer->reaction_list->size(); i++) {
+							bool custom_emoji = current_peer->reaction_list->at(i)[0] == 1;
+							wchar_t path[MAX_PATH];
 							if (custom_emoji) {
-								__int64 custom_emoji_id;
-								swscanf(current_peer->reaction_list->at(i) + 1, L"%I64X", &custom_emoji_id);
-								unknown_custom_emoji_solver(NULL, NULL, NULL, custom_emoji_id, true);
-							} else {
-								try_to_add_fe0f(path);
-								hIcon = (HICON)LoadImage(NULL, path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-								if (nt3) hIcon = (HICON)(GetFileAttributes(path) != -1);
+								swprintf(path, L"%s\\%s.ico", get_path(appdata_path, L"custom_emojis"), current_peer->reaction_list->at(i) + 1);
+							} else swprintf(path, L"%s\\%s.ico", get_path(exe_path, L"emojis"), current_peer->reaction_list->at(i));
+							HICON hIcon = load_icon_file(path);
+							if (nt3) hIcon = (HICON)(GetFileAttributes(path) != -1);
+							if (!hIcon) {
+								if (custom_emoji) {
+									__int64 custom_emoji_id;
+									swscanf(current_peer->reaction_list->at(i) + 1, L"%I64X", &custom_emoji_id);
+									unknown_custom_emoji_solver(NULL, NULL, NULL, custom_emoji_id, true);
+								} else {
+									try_to_add_fe0f(path);
+									hIcon = load_icon_file(path);
+									if (nt3) hIcon = (HICON)(GetFileAttributes(path) != -1);
+								}
 							}
-						}
-						if (hIcon || custom_emoji) {
-							if (emoji_x == 225) {
-								emoji_x = 5;
-								emoji_y += 20;
-							} else emoji_x += 20;
-							HWND hBtn = CreateWindow(L"BUTTON", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? BS_OWNERDRAW : BS_ICON), emoji_x, emoji_y, 20, 20, reactionStatic, (HMENU)1, GetModuleHandle(NULL), NULL);
-							if (!nt3 && hIcon) SendMessage(hBtn, BM_SETIMAGE, IMAGE_ICON, (LPARAM)hIcon);
-							SetWindowLongPtr(hBtn, GWLP_USERDATA, (LONG_PTR)current_peer->reaction_list->at(i));
-							WNDPROC oldProc = (WNDPROC)SetWindowLongPtr(hBtn, GWLP_WNDPROC, (LONG_PTR)WndProcReactionButton);
-							SetProp(hBtn, L"oldproc", (HANDLE)oldProc);
+							if (hIcon || custom_emoji) {
+								if (emoji_x == 225) {
+									emoji_x = 5;
+									emoji_y += 20;
+								} else emoji_x += 20;
+								HWND hBtn = CreateWindow(L"BUTTON", NULL, WS_CHILD | WS_VISIBLE | (nt3 ? BS_OWNERDRAW : BS_ICON), emoji_x, emoji_y, 20, 20, reactionStatic, (HMENU)1, GetModuleHandle(NULL), NULL);
+								if (!nt3 && hIcon) SendMessage(hBtn, BM_SETIMAGE, IMAGE_ICON, (LPARAM)hIcon);
+								SetWindowLongPtr(hBtn, GWLP_USERDATA, (LONG_PTR)current_peer->reaction_list->at(i));
+								WNDPROC oldProc = (WNDPROC)SetWindowLongPtr(hBtn, GWLP_WNDPROC, (LONG_PTR)WndProcReactionButton);
+								SetProp(hBtn, L"oldproc", (HANDLE)oldProc);
+							}
 						}
 					}
 					get_unknown_custom_emojis();
@@ -1255,7 +1350,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					EnableMenuItem(hMenuChat, 1, MF_BYPOSITION | MF_ENABLED);
 				}
 				EnableMenuItem(hMenuChat, 2, MF_BYPOSITION | (current_peer->type == 0 ? MF_ENABLED : MF_GRAYED));
-				get_lang_string(current_peer->mute_until ? "m_uc" : "m_mc", lang_str, NULL);
+				get_lang_string(is_peer_muted(current_peer) ? "m_uc" : "m_mc", lang_str, NULL);
 				ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, lang_str);
 
 				if (messages.size() == 0) {
@@ -1268,9 +1363,57 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					SetScrollInfo(chat, SB_VERT, &si, FALSE);
 
 					// messages.getHistory
-					get_history();
+					if (!current_peer->is_forum || (current_peer->topics && !current_peer->topics->empty() && current_peer->active_topic_id > 0)) {
+						get_history();
+					}
 				}
-			} else get_full_peer(current_peer);
+			} else if (current_peer) get_full_peer(current_peer);
+			break;
+		}
+		case 9: {
+			if (HIWORD(wParam) == CBN_DROPDOWN) nt3_combobox_fit(hComboBoxTopics);
+			if (HIWORD(wParam) != CBN_SELCHANGE) break;
+			int selIndex = SendMessage(hComboBoxTopics, CB_GETCURSEL, 0, 0);
+			if (selIndex == -1 || !current_peer || !current_peer->topics || current_peer->topics->empty()) break;
+			int topic_id = (int)SendMessage(hComboBoxTopics, CB_GETITEMDATA, selIndex, 0);
+			if (topic_id == 0 && selIndex < (int)current_peer->topics->size()) {
+				topic_id = current_peer->topics->at(selIndex).id;
+			}
+			if (topic_id == 0) break;
+			if (current_peer->active_topic_id == topic_id) break;
+			current_peer->active_topic_id = topic_id;
+
+			ForumTopic* topic = NULL;
+			for (size_t t = 0; t < current_peer->topics->size(); t++) {
+				if (current_peer->topics->at(t).id == topic_id) {
+					topic = &current_peer->topics->at(t);
+					break;
+				}
+			}
+
+			// Reset reply, edit, forward context
+			if (replying_msg_id) SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(7, 0), 0);
+			if (editing_msg_id) SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(8, 0), 0);
+			if (forwarding_msg_id) SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(19, 0), 0);
+
+			SendMessage(chat, WM_SETTEXT, 0, (LPARAM)L"");
+			messages.clear();
+			documents.clear();
+			links.clear();
+			no_more_msgs = false;
+			getting_history = false;
+			is_last_history_batch = false;
+			root_topic_msg_len = 0;
+			root_topic_sender[0] = 0;
+			SCROLLINFO si = {0};
+			si.cbSize = sizeof(si);
+			si.fMask = SIF_ALL;
+			SetScrollInfo(chat, SB_VERT, &si, FALSE);
+
+			status_bar_status(current_peer);
+			get_history();
+			SetFocus(msgInput);
+			InvalidateRect(hComboBoxTopics, NULL, TRUE);
 			break;
 		}
 		case 10:
@@ -1615,30 +1758,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			}
 			write_le(unenc_query + offset, 0xcacb6ae2, 4);
 			offset += 4;
-			if ((LOWORD(wParam) == 41 && current_peer->mute_until) || (LOWORD(wParam) != 41 && muted_types[type])) {
-				memset(unenc_query + offset, 0, 4);
-				offset += 4;
-			} else {
-				write_le(unenc_query + offset, 4, 4);
-				write_le(unenc_query + offset + 4, 2147483647, 4);
-				offset += 8;
-			}
+			bool should_unmute = (LOWORD(wParam) == 41 && is_peer_muted(current_peer)) || (LOWORD(wParam) != 41 && muted_types[type]);
+			write_le(unenc_query + offset, 4, 4);
+			int new_mute = should_unmute ? 0 : 2147483647;
+			write_le(unenc_query + offset + 4, new_mute, 4);
+			offset += 8;
+
 			if (LOWORD(wParam) == 41) {
-				int mute_until_old = current_peer->mute_until;
-				memcpy(&current_peer->mute_until, unenc_query + offset - 4, 4);
+				bool was_muted = is_peer_muted(current_peer);
+				current_peer->mute_until = should_unmute ? -1 : 2147483647;
+				current_peer->notifications_muted = !should_unmute;
 				HMENU hMenuChat = GetSubMenu(hMenuBar, 1);
-				get_lang_string(current_peer->mute_until ? "m_uc" : "m_mc", lang_str, NULL);
+				get_lang_string(is_peer_muted(current_peer) ? "m_uc" : "m_mc", lang_str, NULL);
 				ModifyMenu(hMenuChat, 1, MF_BYPOSITION | MF_STRING, 41, lang_str);
-				if (current_peer->unread_msgs_count && !muted_types[current_peer->type])
-					update_total_unread_msgs_count(current_peer->mute_until ? (0 - current_peer->unread_msgs_count) : current_peer->unread_msgs_count);
+				if (current_peer->unread_msgs_count && !muted_types[get_peer_notify_type(current_peer)])
+					update_total_unread_msgs_count(was_muted ? current_peer->unread_msgs_count : (0 - current_peer->unread_msgs_count));
 			}
 			else {
-				memcpy(&muted_types[type], unenc_query + offset - 4, 4);
+				muted_types[type] = new_mute;
 				change_mute_all(type, muted_types[type] ? false : true);
-				for (int i = 0; i < peers_count; i++) {
-					if (peers[i].type == type && peers[i].unread_msgs_count && !peers[i].mute_until)
-						update_total_unread_msgs_count(muted_types[type] ? (0 - peers[i].unread_msgs_count) : peers[i].unread_msgs_count);
-				}
+				update_category_unread_count(type, muted_types[type] != 0);
 			}
 
 			write_le(unenc_query + 28, offset - 32, 4);
@@ -1655,6 +1794,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		case 43:
 			get_full_peer(current_peer);
 			break;
+		case 44:
+			sync_notifications();
+			break;
 		case 999: {
 			for (int i = 0; i < files.size(); i++) free(files[i]);
 			files.clear();
@@ -1664,15 +1806,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		}
 		}
 		if (LOWORD(wParam) >= 600 && LOWORD(wParam) < 601 + themes.size()) {
-			BYTE unenc_query[80];
-			BYTE enc_query[104];
+			BYTE unenc_query[128];
+			BYTE enc_query[160];
 			internal_header(unenc_query, true);
-			write_le(unenc_query + 32, 0xe63be13f, 4);
+			write_le(unenc_query + 32, 0x081202c9, 4); // messages.setChatTheme (Layer 225)
 			int offset = 36 + place_peer(unenc_query + 36, current_peer, true);
 			if (LOWORD(wParam) == 600) {
-				memset(unenc_query + offset, 0, 4);
+				write_le(unenc_query + offset, 0x83268483, 4); // inputChatThemeEmpty
 				offset += 4;
 			} else {
+				write_le(unenc_query + offset, 0xc93de95c, 4); // inputChatTheme
+				offset += 4;
 				memcpy(unenc_query + offset, themes[LOWORD(wParam) - 601].emoji_id, tlstr_len(themes[LOWORD(wParam) - 601].emoji_id, true));
 				offset += tlstr_len(themes[LOWORD(wParam) - 601].emoji_id, true);
 			}
@@ -1692,10 +1836,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			}
 		}
 		break;
+	case WM_MEASUREITEM: {
+		LPMEASUREITEMSTRUCT lpmis = (LPMEASUREITEMSTRUCT)lParam;
+		if (lpmis->CtlType == ODT_COMBOBOX) {
+			lpmis->itemHeight = nt3 ? 20 : 16;
+			return TRUE;
+		}
+		break;
+	}
 	case WM_DRAWITEM: {
 		LPDRAWITEMSTRUCT lpdis = (LPDRAWITEMSTRUCT)lParam;
 		if (lpdis->CtlID == 2 || lpdis->CtlID == 3) {
-			FillRect(lpdis->hDC, &lpdis->rcItem, lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3 ? GetSysColorBrush(COLOR_HIGHLIGHT) : hBrushes[1]);
+			bool is_edit = (lpdis->itemState & ODS_COMBOBOXEDIT) || (lpdis->rcItem.top == 3);
+			bool is_selected = (lpdis->itemState & ODS_SELECTED) && !is_edit;
+			FillRect(lpdis->hDC, &lpdis->rcItem, is_selected ? GetSysColorBrush(COLOR_HIGHLIGHT) : hBrushes[1]);
 			wchar_t* name;
 			Peer* peer = NULL;
 			if (lpdis->hwndItem == hComboBoxChats) {
@@ -1709,40 +1863,147 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			}
 			if (!name) break;
 
-			LRESULT res;
-			riched_write(NULL, name);
-
-			LOGFONT lf = {0};
-			GetObject(hFonts[1], sizeof(lf), &lf);
-			CHARFORMAT2 cf;
-			cf.cbSize = sizeof(cf);
-			cf.dwMask = CFM_COLOR | CFM_FACE | CFM_WEIGHT | CFM_SIZE | CFM_ITALIC;
-			wcscpy(cf.szFaceName, lf.lfFaceName);
-			cf.wWeight = lf.lfWeight;
-			convert_negative_lfheight(&lf, 1);
-			cf.yHeight = MulDiv(-lf.lfHeight, 144, dpi) * 10;
-			cf.dwEffects = lf.lfItalic ? CFE_ITALIC : 0;
-			cf.crTextColor = lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3 ? GetSysColor(COLOR_HIGHLIGHTTEXT) : colors[3];
-			textHost->textServices->TxSendMessage(EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf, &res);
-
-			if (peer && peer != current_peer && peer->unread_msgs_count) {
-				if (peer->mute_until || muted_types[peer->type]) {
-					cf.crTextColor = lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3 ? RGB(196, 196, 196) : RGB(128, 128, 128);
-					textHost->textServices->TxSendMessage(EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf, &res);
-				}
-				wchar_t unread_count[15];
+			wchar_t display_name[512];
+			clean_title_for_combobox(name, display_name, 450);
+			if (peer && (peer != current_peer || peer->is_forum) && peer->unread_msgs_count) {
+				wchar_t unread_count[32];
 				swprintf(unread_count, L" (%d)", peer->unread_msgs_count);
-				textHost->textServices->TxSendMessage(EM_REPLACESEL, 0, (LPARAM)unread_count, &res);
+				wcsncat(display_name, unread_count, 30);
 			}
 
-			int deleted_wchars = 0;
-			for (int i = 0; i < wcslen(name); i++) i = emoji_adder(i, name, 0, 15, NULL, &deleted_wchars);
+			RECT rcText = lpdis->rcItem;
+			rcText.left += 3;
+			rcText.right -= 3;
+			int oldBkMode = SetBkMode(lpdis->hDC, TRANSPARENT);
+			bool has_cyrillic = string_has_cyrillic(display_name);
+			if (has_cyrillic && !hFontCyrillic) update_cyrillic_font();
+			HFONT fontToSelect = (has_cyrillic && hFontCyrillic) ? hFontCyrillic : hFonts[1];
+			HGDIOBJ oldFont = SelectObject(lpdis->hDC, fontToSelect);
+			COLORREF oldTextColor;
+			if (is_selected) {
+				oldTextColor = SetTextColor(lpdis->hDC, GetSysColor(COLOR_HIGHLIGHTTEXT));
+			} else if (peer && is_peer_muted(peer)) {
+				oldTextColor = SetTextColor(lpdis->hDC, RGB(128, 128, 128));
+			} else {
+				oldTextColor = SetTextColor(lpdis->hDC, colors[3]);
+			}
+			draw_combobox_text(lpdis->hDC, display_name, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+			SetTextColor(lpdis->hDC, oldTextColor);
+			SelectObject(lpdis->hDC, oldFont);
+			SetBkMode(lpdis->hDC, oldBkMode);
+		} else if (lpdis->CtlID == 9 || lpdis->hwndItem == hComboBoxTopics) {
+			if (!current_peer || !current_peer->is_forum || !current_peer->topics || current_peer->topics->empty()) break;
+			ForumTopic* topic = NULL;
+			if (lpdis->itemID == -1) {
+				for (size_t t_idx = 0; t_idx < current_peer->topics->size(); t_idx++) {
+					if (current_peer->topics->at(t_idx).id == current_peer->active_topic_id) {
+						topic = &current_peer->topics->at(t_idx);
+						break;
+					}
+				}
+				if (!topic && !current_peer->topics->empty()) topic = &current_peer->topics->at(0);
+			} else {
+				if (lpdis->itemID >= 0 && lpdis->itemID < (int)current_peer->topics->size()) {
+					int tid = (int)lpdis->itemData;
+					for (size_t t_idx = 0; t_idx < current_peer->topics->size(); t_idx++) {
+						if (current_peer->topics->at(t_idx).id == tid) {
+							topic = &current_peer->topics->at(t_idx);
+							break;
+						}
+					}
+					if (!topic) topic = &current_peer->topics->at(lpdis->itemID);
+				}
+			}
+			if (!topic) break;
 
-			lpdis->rcItem.left++;
-			textHost->textServices->TxDraw(DVASPECT_CONTENT, -1, NULL, NULL, lpdis->hDC, NULL, (RECTL*)&lpdis->rcItem, NULL, NULL, NULL, NULL, TXTVIEW_INACTIVE);
+			bool is_edit = (lpdis->itemState & ODS_COMBOBOXEDIT) || (lpdis->rcItem.top == 3);
+			bool is_selected = (lpdis->itemState & ODS_SELECTED) && !is_edit;
+			FillRect(lpdis->hDC, &lpdis->rcItem, is_selected ? GetSysColorBrush(COLOR_HIGHLIGHT) : hBrushes[1]);
 
-			textHost->textServices->TxSendMessage(EM_SETSEL, 0, -1, &res);
-			textHost->textServices->TxSendMessage(EM_REPLACESEL, 0, (LPARAM)L"", &res);
+			// Draw 14x14 topic icon / custom emoji
+			int item_h = lpdis->rcItem.bottom - lpdis->rcItem.top;
+			int icon_size = 14;
+			int icon_y = lpdis->rcItem.top + (item_h - icon_size) / 2;
+			if (icon_y < lpdis->rcItem.top) icon_y = lpdis->rcItem.top;
+			int icon_x = lpdis->rcItem.left + 3;
+			RECT rcIcon;
+			rcIcon.left = icon_x;
+			rcIcon.top = icon_y;
+			rcIcon.right = icon_x + icon_size;
+			rcIcon.bottom = icon_y + icon_size;
+
+			bool icon_drawn = false;
+			if (topic->icon_emoji_id != 0) {
+				wchar_t emoji_path[MAX_PATH];
+				swprintf(emoji_path, L"%s\\%016I64X.ico", get_path(appdata_path, L"custom_emojis"), topic->icon_emoji_id);
+				icon_drawn = draw_topic_icon(lpdis->hDC, emoji_path, &rcIcon, icon_size);
+				if (!icon_drawn && GetFileAttributes(emoji_path) == (DWORD)-1) {
+					unknown_custom_emoji_solver(0, 0, 0, topic->icon_emoji_id, true);
+					get_unknown_custom_emojis();
+				}
+			}
+			if (!icon_drawn) {
+				COLORREF crTopic;
+				if (topic->icon_color != 0) {
+					crTopic = RGB((topic->icon_color >> 16) & 0xFF, (topic->icon_color >> 8) & 0xFF, topic->icon_color & 0xFF);
+				} else {
+					crTopic = RGB(111, 185, 240); // default Telegram forum topic blue
+				}
+				HBRUSH hBrushTopic = CreateSolidBrush(crTopic);
+				HGDIOBJ hOldBrush = SelectObject(lpdis->hDC, hBrushTopic);
+				HGDIOBJ hOldPen = SelectObject(lpdis->hDC, GetStockObject(NULL_PEN));
+				RoundRect(lpdis->hDC, rcIcon.left, rcIcon.top, rcIcon.right, rcIcon.bottom, 4, 4);
+				SelectObject(lpdis->hDC, hOldBrush);
+				SelectObject(lpdis->hDC, hOldPen);
+				DeleteObject(hBrushTopic);
+			}
+
+			// Format topic text with indicators
+			wchar_t topic_str[512];
+			topic_str[0] = 0;
+			if (topic->pinned) wcscat(topic_str, L"[Pin] ");
+			if (topic->closed) wcscat(topic_str, L"[Closed] ");
+
+			const wchar_t* ttitle = get_topic_title(topic);
+			wchar_t clean_ttitle[360];
+			clean_title_for_combobox(ttitle, clean_ttitle, 350);
+			wcsncat(topic_str, clean_ttitle, 350);
+
+			// Unread count & mention badges
+			if (topic->unread_count > 0 || topic->unread_mentions_count > 0 || topic->unread_reactions_count > 0) {
+				wchar_t badges[64];
+				if (topic->unread_mentions_count > 0 && topic->unread_reactions_count > 0) {
+					swprintf(badges, L" (%d, @%d, *%d)", topic->unread_count, topic->unread_mentions_count, topic->unread_reactions_count);
+				} else if (topic->unread_mentions_count > 0) {
+					swprintf(badges, L" (%d, @%d)", topic->unread_count, topic->unread_mentions_count);
+				} else if (topic->unread_reactions_count > 0) {
+					swprintf(badges, L" (%d, *%d)", topic->unread_count, topic->unread_reactions_count);
+				} else {
+					swprintf(badges, L" (%d)", topic->unread_count);
+				}
+				wcsncat(topic_str, badges, 60);
+			}
+
+			RECT rcText = lpdis->rcItem;
+			rcText.left += 22;
+			rcText.right -= 4;
+			int oldBkMode = SetBkMode(lpdis->hDC, TRANSPARENT);
+			bool has_cyrillic = string_has_cyrillic(topic_str);
+			if (has_cyrillic && !hFontCyrillic) update_cyrillic_font();
+			HFONT fontToSelect = (has_cyrillic && hFontCyrillic) ? hFontCyrillic : hFonts[1];
+			HGDIOBJ oldFont = SelectObject(lpdis->hDC, fontToSelect);
+			COLORREF oldTextColor;
+			if (lpdis->itemState & ODS_SELECTED && lpdis->rcItem.top != 3) {
+				oldTextColor = SetTextColor(lpdis->hDC, GetSysColor(COLOR_HIGHLIGHTTEXT));
+			} else if (topic->closed) {
+				oldTextColor = SetTextColor(lpdis->hDC, RGB(128, 128, 128));
+			} else {
+				oldTextColor = SetTextColor(lpdis->hDC, colors[3]);
+			}
+			draw_combobox_text(lpdis->hDC, topic_str, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+			SetTextColor(lpdis->hDC, oldTextColor);
+			SelectObject(lpdis->hDC, oldFont);
+			SetBkMode(lpdis->hDC, oldBkMode);
 		} else if (lpdis->hwndItem == hStatus) {
 			LRESULT res;
 			if (!nt3) textHost->textServices->TxSendMessage(WM_SETFONT, (WPARAM)hFonts[2], TRUE, &res);
@@ -1835,6 +2096,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			break;
 		} else if (lParam == WM_USER + 5) click_on_notification();
 		break;
+	case WM_USER + 101:
+		if (current_info) {
+			DestroyWindow(current_info);
+			current_info = NULL;
+		}
+		ShowWindow(hWnd, maximized ? SW_SHOWMAXIMIZED : SW_SHOW);
+		SetForegroundWindow(hWnd);
+		UpdateWindow(hWnd);
+		SendMessage(hWnd, WM_SIZE, 0, MAKELPARAM(width, height));
+		if (SendMessage(hComboBoxChats, CB_GETCURSEL, 0, 0) == CB_ERR && SendMessage(hComboBoxChats, CB_GETCOUNT, 0, 0) > 0) {
+			SendMessage(hComboBoxChats, CB_SETCURSEL, 0, 0);
+			SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(3, CBN_SELCHANGE), (LPARAM)hComboBoxChats);
+		}
+		break;
 	case WM_TIMER:
 		if (wParam == 0) {
 			status_bar_status(current_peer);
@@ -1894,7 +2169,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 						for (int j = 0; j < peers_count; j++) {
 							if (memcmp((BYTE*)&unmuteTimers[i].peer_id, peers[j].id, 8) == 0) {
 								if (peers[j].mute_until) {
-									if (peers[j].unread_msgs_count && !muted_types[peers[j].type]) update_total_unread_msgs_count(peers[j].unread_msgs_count);
+									if (peers[j].unread_msgs_count && !muted_types[get_peer_notify_type(&peers[j])]) update_total_unread_msgs_count(peers[j].unread_msgs_count);
 									if (&peers[j] == current_peer) {
 										HMENU hMenuChat = GetSubMenu(hMenuBar, 1);
 										get_lang_string("m_mc", lang_str, NULL);
@@ -1929,7 +2204,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			int status_parts[2] = {width / 2, -1};
 			SendMessage(hStatus, SB_SETPARTS, 2, (LPARAM)status_parts);
 			bool cantwrite = current_peer && !current_peer->perm.cansendmsg;
-			HDWP hdwp = BeginDeferWindowPos(9);
+			bool is_forum_mode = current_peer && current_peer->is_forum;
+			HDWP hdwp = BeginDeferWindowPos(is_forum_mode ? 10 : 9);
 			hdwp = DeferWindowPos(hdwp, chat, NULL, 10, 40, width - 20, cantwrite ? height - 70 : (height - 165 + edits_border_offset), SWP_NOZORDER);
 			hdwp = DeferWindowPos(hdwp, msgInput, NULL, 10, height - 95 + edits_border_offset, width - 20, 65 - edits_border_offset, SWP_NOZORDER);
 			hdwp = DeferWindowPos(hdwp, tbSeparatorHider, NULL, width / 2, height - 118 + edits_border_offset, 35, 21, SWP_NOZORDER);
@@ -1938,7 +2214,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			hdwp = DeferWindowPos(hdwp, hToolbar, NULL, 10, height - (ie3 ? 120 : 124) + edits_border_offset, width - 20, 25, SWP_NOZORDER);
 			hdwp = DeferWindowPos(hdwp, splitter, NULL, 10, height - 124 + edits_border_offset, width - 20, 3, SWP_NOZORDER);
 			hdwp = DeferWindowPos(hdwp, hStatus, NULL, 0, 0, 0, 0, SWP_NOZORDER);
-			hdwp = DeferWindowPos(hdwp, hComboBoxChats, NULL, NULL, NULL, width / 2.5, 300, SWP_NOZORDER | SWP_NOMOVE);
+			if (is_forum_mode) {
+				int avail = width - 240;
+				if (avail < 120) avail = 120;
+				int w_chat = avail / 2;
+				int w_topic = avail - w_chat;
+				hdwp = DeferWindowPos(hdwp, hComboBoxChats, NULL, 220, 10, w_chat, 300, SWP_NOZORDER);
+				hdwp = DeferWindowPos(hdwp, hComboBoxTopics, NULL, 220 + w_chat + 10, 10, w_topic, 300, SWP_NOZORDER | SWP_SHOWWINDOW);
+			} else {
+				hdwp = DeferWindowPos(hdwp, hComboBoxChats, NULL, 220, 10, (width - 230 > 100 ? width - 230 : 100), 300, SWP_NOZORDER);
+				if (hComboBoxTopics) ShowWindow(hComboBoxTopics, SW_HIDE);
+			}
 			EndDeferWindowPos(hdwp);
 			SCROLLINFO si = {0};
 			si.cbSize = sizeof(si);
@@ -2195,9 +2481,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					Peer* peer = (i == -1) ? &myself : &peers[i];
 					fwrite(peer->id, 1, 8, f);
 					fwrite(peer->access_hash, 1, 8, f);
-					int name_len = wcslen(peer->name)+1;
+					int name_len = peer->name ? (wcslen(peer->name) + 1) : 1;
 					fwrite(&name_len, 4, 1, f);
-					fwrite(peer->name, 2, name_len, f);
+					if (peer->name) fwrite(peer->name, 2, name_len, f);
+					else { wchar_t dummy = 0; fwrite(&dummy, 2, 1, f); }
 					int handle_len = peer->handle ? wcslen(peer->handle) + 1 : 0;
 					fwrite(&handle_len, 4, 1, f);
 					if (handle_len) fwrite(peer->handle, 2, handle_len, f);
@@ -2211,6 +2498,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					fwrite(&peer->amadmin, 1, 1, f);
 					fwrite(&peer->full, 1, 1, f);
 					fwrite(&peer->type, 1, 1, f);
+					fwrite(&peer->is_forum, 1, 1, f);
 					if (peer->type != 0) {
 						fwrite(&peer->name_set_time, 4, 1, f);
 						fwrite(&peer->pfp_set_time, 4, 1, f);
@@ -2223,18 +2511,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 						fwrite(&peer->theme_id, 1, 8, f);
 						fwrite(&peer->theme_set_time, 4, 1, f);
 						if (peer->type == 1) {
-							int chat_users_count = peer->chat_users->size();
+							int chat_users_count = peer->chat_users ? peer->chat_users->size() : 0;
 							fwrite(&chat_users_count, 4, 1, f);
 							for (int j = 0; j < chat_users_count; j++) {
 								fwrite(peer->chat_users->at(j).id, 1, 8, f);
 								fwrite(peer->chat_users->at(j).access_hash, 1, 8, f);
-								int name_len = wcslen(peer->chat_users->at(j).name)+1;
+								int name_len = peer->chat_users->at(j).name ? (wcslen(peer->chat_users->at(j).name) + 1) : 1;
 								fwrite(&name_len, 4, 1, f);
-								fwrite(peer->chat_users->at(j).name, 2, name_len, f);
+								if (peer->chat_users->at(j).name) fwrite(peer->chat_users->at(j).name, 2, name_len, f);
+								else { wchar_t dummy = 0; fwrite(&dummy, 2, 1, f); }
 							}
 						}
 						if (peer->type != 0) {
 							int reaction_count, reaction_len;
+							if (peer->reaction_list != NULL && !is_valid_reaction_list(peer->reaction_list)) {
+								peer->reaction_list = &reaction_list;
+							}
 							if (peer->reaction_list == &reaction_list) {
 								reaction_count = 0xFFFFFFFF;
 								fwrite(&reaction_count, 4, 1, f);
@@ -2457,20 +2749,34 @@ int init_connection(DCInfo* dcInfo, bool reconnecting) {
 	}
 
 	FILE* f = _wfopen(get_path(appdata_path, L"DCs.dat"), L"rb");
+	bool got_ip = false;
 	if (f) {
 		if (!dcInfo->dc) fread(&dcInfo->dc, 4, 1, f);
-		char ip[16];
-		fseek(f, 8 + (dcInfo->dc - 1) * 20, SEEK_SET);
-		fread(ip, 1, 16, f);
-		int port;
-		fread(&port, 4, 1, f);
+		if (dcInfo->dc >= 1 && dcInfo->dc <= 5) {
+			char ip[16] = {0};
+			fseek(f, 8 + (dcInfo->dc - 1) * 20, SEEK_SET);
+			fread(ip, 1, 16, f);
+			int port = 0;
+			fread(&port, 4, 1, f);
+			if (ip[0] != 0 && port > 0) {
+				server.sin_port = htons(port);
+				server.sin_addr.S_un.S_addr = inet_addr(ip);
+				got_ip = true;
+			}
+		}
 		fclose(f);
-		server.sin_port = htons(port);
-		server.sin_addr.S_un.S_addr = inet_addr(ip);
-	} else {
-		dcInfo->dc = 2;
+	}
+	if (!got_ip) {
+		if (!dcInfo->dc || dcInfo->dc < 1 || dcInfo->dc > 5) dcInfo->dc = 2;
+		static const char* default_dc_ips[] = {
+			"149.154.175.55",  // DC 1
+			"149.154.167.50",  // DC 2
+			"149.154.175.100", // DC 3
+			"149.154.167.92",  // DC 4
+			"91.108.56.122"    // DC 5
+		};
 		server.sin_port = htons(443);
-		server.sin_addr.S_un.S_addr = inet_addr(test_server ? "149.154.167.40" : "149.154.167.50");
+		server.sin_addr.S_un.S_addr = inet_addr(test_server ? (dcInfo->dc == 1 ? "149.154.175.10" : "149.154.167.40") : default_dc_ips[dcInfo->dc - 1]);
 	}
 
 	if (proxy_ip_uni[0] && proxy_port) {
@@ -2862,22 +3168,58 @@ dh_prime_fail:
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-	if (GetEnvironmentVariable(L"APPDATA", appdata_path, MAX_PATH) == 0) {
-		GetWindowsDirectory(appdata_path, MAX_PATH);
+	DWORD dwVer = GetVersion();
+	if (dwVer >= 0x80000000) {
+		char unicows_path[MAX_PATH] = {0};
+		GetModuleFileNameA(NULL, unicows_path, MAX_PATH);
+		char* p_slash = strrchr(unicows_path, '\\');
+		if (!p_slash) p_slash = strrchr(unicows_path, '/');
+		if (p_slash) strcpy(p_slash + 1, "unicows.dll");
+		else strcpy(unicows_path, "unicows.dll");
+		HMODULE hUnicows = LoadLibraryA(unicows_path);
+		if (!hUnicows) hUnicows = LoadLibraryA("unicows.dll");
+		if (!hUnicows) {
+			MessageBoxA(NULL, "unicows.dll is required to run Telegacy on Windows 95/98/ME.\r\nPlease place unicows.dll in the Telegacy folder.", "Telegacy", MB_ICONERROR | MB_OK);
+			return 1;
+		}
+	}
+
+	if (GetEnvironmentVariable(L"APPDATA", appdata_path, MAX_PATH) == 0 || appdata_path[0] == 0) {
+		char win_dir_a[MAX_PATH] = {0};
+		if (GetWindowsDirectoryA(win_dir_a, MAX_PATH) > 0) {
+			MultiByteToWideChar(CP_ACP, 0, win_dir_a, -1, appdata_path, MAX_PATH);
+		} else {
+			GetWindowsDirectory(appdata_path, MAX_PATH);
+		}
+		if (appdata_path[0] == 0) wcscpy(appdata_path, L"C:\\WINDOWS");
 		wcscat(appdata_path, L"\\Application Data");
 		if (GetFileAttributes(appdata_path) == -1) CreateDirectory(appdata_path, NULL);
 	}
-	wcscat(appdata_path, L"\\Telegacy\0");
-	GetModuleFileName(NULL, exe_path, MAX_PATH);
+	wcscat(appdata_path, L"\\Telegacy");
 
-	if (wcsstr((wchar_t*)lpCmdLine, L"/uninstall")) {
+	char exe_path_a[MAX_PATH] = {0};
+	GetModuleFileNameA(NULL, exe_path_a, MAX_PATH);
+	if (exe_path_a[0] != 0) {
+		MultiByteToWideChar(CP_ACP, 0, exe_path_a, -1, exe_path, MAX_PATH);
+	} else {
+		GetModuleFileName(NULL, exe_path, MAX_PATH);
+	}
+	if (wcsrchr(exe_path, L'\\') == NULL && wcsrchr(exe_path, L'/') == NULL) {
+		char cur_dir_a[MAX_PATH] = {0};
+		GetCurrentDirectoryA(MAX_PATH, cur_dir_a);
+		char full_path_a[MAX_PATH] = {0};
+		sprintf(full_path_a, "%s\\%s", cur_dir_a, exe_path_a[0] ? exe_path_a : "telegacy.exe");
+		MultiByteToWideChar(CP_ACP, 0, full_path_a, -1, exe_path, MAX_PATH);
+	}
+
+	if (lpCmdLine && strstr(lpCmdLine, "/uninstall")) {
 		int result = MessageBox(NULL, L"Delete user data?", L"Confirm", MB_YESNO | MB_ICONQUESTION);
 		if (result == IDYES) {
 			SHFILEOPSTRUCT file_op = {NULL, FO_DELETE, appdata_path, NULL, FOF_NOCONFIRMATION | FOF_NOERRORUI, false, 0, L""};
 			SHFileOperation(&file_op);
 		}
 		return 0;
-	} else if (wcsstr((wchar_t*)lpCmdLine, L"/progman")) {
+	} else if (lpCmdLine && strstr(lpCmdLine, "/progman")) {
 		DWORD idInst = 0;
 		if (DdeInitialize(&idInst, NULL, APPCMD_CLIENTONLY, 0) != DMLERR_NO_ERROR) return 1;
 		HSZ service_topic = DdeCreateStringHandle(idInst, L"Progman", CP_WINUNICODE);
@@ -2888,7 +3230,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		wchar_t* cmdStr = L"[DeleteGroup(\"Telegacy\")]";
 		DdeClientTransaction((LPBYTE)cmdStr, (wcslen(cmdStr) + 1) * 2, hConv, 0, 0, XTYP_EXECUTE, 1000, NULL);
 
-		if (wcsstr((wchar_t*)lpCmdLine, L"_install")) {
+		if (strstr(lpCmdLine, "_install")) {
 			wchar_t* cmdStr = L"[CreateGroup(\"Telegacy\")]";
 			DdeClientTransaction((LPBYTE)cmdStr, (wcslen(cmdStr) + 1) * 2, hConv, 0, 0, XTYP_EXECUTE, 1000, NULL);
 			wchar_t cmdStr2[MAX_PATH];
@@ -2912,12 +3254,44 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	InitializeCriticalSection(&csSock);
 	InitializeCriticalSection(&csCM);
+	InitializeCriticalSection(&csLog);
 	if (GetFileAttributes(appdata_path) == -1) {
 		CreateDirectory(appdata_path, NULL);
 		wcscat(appdata_path, L"\\custom_emojis");
 		CreateDirectory(appdata_path, NULL);
-		*(wcsrchr(appdata_path, L'\\') + 1) = 0;
+		wchar_t* p = wcsrchr(appdata_path, L'\\');
+		if (p) *(p + 1) = 0;
 	} else wcscat(appdata_path, L"\\");
+
+	telegacy_log("=== Telegacy started (Layer %d) ===", MTPROTO_LAYER);
+	telegacy_log("AppData: %S", appdata_path);
+
+	FILE* f_dcs = _wfopen(get_path(appdata_path, L"DCs.dat"), L"rb");
+	if (f_dcs) fclose(f_dcs);
+	else {
+		f_dcs = _wfopen(get_path(appdata_path, L"DCs.dat"), L"wb");
+		if (f_dcs) {
+			int def_this_dc = 2;
+			int def_dc_count = 5;
+			fwrite(&def_this_dc, 4, 1, f_dcs);
+			fwrite(&def_dc_count, 4, 1, f_dcs);
+			static const char* init_dc_ips[] = {
+				"149.154.175.55",  // DC 1
+				"149.154.167.50",  // DC 2
+				"149.154.175.100", // DC 3
+				"149.154.167.92",  // DC 4
+				"91.108.56.122"    // DC 5
+			};
+			int def_port = 443;
+			for (int d = 0; d < 5; d++) {
+				char ip_buf[16] = {0};
+				strncpy(ip_buf, init_dc_ips[d], 15);
+				fwrite(ip_buf, 1, 16, f_dcs);
+				fwrite(&def_port, 4, 1, f_dcs);
+			}
+			fclose(f_dcs);
+		}
+	}
 
 	int winver = LOBYTE(LOWORD(GetVersion()));
 	if (winver == 3) {
@@ -2927,6 +3301,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	HDC hdcRef = GetDC(NULL);
 	dpi = GetDeviceCaps(hdcRef, LOGPIXELSY);
+	if (dpi <= 0) dpi = 96;
 	ReleaseDC(NULL, hdcRef);
 
 	get_path(exe_path, L"langs");
@@ -2971,6 +3346,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			hFonts[i] = CreateFontIndirect(&lf);
 		} else init_default_font(i);
 	}
+	update_cyrillic_font();
 
 	wchar_t* colors_str[] = {L"color_main", L"color_chat", L"color_back", L"color_text"};
 	for (i = 0; i < 4; i++) {
@@ -3111,6 +3487,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	dcInfoMain.ready = false;
 	FILE* f = _wfopen(get_path(appdata_path, L"session.dat"), L"rb+");
 	if (f) {
+		telegacy_log("Loaded session.dat: user is authorized");
 		BYTE buf[100];
 		memset(buf, 0, 16);
 		write_le(buf + 16, 20, 4);
@@ -3136,10 +3513,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		fread(&qts, 4, 1, f);
 		fread(&date, 4, 1, f);
 		fclose(f);
-	} else create_auth_key(&dcInfoMain);
+		telegacy_log("Session data: seq_no=%d, pts=%d, qts=%d, date=%d", dcInfoMain.current_seq_no, pts, qts, date);
+	} else {
+		telegacy_log("No session.dat found, creating auth key for login");
+		create_auth_key(&dcInfoMain);
+	}
 
 	SetTimer(hMain, 1, 45000, NULL);
 	if (!dcInfoMain.authorized) {
+		telegacy_log("Showing login dialog");
 		BYTE buffer[24] = {0};
 		LONG dlgUnits = GetDialogBaseUnits();
 		DLGTEMPLATE *dlg = (DLGTEMPLATE*)buffer;
@@ -3149,6 +3531,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (current_dialog) DestroyWindow(current_dialog);
 		current_dialog = CreateDialogIndirect(GetModuleHandle(NULL), dlg, NULL, DlgProcLogin);
 	} else {
+		telegacy_log("User authorized, requesting future salts to start data load");
 		get_lang_string("a_upd", lang_str, NULL);
 		SetWindowText(infoLabel, lang_str);
 		get_future_salt(&dcInfoMain);
